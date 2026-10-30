@@ -9,6 +9,7 @@ import { onRemote, prefChanged, startSync, supabase, syncState, watchSync, type 
 import type { User } from '@supabase/supabase-js';
 import { ProfileEditor, Avatar } from './components/ProfileEditor';
 import { ProfileView } from './components/ProfileView';
+import { HomeView, type HomeTarget } from './components/HomeView';
 import { FriendsView } from './components/FriendsView';
 import { listFriends, type Friend } from './lib/friends';
 import { itemOf, post, postAdded, postSpin, setFeedIdentity } from './lib/feed';
@@ -70,7 +71,7 @@ interface ScanItem {
 }
 
 type SortKey = 'added' | 'title' | 'author' | 'published' | 'played';
-type View = 'library' | 'music' | 'reading' | 'wishlist' | 'shelves' | 'series' | 'stats';
+type View = 'home' | 'library' | 'music' | 'reading' | 'wishlist' | 'shelves' | 'series' | 'stats';
 type BooksPage = 'library' | 'shelves' | 'series' | 'wishlist' | 'stats';
 /** The pages inside the Books tab. */
 const BOOK_PAGES: readonly (readonly [BooksPage, string])[] = [
@@ -206,7 +207,7 @@ export default function App() {
   const [discogsOpen, setDiscogsOpen] = useState(false);
   const [readingTab, setReadingTab] = useState<'overview' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
   const [highlightId, setHighlightId] = useState<string>();
-  const [view, setView] = useState<View>('library');
+  const [view, setView] = useState<View>('home');
   // Coming back to Books opens the page you were last on.
   const [lastBooksPage, setLastBooksPage] = useState<BooksPage>('library');
   useEffect(() => {
@@ -344,6 +345,23 @@ export default function App() {
   const goView = (v: View) => {
     if (onPage) showProfile(undefined);
     setView(v);
+  };
+  const goHome = (where: HomeTarget) => {
+    window.scrollTo(0, 0);
+    if (where === 'friends') return showFriends();
+    if (where === 'listening') {
+      setMusicTab('listening');
+      return goView('music');
+    }
+    if (where === 'music') {
+      setMusicTab('collection');
+      return goView('music');
+    }
+    if (where === 'challenges' || where === 'reading') {
+      setReadingTab('overview');
+      return goView('reading');
+    }
+    goView(where);
   };
   const friendRequests = friends.filter((f) => f.status === 'pending' && f.incoming).length;
   const topIdsOf = (p: Profile | null) => ({ books: p?.showcase.topBooks?.map((x) => x.id) ?? [], records: p?.showcase.topRecords?.map((x) => x.id) ?? [] });
@@ -1141,13 +1159,14 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <button className="brand" onClick={() => { goView('library'); window.scrollTo(0, 0); }} aria-label="Stacks, go to your library" title="Go to your library">
+        <button className="brand" onClick={() => { goView('home'); window.scrollTo(0, 0); }} aria-label="Stacks, go home" title="Home">
           <span className="brand-mark" aria-hidden="true">
             <i /><i /><i /><i />
           </span>
           <span className="brand-name">Stacks</span>
         </button>
         <nav className="tabs" aria-label="Views">
+          <button className={view === 'home' && !onPage ? 'active' : ''} onClick={() => goView('home')}>Home</button>
           <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
           <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
           <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>Reading</button>
@@ -1263,7 +1282,7 @@ export default function App() {
           onBack={() => showProfile(undefined)}
         />
       )}
-      <main className="layout" hidden={!!profileName || (friendsOpen && !!user)}>
+      <main className={`layout ${view === 'home' ? 'on-home' : ''}`} hidden={!!profileName || (friendsOpen && !!user)}>
         {view === 'reading' && (
           <aside className="scan-panel" aria-label="Currently reading">
             <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => setActiveSession(startSession(r, b))} />
@@ -1459,7 +1478,24 @@ export default function App() {
           )}
         </section>
 
-        {view === 'wishlist' ? (
+        {view === 'home' ? (
+          <HomeView
+            allBooks={allBooks}
+            readings={readings}
+            challenges={challenges}
+            spins={spins}
+            profile={profile}
+            uid={user?.id}
+            active={activeSession}
+            onOpen={(b) => setOpen({ book: b })}
+            onSaveReading={saveReading}
+            onStartTimer={(r, b) => setActiveSession(startSession(r, b))}
+            onSpin={(b) => void spinRecord(b)}
+            onGo={goHome}
+            onOpenProfile={(n) => showProfile(n)}
+            onSignIn={() => setAccountOpen(true)}
+          />
+        ) : view === 'wishlist' ? (
           <section className="library" aria-label="Wishlist">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
             <WishlistView

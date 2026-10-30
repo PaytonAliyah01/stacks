@@ -8,6 +8,8 @@ interface Props {
   onOpenProfile: (username: string) => void;
   hasFriends: boolean;
   onFindFriends: () => void;
+  /** Show only the newest few, e.g. on Home. */
+  limit?: number;
 }
 
 function when(iso: string): string {
@@ -86,7 +88,7 @@ function Post({ e, mine, onOpenProfile, onChange, onGone }: { e: FeedEntry; mine
   );
 }
 
-export function FeedView({ uid, onOpenProfile, hasFriends, onFindFriends }: Props) {
+export function FeedView({ uid, onOpenProfile, hasFriends, onFindFriends, limit }: Props) {
   const [entries, setEntries] = useState<FeedEntry[]>();
   const [error, setError] = useState<string>();
   const [more, setMore] = useState(true);
@@ -135,7 +137,7 @@ export function FeedView({ uid, onOpenProfile, hasFriends, onFindFriends }: Prop
         </div>
       ) : (
         <ul className="posts">
-          {entries.map((e) => (
+          {(limit ? entries.slice(0, limit) : entries).map((e) => (
             <Post
               key={e.id}
               e={e}
@@ -147,7 +149,7 @@ export function FeedView({ uid, onOpenProfile, hasFriends, onFindFriends }: Prop
           ))}
         </ul>
       )}
-      {more && entries.length > 0 && (
+      {more && !limit && entries.length > 0 && (
         <button className="btn ghost" onClick={older} disabled={busy}>{busy ? 'Loading…' : 'Show older'}</button>
       )}
     </div>

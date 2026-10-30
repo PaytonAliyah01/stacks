@@ -1116,3 +1116,48 @@ ol.most-played .record-row::before { counter-increment: mp; content: counter(mp)
 .post-actions { display: flex; align-items: center; gap: 10px; }
 .like { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 3px 12px; cursor: pointer; color: var(--muted); font: inherit; font-size: 0.95rem; }
 .like.on { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+
+/* ---------- home ---------- */
+.home { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.home-hello h2 { font-family: var(--font-display); font-size: 2rem; font-weight: 600; line-height: 1.15; text-wrap: balance; }
+.home-hello p { margin: 4px 0 0; }
+.home-date { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 0 0 4px !important; }
+.home-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.home-stats button { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; color: inherit; font: inherit; }
+.home-stats button:hover { border-color: var(--muted); }
+.home-stats dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.home-stats dd { margin: 2px 0 0; font-family: var(--font-mono); font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.home-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.home-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.home-goal { display: flex; flex-direction: column; gap: 6px; }
+.home-goal + .home-goal { border-top: 1px solid var(--line); padding-top: 12px; }
+.home-goal-line { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.home-goal .progress-bar { flex: none; height: 10px; }
+.home-covers { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.home-covers-8 { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.home-covers button { width: 100%; display: flex; flex-direction: column; gap: 4px; border: 0; background: none; padding: 0; cursor: pointer; color: inherit; font: inherit; text-align: left; }
+.home-covers .cover { width: 100%; }
+.home-cover-title { font-size: 0.8rem; font-weight: 600; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.home-record { display: flex; align-items: center; gap: 12px; }
+.home-record .cover { width: 64px; flex: none; }
+.home-record > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.home-record .link-plain { text-align: left; }
+.home-record-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.home-nudges { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.home-feed .posts { gap: 8px; }
+.home-feed .post { padding: 10px 12px; border-radius: 10px; }
+.home-feed .post-cover .cover { width: 48px; }
+.home-feed .profile-missing { padding: 0; border: 0; }
+@media (max-width: 1250px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) {
+  .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-covers-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .home-hello h2 { font-size: 1.6rem; }
+}
+/* On a phone, Home keeps only the scan button and the scans list above the dashboard. */
+@media (max-width: 640px) {
+  .layout.on-home .scan-panel > :not(.scan-field):not(.session-head):not(.scan-list):not(.scanner-sink) { display: none; }
+  .layout.on-home .scan-panel { gap: 10px; }
+  .layout.on-home .scan-panel:not(:has(.scan-list)) .session-head { display: none; }
+}

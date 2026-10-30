@@ -150,3 +150,7 @@ The Friends tab (signed in, `#friends`): find someone by their exact username, s
 ## Feed
 
 Friends → Feed shows what you and your friends started, finished (with rating and a short review), put down, or put on the turntable, and stacks of new additions (grouped, one post per scanning session). Likes, and you can delete your own posts. Turn sharing off in Edit profile. Uses `supabase/04-feed.sql`.
+
+## Home
+
+Stacks opens on Home (also the logo): a greeting, your totals, currently reading with quick progress and the timer, your running reading goal, the top of your Up next queue, what's spinning or a record to put on, recently added, and the newest posts from your friends. The scanner stays on the left on a computer; on a phone only the scan button stays above the dashboard.
