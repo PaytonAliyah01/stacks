@@ -24,6 +24,8 @@ export interface Rec {
   /** A book already in Stacks (on your shelves). */
   bookId?: string;
   openLibraryKey?: string;
+  /** A page about it elsewhere, e.g. the album on Deezer. */
+  link?: string;
 }
 
 export interface Taste {
@@ -329,18 +331,18 @@ export function unhideAll() {
 /** A short fingerprint of your taste, so new ratings fetch fresh results. */
 export const tasteId = (t: Taste) => t.loved.slice(0, 6).map((x) => `${x.b.id}:${x.weight}`).join(',');
 
-export function cachedShelves(id: string): Shelf[] | undefined {
+export function cachedShelves(id: string, key = CACHE): Shelf[] | undefined {
   try {
-    const c = JSON.parse(localStorage.getItem(CACHE) ?? 'null') as { id: string; at: number; shelves: Shelf[] } | null;
+    const c = JSON.parse(localStorage.getItem(key) ?? 'null') as { id: string; at: number; shelves: Shelf[] } | null;
     if (c && c.id === id && Date.now() - c.at < 3 * 86400_000) return c.shelves;
   } catch {
     /* none */
   }
   return undefined;
 }
-export function cacheShelves(id: string, shelves: Shelf[]) {
+export function cacheShelves(id: string, shelves: Shelf[], key = CACHE) {
   try {
-    localStorage.setItem(CACHE, JSON.stringify({ id, at: Date.now(), shelves }));
+    localStorage.setItem(key, JSON.stringify({ id, at: Date.now(), shelves }));
   } catch {
     /* full or blocked */
   }

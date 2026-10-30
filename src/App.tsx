@@ -10,6 +10,7 @@ import type { User } from '@supabase/supabase-js';
 import { ProfileEditor, Avatar } from './components/ProfileEditor';
 import { ProfileView } from './components/ProfileView';
 import { RecsView } from './components/RecsView';
+import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
 import { FriendsView } from './components/FriendsView';
@@ -178,7 +179,7 @@ export default function App() {
   const [notes, setNotes] = useState<BookNote[]>([]);
   const [spins, setSpins] = useState<Spin[]>([]);
   const plays = useMemo(() => playsByRecord(spins), [spins]);
-  const [musicTab, setMusicTab] = useState<'collection' | 'listening' | 'value' | 'wantlist' | 'wrap'>('collection');
+  const [musicTab, setMusicTab] = useState<'collection' | 'foryou' | 'listening' | 'value' | 'wantlist' | 'wrap'>('collection');
   const [discogsWants, setDiscogsWants] = useState(false);
   const [styluses, setStylusList] = useState<Stylus[]>(loadStyluses);
   const setStyluses = (list: Stylus[]) => {
@@ -1179,6 +1180,18 @@ export default function App() {
     setToast(`“${r.title}” is on your to-read list${b.owned === false ? ' (and your wishlist, since you don’t own it)' : ''}.`);
     reload();
   };
+  /** A recommended record onto your wantlist. */
+  const wantRecord = async (r: Rec) => {
+    const dup = sameBook(allBooks, { title: r.title, authors: r.authors });
+    if (dup && dup.owned !== false) return setToast(`You already have “${dup.title}”.`);
+    if (dup) await store.put({ ...dup, wishlist: true, updatedAt: new Date().toISOString() });
+    else {
+      const b = newBook({ ...blankMeta(), kind: 'vinyl', title: r.title, authors: r.authors, coverUrl: r.cover?.replace('/250x250-', '/500x500-'), publishedDate: r.year ? String(r.year) : undefined, sources: ['deezer'] }, defaultFormat);
+      await store.put({ ...b, owned: false, wishlist: true, placement: undefined });
+    }
+    setToast(`Added “${r.title}” to your wantlist.`);
+    reload();
+  };
   const wishRec = async (r: Rec) => {
     await bookForRec(r, { wishlist: true });
     setToast(`Added “${r.title}” to your wishlist.`);
@@ -1325,6 +1338,7 @@ export default function App() {
         {(
           [
             ['collection', 'Collection'],
+            ['foryou', 'For you'],
             ['listening', 'Listening'],
             ['value', 'Value'],
             ['wantlist', 'Wantlist'],
@@ -1865,6 +1879,20 @@ export default function App() {
               allRecords={allBooks.filter(isMusic)}
               styluses={styluses}
               onStylusChange={setStyluses}
+            />
+          </section>
+        ) : view === 'music' && musicTab === 'foryou' ? (
+          <section className="library" aria-label="Music for you">
+            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+            <MusicRecsView
+              records={allBooks.filter(isMusic)}
+              spins={spins}
+              uid={user?.id}
+              social={!!(user && profile)}
+              onOpen={(b) => setOpen({ book: b })}
+              onSpin={(b) => void spinRecord(b)}
+              onWant={wantRecord}
+              onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : setAccountOpen(true))}
             />
           </section>
         ) : view === 'music' && musicTab === 'wrap' ? (

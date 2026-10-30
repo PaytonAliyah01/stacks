@@ -166,3 +166,7 @@ Reading → For you (and "Picked for you" on Home). Stacks works out your taste 
 ## Lending
 
 Friends → Lending. Switch on "Let friends browse my shelves and ask to borrow" and your friends see a "Their shelves" section on your profile: titles, authors and covers of what you own (never prices, notes or where it sits), with "Ask to borrow". You answer each request with a due date ("Lend it") or "Not now", lend something straight to a friend, change due dates and press "Got it back". Your book's "Lent to" fills in and clears by itself, and clearing it in the book marks the loan returned. Borrowed books show their due date (red when overdue) and "Start reading". Requests and anything overdue or due within a week show on Home, with a badge on Friends. Uses `supabase/06-lending.sql`.
+
+## Music recommendations
+
+Music → For you. "Pull these out of your crates" suggests records you own but haven't played in a while (never-played first), with a reason like "Last spun 8 months ago · like Rumours" and a ▶ Spin button. "More from artists you spin" lists albums you don't have by your three most-played artists (newest first; singles, live albums, deluxe editions and reissues of records you own are skipped). "Because you spin [artist]" suggests the best-loved album of similar artists, and "Your friends are spinning" shows records your friends put on. New picks come from Deezer and are cached for three days; "Add to wantlist" puts them on Music → Wantlist.

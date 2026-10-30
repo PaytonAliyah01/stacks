@@ -426,7 +426,7 @@ async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> 
  * both offer JSONP: load the answer as a script that calls us back.
  */
 let jsonpCount = 0;
-function jsonp(url: string, param = 'callback'): Promise<any> {
+export function jsonp(url: string, param = 'callback'): Promise<any> {
   return new Promise((resolve, reject) => {
     const name = `__stacksJsonp${Date.now()}_${jsonpCount++}`;
     const script = document.createElement('script');
