@@ -10,6 +10,7 @@ import type { User } from '@supabase/supabase-js';
 import { ProfileEditor, Avatar } from './components/ProfileEditor';
 import { ProfileView } from './components/ProfileView';
 import { RecsView } from './components/RecsView';
+import { Welcome } from './components/Welcome';
 import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
@@ -253,6 +254,25 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [sync, setSync] = useState<SyncState>(syncState);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [accountMode, setAccountMode] = useState<'signin' | 'signup'>('signin');
+  // Signed-out visitors see the welcome page, unless they chose to use Stacks without an account.
+  const [authReady, setAuthReady] = useState(false);
+  const [localOnly, setLocalOnly] = useState(() => {
+    try {
+      return localStorage.getItem('stacks.localOnly') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const chooseLocalOnly = (on: boolean) => {
+    setLocalOnly(on);
+    try {
+      if (on) localStorage.setItem('stacks.localOnly', '1');
+      else localStorage.removeItem('stacks.localOnly');
+    } catch {
+      /* private window */
+    }
+  };
   const [recovering, setRecovering] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileEditing, setProfileEditing] = useState(false);
@@ -280,8 +300,11 @@ export default function App() {
       setStylusList(loadStyluses());
     });
     const unwatch = watchSync(setSync);
+    // If the sign-in check hangs (offline), don't keep the page blank.
+    const ready = setTimeout(() => setAuthReady(true), 3000);
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      setAuthReady(true);
       if (event === 'PASSWORD_RECOVERY') {
         setRecovering(true);
         setAccountOpen(true);
@@ -289,6 +312,7 @@ export default function App() {
     });
     startSync();
     return () => {
+      clearTimeout(ready);
       unwatch();
       data.subscription.unsubscribe();
     };
@@ -1356,6 +1380,45 @@ export default function App() {
   const sessionAdded = scans.filter((s) => s.state === 'added').length;
   const filtersOn = (view === 'music' ? kindFilter !== 'all' : formatFilter !== 'all' || statusFilter !== 'all' || vibeFilter !== 'any') || shelfFilter !== 'all' || lentOnly || query;
 
+  const accountDialog = accountOpen && (
+        <AccountDialog
+          user={user}
+          sync={sync}
+          recovering={recovering}
+          profile={profile}
+          onEditProfile={() => setProfileEditing(true)}
+          onViewProfile={() => {
+            setAccountOpen(false);
+            if (profile) showProfile(profile.username);
+          }}
+          onClose={() => {
+            setAccountOpen(false);
+            setRecovering(false);
+          }}
+          startMode={accountMode}
+          onSignedOut={() => {
+            setAccountOpen(false);
+            chooseLocalOnly(false);
+            void reload();
+            setStylusList(loadStyluses());
+            setToast('Signed out.');
+          }}
+        />
+      );
+  const openAccount = (mode: 'signin' | 'signup') => {
+    setAccountMode(mode);
+    setAccountOpen(true);
+  };
+  if (!user && !localOnly && !profileName) {
+    if (!authReady) return <div className="app" />;
+    return (
+      <>
+        <Welcome onSignIn={() => openAccount('signin')} onSignUp={() => openAccount('signup')} onTry={() => chooseLocalOnly(true)} hasLocal={books.length > 0} />
+        {accountDialog}
+      </>
+    );
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -1397,7 +1460,7 @@ export default function App() {
           <button className="btn ghost" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true })}>
             Add by hand
           </button>
-          <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => setAccountOpen(true)} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
+          <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => openAccount('signin')} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
             {user ? (
               <>
                 {profile ? <Avatar p={profile} size={22} /> : null}
@@ -1466,7 +1529,7 @@ export default function App() {
           signedIn={!!user}
           onEdit={() => setProfileEditing(true)}
           onBack={() => showProfile(undefined)}
-          onSignIn={() => setAccountOpen(true)}
+          onSignIn={() => openAccount('signin')}
           uid={user?.id}
           friends={friends}
           onFriendsChanged={refreshFriends}
@@ -1715,7 +1778,7 @@ export default function App() {
             onSpin={(b) => void spinRecord(b)}
             onGo={goHome}
             onOpenProfile={(n) => showProfile(n)}
-            onSignIn={() => setAccountOpen(true)}
+            onSignIn={() => openAccount('signin')}
             lending={
               user
                 ? {
@@ -1807,7 +1870,7 @@ export default function App() {
                 onOpen={(b) => setOpen({ book: b })}
                 onWant={wantRec}
                 onWish={wishRec}
-                onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : setAccountOpen(true))}
+                onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
               />
             )}
             {readingTab === 'stats' && <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />}
@@ -1833,7 +1896,7 @@ export default function App() {
               ) : (
                 <div className="profile-missing">
                   <p>Buddy reads let you read a book together with friends. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
-                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : setAccountOpen(true))}>{user ? 'Set up my profile' : 'Sign in'}</button>
+                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
                 </div>
               ))}
             {readingTab === 'achievements' && (
@@ -1892,7 +1955,7 @@ export default function App() {
               onOpen={(b) => setOpen({ book: b })}
               onSpin={(b) => void spinRecord(b)}
               onWant={wantRecord}
-              onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : setAccountOpen(true))}
+              onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
             />
           </section>
         ) : view === 'music' && musicTab === 'wrap' ? (
@@ -2189,29 +2252,7 @@ export default function App() {
         />
       )}
 
-      {accountOpen && (
-        <AccountDialog
-          user={user}
-          sync={sync}
-          recovering={recovering}
-          profile={profile}
-          onEditProfile={() => setProfileEditing(true)}
-          onViewProfile={() => {
-            setAccountOpen(false);
-            if (profile) showProfile(profile.username);
-          }}
-          onClose={() => {
-            setAccountOpen(false);
-            setRecovering(false);
-          }}
-          onSignedOut={() => {
-            setAccountOpen(false);
-            void reload();
-            setStylusList(loadStyluses());
-            setToast('Signed out.');
-          }}
-        />
-      )}
+      {accountDialog}
 
       {profileEditing && user && (
         <ProfileEditor

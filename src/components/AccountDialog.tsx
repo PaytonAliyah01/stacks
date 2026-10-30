@@ -14,6 +14,8 @@ interface Props {
   profile?: Profile | null;
   onEditProfile?: () => void;
   onViewProfile?: () => void;
+  /** Open on "Make an account" instead of "Sign in". */
+  startMode?: 'signin' | 'signup';
 }
 
 type Mode = 'signin' | 'signup' | 'forgot';
@@ -44,8 +46,8 @@ export function syncLabel(s: SyncState): string {
   }
 }
 
-export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, profile, onEditProfile, onViewProfile }: Props) {
-  const [mode, setMode] = useState<Mode>('signin');
+export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, profile, onEditProfile, onViewProfile, startMode }: Props) {
+  const [mode, setMode] = useState<Mode>(startMode ?? 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);

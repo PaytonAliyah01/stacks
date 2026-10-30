@@ -170,3 +170,7 @@ Friends → Lending. Switch on "Let friends browse my shelves and ask to borrow"
 ## Music recommendations
 
 Music → For you. "Pull these out of your crates" suggests records you own but haven't played in a while (never-played first), with a reason like "Last spun 8 months ago · like Rumours" and a ▶ Spin button. "More from artists you spin" lists albums you don't have by your three most-played artists (newest first; singles, live albums, deluxe editions and reissues of records you own are skipped). "Because you spin [artist]" suggests the best-loved album of similar artists, and "Your friends are spinning" shows records your friends put on. New picks come from Deezer and are cached for three days; "Add to wantlist" puts them on Music → Wantlist.
+
+## Welcome page
+
+Anyone who isn't signed in (including right after signing out) sees a welcome page: what Stacks does, its features for books, reading, records and friends, three steps to get going, privacy and common questions, with "Sign in" and "Create account" at the top and bottom. "Try it without an account" (or "Open the library on this device" when there's already a library in this browser) opens Stacks without an account and is remembered in this browser until you sign out. Profile links (`#@username`) still open directly for signed-out visitors.
