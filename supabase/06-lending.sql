@@ -1,10 +1,11 @@
+-- Safe to run again if an earlier try stopped halfway.
 -- Lending: friends browse your shelves and ask to borrow; you say yes with a
 -- due date, and both of you see who has what until it comes back.
 
 -- Off until you switch it on (Friends → Lending).
 alter table public.profiles add column if not exists lend_open boolean not null default false;
 
-create table public.loans (
+create table if not exists public.loans (
   id uuid primary key default gen_random_uuid(),
   owner uuid not null references auth.users on delete cascade,
   borrower uuid not null references auth.users on delete cascade,
@@ -21,26 +22,32 @@ create table public.loans (
   updated_at timestamptz not null default now(),
   check (owner <> borrower)
 );
-create index loans_owner on public.loans (owner, status);
-create index loans_borrower on public.loans (borrower, status);
+create index if not exists loans_owner on public.loans (owner, status);
+create index if not exists loans_borrower on public.loans (borrower, status);
 -- A copy can only be out with one person, and you can only ask once at a time.
-create unique index loans_one_out on public.loans (owner, item_id) where status = 'lent';
-create unique index loans_one_ask on public.loans (borrower, owner, item_id) where status = 'requested';
+create unique index if not exists loans_one_out on public.loans (owner, item_id) where status = 'lent';
+create unique index if not exists loans_one_ask on public.loans (borrower, owner, item_id) where status = 'requested';
+drop trigger if exists loans_touch on public.loans;
 create trigger loans_touch before update on public.loans
 for each row execute function public.touch_updated_at();
 
 alter table public.loans enable row level security;
+drop policy if exists "owner and borrower see the loan" on public.loans;
 create policy "owner and borrower see the loan" on public.loans for select
   using (auth.uid() in (owner, borrower));
+drop policy if exists "ask a friend who lends" on public.loans;
 create policy "ask a friend who lends" on public.loans for insert with check (
   borrower = auth.uid() and status = 'requested' and public.are_friends(owner, auth.uid())
   and exists (select 1 from public.profiles p where p.id = owner and p.lend_open)
 );
+drop policy if exists "lend to a friend" on public.loans;
 create policy "lend to a friend" on public.loans for insert with check (
   owner = auth.uid() and status = 'lent' and public.are_friends(borrower, auth.uid())
 );
+drop policy if exists "owner answers and marks returned" on public.loans;
 create policy "owner answers and marks returned" on public.loans for update
   using (owner = auth.uid()) with check (owner = auth.uid());
+drop policy if exists "borrower cancels a request" on public.loans;
 create policy "borrower cancels a request" on public.loans for update
   using (borrower = auth.uid() and status = 'requested')
   with check (borrower = auth.uid() and status = 'cancelled');
@@ -53,9 +60,10 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- A friend's shelves: only what they own, and nothing private (no prices,
--- notes or where it sits). "out" means it's lent to someone right now.
+-- notes or where it sits). "lent_out" means it's lent to someone right now.
+drop function if exists public.friend_shelf(uuid);
 create or replace function public.friend_shelf(friend uuid)
-returns table (id text, kind text, title text, by text, cover text, year text, out boolean)
+returns table (id text, kind text, title text, author text, cover text, year text, lent_out boolean)
 language sql stable security definer set search_path = public as $$
   select i.id, coalesce(i.data->>'kind', 'book'), i.data->>'title', i.data->'authors'->>0,
          case when i.data->>'coverUrl' like 'https://%' then i.data->>'coverUrl' end,

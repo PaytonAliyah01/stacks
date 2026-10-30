@@ -35,11 +35,11 @@ export interface ShelfItem {
   id: string;
   kind: ItemKind;
   title: string;
-  by: string | null;
+  author: string | null;
   cover: string | null;
   year: string | null;
   /** Lent to someone right now. */
-  out: boolean;
+  lent_out: boolean;
 }
 
 export const loanItemOf = (b: Book): LoanItem => ({
@@ -97,7 +97,7 @@ export async function askToBorrow(uid: string, owner: string, it: ShelfItem, not
     owner,
     borrower: uid,
     item_id: it.id,
-    item: { title: it.title, by: it.by ?? undefined, cover: it.cover ?? undefined, kind: it.kind },
+    item: { title: it.title, by: it.author ?? undefined, cover: it.cover ?? undefined, kind: it.kind },
     note: note.trim().slice(0, 300),
   });
   if (error?.code === '23505') throw new Error('You already asked for this one.');

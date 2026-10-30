@@ -63,7 +63,7 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Pro
   const kinds = new Set(items.map((x) => x.kind));
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const list = items.filter(
-    (x) => (kind === 'all' || x.kind === kind) && words.every((w) => `${x.title} ${x.by ?? ''}`.toLowerCase().includes(w)),
+    (x) => (kind === 'all' || x.kind === kind) && words.every((w) => `${x.title} ${x.author ?? ''}`.toLowerCase().includes(w)),
   );
 
   const ask = async () => {
@@ -97,7 +97,7 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Pro
       </div>
       {asking && (
         <div className="ask-box">
-          <Cover url={asking.cover ?? undefined} title={asking.title} author={asking.by ?? undefined} size="sm" square={asking.kind !== 'book'} />
+          <Cover url={asking.cover ?? undefined} title={asking.title} author={asking.author ?? undefined} size="sm" square={asking.kind !== 'book'} />
           <div>
             <strong>Ask {friendName} to borrow “{asking.title}”</strong>
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional), e.g. when you'll pick it up" maxLength={300} autoFocus />
@@ -115,14 +115,14 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Pro
             const l = mine.get(x.id);
             return (
               <li key={x.id}>
-                <Cover url={x.cover ?? undefined} title={x.title} author={x.by ?? undefined} size="md" square={x.kind !== 'book'} />
+                <Cover url={x.cover ?? undefined} title={x.title} author={x.author ?? undefined} size="md" square={x.kind !== 'book'} />
                 <strong>{x.title}</strong>
-                {x.by && <span className="muted small">{x.by}</span>}
+                {x.author && <span className="muted small">{x.author}</span>}
                 {l?.status === 'lent' ? (
                   <span className="friend-badge">You have it</span>
                 ) : l ? (
                   <span className="friend-badge muted">Requested</span>
-                ) : x.out ? (
+                ) : x.lent_out ? (
                   <span className="muted small">Lent out</span>
                 ) : (
                   <button className="btn small-btn" onClick={() => setAsking(x)}>Ask to borrow</button>
