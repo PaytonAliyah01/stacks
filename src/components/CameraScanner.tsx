@@ -141,11 +141,21 @@ export function CameraScanner({ onCode, onClose }: Props) {
     };
   }, []);
 
+  // Escape, and the phone's back button or swipe, close the camera too.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
+    const onPop = () => onCloseRef.current();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    history.pushState({ stacksCamera: true }, '');
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('popstate', onPop);
+      if (history.state?.stacksCamera) history.back();
+    };
+  }, []);
 
   const toggleTorch = () => {
     const on = !torch;
@@ -159,23 +169,26 @@ export function CameraScanner({ onCode, onClose }: Props) {
         <span className={last ? 'hit' : ''} key={last?.n} />
       </div>
       <div className="camera-top">
-        <button className="btn camera-close" onClick={onClose}>Done</button>
+        <button className="camera-x" onClick={onClose} aria-label="Close the camera">✕</button>
         {torch !== undefined && (
           <button className="btn camera-torch" aria-pressed={torch} onClick={toggleTorch}>{torch ? 'Light off' : 'Light on'}</button>
         )}
       </div>
-      <div className="camera-bottom" aria-live="polite">
+      <div className="camera-bottom">
+        <div aria-live="polite">
         {error ? (
           <p className="camera-error">{error}</p>
         ) : starting ? (
           <p>Starting the camera…</p>
         ) : last ? (
           <p>
-            <strong>Got {last.code}</strong> · {last.n} scanned. Point at the next one, or press Done.
+            <strong>Got {last.code}</strong> · {last.n} scanned. Point at the next one, or press Done scanning.
           </p>
         ) : (
           <p>Hold the barcode inside the box, about a hand’s width away.</p>
         )}
+        </div>
+        <button className="camera-done" onClick={onClose}>{last ? 'Done scanning' : 'Close camera'}</button>
       </div>
     </div>
   );

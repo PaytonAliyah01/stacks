@@ -28,7 +28,7 @@ export function Avatar({ p, size = 40 }: { p: Pick<Profile, 'avatar_url' | 'avat
 
 const VISIBILITY: { v: Visibility; label: string; help: string }[] = [
   { v: 'private', label: 'Only me', help: 'Nobody else can see your profile.' },
-  { v: 'friends', label: 'Friends', help: 'Only people you add as friends. (Friends are coming next; until then this works like Only me.)' },
+  { v: 'friends', label: 'Friends', help: 'Only people you’ve added as friends.' },
   { v: 'public', label: 'Anyone with the link', help: 'Anyone who has your link can see your profile, but never your full library.' },
 ];
 

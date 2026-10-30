@@ -142,3 +142,7 @@ Where things live:
 ## Profiles
 
 Account → Set up your profile: an @username, name, picture (uploaded to the `avatars` bucket, or initials in a color), bio, profile color, top 4 books and top 4 records, and who can see it (only me, friends, anyone with the link). The profile shows a snapshot (`profiles.showcase`) of what you're reading and spinning and a few totals, refreshed a few seconds after your library changes; your full library stays private. Profiles open at `#@username`. The SQL for Supabase is in `supabase/`.
+
+## Friends
+
+The Friends tab (signed in, `#friends`): find someone by their exact username, send a request, accept or decline requests, and remove friends. Profiles set to "Friends" are visible to accepted friends. Uses the `friendships` table and the `find_user` / `my_friends` functions in `supabase/03-friends.sql`.

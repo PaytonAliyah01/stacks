@@ -9,6 +9,8 @@ import { onRemote, prefChanged, startSync, supabase, syncState, watchSync, type 
 import type { User } from '@supabase/supabase-js';
 import { ProfileEditor, Avatar } from './components/ProfileEditor';
 import { ProfileView } from './components/ProfileView';
+import { FriendsView } from './components/FriendsView';
+import { listFriends, type Friend } from './lib/friends';
 import { buildShowcase, loadMyProfile, saveShowcase, usernameFromHash, type Profile } from './lib/profile';
 import { CameraScanner, cameraNeedsHttps, cameraSupported } from './components/CameraScanner';
 import { Cover } from './components/Cover';
@@ -246,6 +248,9 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileName, setProfileName] = useState(usernameFromHash);
+  const [friendsOpen, setFriendsOpen] = useState(() => location.hash === '#friends');
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friendsError, setFriendsError] = useState<string>();
 
   const reload = useCallback(async () => {
     await clearAutoPurchaseDates();
@@ -288,7 +293,10 @@ export default function App() {
     loadMyProfile(user.id).then(setProfile, () => undefined);
   }, [user]);
   useEffect(() => {
-    const onHash = () => setProfileName(usernameFromHash());
+    const onHash = () => {
+      setProfileName(usernameFromHash());
+      setFriendsOpen(location.hash === '#friends');
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -296,8 +304,44 @@ export default function App() {
     if (name) location.hash = `@${name}`;
     else history.replaceState(null, '', location.pathname + location.search);
     setProfileName(name);
+    setFriendsOpen(false);
     window.scrollTo(0, 0);
   };
+  const showFriends = () => {
+    location.hash = 'friends';
+    setFriendsOpen(true);
+    setProfileName(undefined);
+    window.scrollTo(0, 0);
+  };
+  const refreshFriends = useCallback(() => {
+    listFriends().then(
+      (l) => {
+        setFriends(l);
+        setFriendsError(undefined);
+      },
+      (e) => setFriendsError(`Couldn't load your friends: ${(e as Error).message}`),
+    );
+  }, []);
+  // Friends and requests: on sign-in, when you come back to the tab, and every minute.
+  useEffect(() => {
+    if (!user || !profile) {
+      setFriends([]);
+      return;
+    }
+    refreshFriends();
+    const t = window.setInterval(() => !document.hidden && refreshFriends(), 60_000);
+    window.addEventListener('focus', refreshFriends);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', refreshFriends);
+    };
+  }, [user, profile?.id, refreshFriends]);
+  const onPage = !!profileName || (friendsOpen && !!user);
+  const goView = (v: View) => {
+    if (onPage) showProfile(undefined);
+    setView(v);
+  };
+  const friendRequests = friends.filter((f) => f.status === 'pending' && f.incoming).length;
   const topIdsOf = (p: Profile | null) => ({ books: p?.showcase.topBooks?.map((x) => x.id) ?? [], records: p?.showcase.topRecords?.map((x) => x.id) ?? [] });
   // Keep your profile's snapshot (reading, spinning, totals) up to date, a little after things settle.
   useEffect(() => {
@@ -1087,9 +1131,14 @@ export default function App() {
           <h1>Stacks</h1>
         </div>
         <nav className="tabs" aria-label="Views">
-          <button className={inBooks ? 'active' : ''} onClick={() => setView(lastBooksPage)}>Books</button>
-          <button className={view === 'music' ? 'active' : ''} onClick={() => setView('music')}>Music</button>
-          <button className={view === 'reading' ? 'active' : ''} onClick={() => setView('reading')}>Reading</button>
+          <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
+          <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
+          <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>Reading</button>
+          {user && (
+            <button className={friendsOpen ? 'active' : ''} onClick={showFriends}>
+              Friends{friendRequests > 0 && <span className="tab-badge" aria-label={`${friendRequests} new`}>{friendRequests}</span>}
+            </button>
+          )}
         </nav>
         <dl className="totals" aria-label="Library totals">
           <div><dt>Books</dt><dd>{totals.titles.toLocaleString()}</dd></div>
@@ -1180,9 +1229,24 @@ export default function App() {
           onEdit={() => setProfileEditing(true)}
           onBack={() => showProfile(undefined)}
           onSignIn={() => setAccountOpen(true)}
+          uid={user?.id}
+          friends={friends}
+          onFriendsChanged={refreshFriends}
         />
       )}
-      <main className="layout" hidden={!!profileName}>
+      {friendsOpen && !profileName && user && (
+        <FriendsView
+          uid={user.id}
+          me={profile}
+          friends={friends}
+          loadError={friendsError}
+          onChanged={refreshFriends}
+          onOpenProfile={(n) => showProfile(n)}
+          onEditProfile={() => setProfileEditing(true)}
+          onBack={() => showProfile(undefined)}
+        />
+      )}
+      <main className="layout" hidden={!!profileName || (friendsOpen && !!user)}>
         {view === 'reading' && (
           <aside className="scan-panel" aria-label="Currently reading">
             <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => setActiveSession(startSession(r, b))} />

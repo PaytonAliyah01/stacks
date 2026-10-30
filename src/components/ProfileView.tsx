@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Cover } from './Cover';
 import { Avatar } from './ProfileEditor';
+import { FriendButton } from './FriendsView';
+import type { Friend } from '../lib/friends';
 import { loadProfileByUsername, profileLink, type Profile, type ShowcaseItem } from '../lib/profile';
 
 interface Props {
@@ -11,6 +13,9 @@ interface Props {
   onEdit: () => void;
   onBack: () => void;
   onSignIn: () => void;
+  uid?: string;
+  friends?: Friend[];
+  onFriendsChanged?: () => void;
 }
 
 function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]; square?: boolean }) {
@@ -36,7 +41,7 @@ function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]
   );
 }
 
-export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn }: Props) {
+export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn, uid, friends, onFriendsChanged }: Props) {
   const own = mine?.username === username;
   const [p, setP] = useState<Profile | null | undefined>(own ? mine : undefined);
   const [failed, setFailed] = useState(false);
@@ -103,6 +108,7 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
           </div>
           <div className="profile-actions">
             {own && <button className="btn" onClick={onEdit}>Edit profile</button>}
+            {!own && uid && mine && friends && onFriendsChanged && <FriendButton uid={uid} them={p} friends={friends} onChanged={onFriendsChanged} />}
             <button className="btn ghost" onClick={copy}>{copied ? 'Link copied' : 'Copy link'}</button>
           </div>
         </div>
