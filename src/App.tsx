@@ -1124,12 +1124,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
+        <button className="brand" onClick={() => { goView('library'); window.scrollTo(0, 0); }} aria-label="Stacks, go to your library" title="Go to your library">
           <span className="brand-mark" aria-hidden="true">
             <i /><i /><i /><i />
           </span>
-          <h1>Stacks</h1>
-        </div>
+          <span className="brand-name">Stacks</span>
+        </button>
         <nav className="tabs" aria-label="Views">
           <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
           <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
