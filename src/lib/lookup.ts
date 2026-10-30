@@ -3,7 +3,7 @@ import type { BookMetadata } from '../types';
 
 const TIMEOUT_MS = 8000;
 
-async function getJson(url: string): Promise<unknown> {
+export async function getJson(url: string): Promise<unknown> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {

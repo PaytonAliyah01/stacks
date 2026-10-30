@@ -4,13 +4,14 @@ import { isMusic, kindOf } from '../types';
 import { Cover } from './Cover';
 import { NowReading } from './ReadingView';
 import { FeedView } from './FeedView';
+import { HomeRecs } from './RecsView';
 import { progressOf } from '../lib/challenges';
 import { currentReading, queueKey, todayIso } from '../lib/reading';
 import { readingStreak, type ActiveSession } from '../lib/sessions';
 import { agoLabel, nowSpinning, periodStarts, pickRecord, playsByRecord, spinStreak, spinsSince } from '../lib/spins';
 import type { Profile } from '../lib/profile';
 
-export type HomeTarget = 'buddy' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
+export type HomeTarget = 'buddy' | 'foryou' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
 
 interface Props {
   allBooks: Book[];
@@ -195,6 +196,8 @@ export function HomeView(props: Props) {
               <p className="muted">Mark books as “Want to read” and they line up here.</p>
             )}
           </section>
+
+          <HomeRecs books={allBooks} readings={readings} uid={uid} social={!!(uid && profile)} onOpen={onOpen} onAll={() => onGo('foryou')} />
         </div>
 
         <div className="home-col">

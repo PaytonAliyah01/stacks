@@ -9,6 +9,8 @@ import { onRemote, prefChanged, startSync, supabase, syncState, watchSync, type 
 import type { User } from '@supabase/supabase-js';
 import { ProfileEditor, Avatar } from './components/ProfileEditor';
 import { ProfileView } from './components/ProfileView';
+import { RecsView } from './components/RecsView';
+import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
 import { FriendsView } from './components/FriendsView';
 import { listFriends, type Friend } from './lib/friends';
@@ -207,7 +209,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
-  const [readingTab, setReadingTab] = useState<'overview' | 'buddy' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
+  const [readingTab, setReadingTab] = useState<'overview' | 'foryou' | 'buddy' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
   const [highlightId, setHighlightId] = useState<string>();
   const [view, setView] = useState<View>('home');
   // Coming back to Books opens the page you were last on.
@@ -359,8 +361,8 @@ export default function App() {
       setMusicTab('collection');
       return goView('music');
     }
-    if (where === 'buddy') {
-      setReadingTab('buddy');
+    if (where === 'buddy' || where === 'foryou') {
+      setReadingTab(where);
       return goView('reading');
     }
     if (where === 'challenges' || where === 'reading') {
@@ -1073,6 +1075,37 @@ export default function App() {
     reload();
   };
 
+  /** A recommended book as a book in Stacks: the one you have, or a new one you don't own yet. */
+  const bookForRec = async (r: Rec, extra: Partial<Book> = {}): Promise<Book> => {
+    const have = (r.bookId && allBooks.find((b) => b.id === r.bookId)) || sameBook(allBooks, { title: r.title, authors: r.authors });
+    if (have) {
+      if (Object.keys(extra).length) await store.put({ ...have, ...extra, updatedAt: new Date().toISOString() });
+      return { ...have, ...extra };
+    }
+    const b = newBook(
+      { ...blankMeta(), kind: 'book', title: r.title, authors: r.authors, coverUrl: r.cover?.replace('-M.jpg', '-L.jpg'), pageCount: r.pages, publishedDate: r.year ? String(r.year) : undefined, openLibraryKey: r.openLibraryKey, sources: ['openlibrary'] },
+      defaultFormat,
+    );
+    const nb: Book = { ...b, owned: false, placement: undefined, ...extra };
+    await store.put(nb);
+    return nb;
+  };
+  const wantRec = async (r: Rec) => {
+    const b = await bookForRec(r);
+    const cur = currentReading(readings, b.id);
+    if (!cur || (cur.status !== 'want' && cur.status !== 'reading')) {
+      const now = new Date().toISOString();
+      await saveReading({ id: newId(), bookId: b.id, status: 'want', updates: [], createdAt: now, updatedAt: now });
+    }
+    setToast(`“${r.title}” is on your to-read list${b.owned === false ? ' (and your wishlist, since you don’t own it)' : ''}.`);
+    reload();
+  };
+  const wishRec = async (r: Rec) => {
+    await bookForRec(r, { wishlist: true });
+    setToast(`Added “${r.title}” to your wishlist.`);
+    reload();
+  };
+
   const saveChallenge = async (c: Challenge) => {
     setChallenges((l) => [...l.filter((x) => x.id !== c.id), c]);
     await store.putChallenge(c);
@@ -1613,6 +1646,7 @@ export default function App() {
                 {(
                   [
                     ['overview', 'Overview'],
+                    ['foryou', 'For you'],
                     ['buddy', 'Buddy reads'],
                     ['stats', 'Reading stats'],
                     ['notes', 'Quotes and notes'],
@@ -1640,6 +1674,18 @@ export default function App() {
                 <ChallengesPanel challenges={challenges} books={allBooks} readings={readings} onSave={saveChallenge} onRemove={removeChallenge} />
                 <ReadingView books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} />
               </>
+            )}
+            {readingTab === 'foryou' && (
+              <RecsView
+                books={allBooks}
+                readings={readings}
+                uid={user?.id}
+                social={!!(user && profile)}
+                onOpen={(b) => setOpen({ book: b })}
+                onWant={wantRec}
+                onWish={wishRec}
+                onFindFriends={user && profile ? showFriends : () => (user ? setProfileEditing(true) : setAccountOpen(true))}
+              />
             )}
             {readingTab === 'stats' && <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />}
             {readingTab === 'notes' && <NotesView books={allBooks} notes={notes} onOpen={(b) => setOpen({ book: b })} onSave={saveNote} onRemove={removeNote} />}

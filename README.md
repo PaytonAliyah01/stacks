@@ -158,3 +158,7 @@ Stacks opens on Home (also the logo): a greeting, your totals, currently reading
 ## Buddy reads
 
 Reading → Buddy reads: start one from a book in your library and invite friends. Everyone's page shows side by side, updated automatically when you update the book in your own library (joining adds the book if you don't have it). Chat messages carry the page they're about and stay hidden behind a spoiler note for anyone who hasn't reached it. When everyone finishes, the finish line shows who finished when and their ratings. Uses `supabase/05-buddy-reads.sql`.
+
+## Recommendations
+
+Reading → For you (and "Picked for you" on Home). Stacks works out your taste from the books you finished: the authors, genres and moods of the ones you rated 4 stars and up count most, and books you put down count against. It suggests unread books from your own shelves first (never book 3 of a series while book 2 waits), then new books from Open Library by the authors you love and like your favorite books, then books your friends rated 4 stars or more. Each pick says why it's there. "Want to read" puts it on your to-read list (a book you don't own also lands on your wishlist), "Wishlist" only adds it to the wishlist, and ✕ hides it on this device. New books are cached for three days or until your ratings change; "Find new ones" looks again. No new SQL needed.
