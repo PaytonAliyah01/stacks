@@ -37,6 +37,8 @@ export interface Profile {
   accent: string;
   visibility: Visibility;
   showcase: Partial<Showcase>;
+  /** Post to the feed when you start or finish a book or put on a record. */
+  share_activity?: boolean;
   updated_at?: string;
 }
 
@@ -62,7 +64,7 @@ export const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join('') || '?';
 
-const COLUMNS = 'id,username,display_name,bio,avatar_url,avatar_color,accent,visibility,showcase,updated_at';
+const COLUMNS = '*';
 
 export async function loadMyProfile(uid: string): Promise<Profile | null> {
   const { data, error } = await supabase.from('profiles').select(COLUMNS).eq('id', uid).maybeSingle();
@@ -82,7 +84,13 @@ export class UsernameTaken extends Error {}
 export async function saveProfile(p: Profile): Promise<Profile> {
   const { updated_at: _u, ...row } = p;
   void _u;
-  const { data, error } = await supabase.from('profiles').upsert(row, { onConflict: 'id' }).select(COLUMNS).single();
+  let { data, error } = await supabase.from('profiles').upsert(row, { onConflict: 'id' }).select(COLUMNS).single();
+  // Before the feed's SQL has been run there's no share_activity column yet.
+  if (error?.code === 'PGRST204' && 'share_activity' in row) {
+    const { share_activity: _s, ...rest } = row;
+    void _s;
+    ({ data, error } = await supabase.from('profiles').upsert(rest, { onConflict: 'id' }).select(COLUMNS).single());
+  }
   if (error) {
     if (error.code === '23505') throw new UsernameTaken('That username is taken. Try another one.');
     throw error;

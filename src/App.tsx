@@ -11,6 +11,7 @@ import { ProfileEditor, Avatar } from './components/ProfileEditor';
 import { ProfileView } from './components/ProfileView';
 import { FriendsView } from './components/FriendsView';
 import { listFriends, type Friend } from './lib/friends';
+import { itemOf, post, postAdded, postSpin, setFeedIdentity } from './lib/feed';
 import { buildShowcase, loadMyProfile, saveShowcase, usernameFromHash, type Profile } from './lib/profile';
 import { CameraScanner, cameraNeedsHttps, cameraSupported } from './components/CameraScanner';
 import { Cover } from './components/Cover';
@@ -292,6 +293,9 @@ export default function App() {
     }
     loadMyProfile(user.id).then(setProfile, () => undefined);
   }, [user]);
+  useEffect(() => {
+    setFeedIdentity(user && profile ? { uid: user.id, share: profile.share_activity !== false } : null);
+  }, [user, profile]);
   useEffect(() => {
     const onHash = () => {
       setProfileName(usernameFromHash());
@@ -627,6 +631,7 @@ export default function App() {
           const owned: Book = { ...b, owned: undefined, wishlist: undefined, format: isMusic(b) ? b.format : b.format ?? defaultFormat, updatedAt: now };
           if (scanSpot) owned.placement = { ...scanSpot, position: nextPosition(await store.list(), scanSpot) };
           await store.put(owned);
+          postAdded(owned);
           patchScan(key, {
             state: 'added', bookId: b.id, kind: kindOf(b), title: b.title, author: b.authors[0], coverUrl: b.coverUrl, before: b,
             message: b.wishlist ? 'Moved from your wishlist into your library.' : 'Added to your library (it was in your reading history).',
@@ -655,6 +660,7 @@ export default function App() {
             book.placement = undefined;
           }
           await store.put(book);
+          if (scanTarget !== 'wishlist') postAdded(book);
           // Deezer and iTunes can't tell vinyl from CD; only MusicBrainz and Discogs can.
           const guessedKind = isMusic(book) && !book.sources.some((x) => x === 'musicbrainz' || x === 'discogs');
           patchScan(key, {
@@ -858,8 +864,18 @@ export default function App() {
   };
 
   const saveReading = async (r: Reading) => {
+    const prev = readings.find((x) => x.id === r.id);
     setReadings((l) => [...l.filter((x) => x.id !== r.id), r]);
     await store.putReading(r);
+    // Tell friends about new starts, finishes and ratings.
+    const b = allBooks.find((x) => x.id === r.bookId);
+    if (!b) return;
+    const review = r.review?.trim() ? r.review.trim().slice(0, 280) : undefined;
+    if (r.status !== prev?.status) {
+      if (r.status === 'reading') void post('started', [itemOf(b)]);
+      else if (r.status === 'read') void post('finished', [itemOf(b)], { rating: r.rating, review, pages: b.pageCount });
+      else if (r.status === 'dnf') void post('dnf', [itemOf(b)]);
+    } else if (r.status === 'read' && r.rating && r.rating !== prev?.rating) void post('rated', [itemOf(b)], { rating: r.rating, review });
   };
   const saveNote = async (n: BookNote) => {
     setNotes((l) => [...l.filter((x) => x.id !== n.id), n]);
@@ -914,6 +930,7 @@ export default function App() {
     const x: Spin = { id: newId(), bookId: b.id, at: at ?? new Date().toISOString() };
     setSpins((l) => [...l, x]);
     await store.putSpin(x);
+    if (!at) postSpin(b);
     const n = (plays.get(b.id)?.count ?? 0) + 1;
     setToast(at ? `Added a play of “${b.title}”.` : `Now spinning: “${b.title}”. That's play ${n}.`);
   };

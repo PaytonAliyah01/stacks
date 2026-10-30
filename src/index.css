@@ -941,7 +941,7 @@ ol.most-played .record-row::before { counter-increment: mp; content: counter(mp)
 /* ---------- camera scanning ---------- */
 .camera-btn { justify-content: center; width: 100%; }
 .camera-note { margin: 0; }
-.camera-scan { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; display: flex; flex-direction: column; }
+.camera-scan { position: fixed; inset: 0; z-index: 1000; background: #000; color: #fff; display: flex; flex-direction: column; }
 .camera-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .camera-guide { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
 .camera-guide span {
@@ -1094,3 +1094,25 @@ ol.most-played .record-row::before { counter-increment: mp; content: counter(mp)
 .camera-top { justify-content: flex-end; }
 .camera-top .camera-torch { margin-right: auto; order: -1; }
 .camera-done { width: min(100%, 360px); padding: 15px 18px; border-radius: 12px; border: 0; background: #fff; color: #111; font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer; }
+
+/* ---------- feed ---------- */
+.check-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check-row input { width: auto; flex: none; margin-top: 4px; accent-color: var(--accent); }
+.check-row > span { display: flex; flex-direction: column; gap: 2px; }
+.friends-page > .subtabs { align-self: flex-start; }
+.feed { display: flex; flex-direction: column; gap: 14px; }
+.posts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.post { display: flex; gap: 12px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.post-who { border: 0; background: none; padding: 0; cursor: pointer; align-self: flex-start; }
+.post-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.post-line { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.link-plain { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: inherit; cursor: pointer; }
+.link-plain:hover { text-decoration: underline; }
+.post-stars { color: var(--brass); letter-spacing: 0.08em; }
+.post-review { margin: 0; padding: 8px 12px; border-left: 3px solid var(--line); color: var(--ink); font-style: italic; white-space: pre-line; }
+.post-cover .cover { width: 72px; }
+.post-covers { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.post-covers .cover { width: 52px; }
+.post-actions { display: flex; align-items: center; gap: 10px; }
+.like { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 3px 12px; cursor: pointer; color: var(--muted); font: inherit; font-size: 0.95rem; }
+.like.on { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }

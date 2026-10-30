@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   onCode: (code: string) => void;
@@ -148,11 +149,14 @@ export function CameraScanner({ onCode, onClose }: Props) {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
     const onPop = () => onCloseRef.current();
     window.addEventListener('keydown', onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     history.pushState({ stacksCamera: true }, '');
     window.addEventListener('popstate', onPop);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('popstate', onPop);
+      document.body.style.overflow = overflow;
       if (history.state?.stacksCamera) history.back();
     };
   }, []);
@@ -162,7 +166,8 @@ export function CameraScanner({ onCode, onClose }: Props) {
     trackRef.current?.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] }).then(() => setTorch(on), () => setTorch(undefined));
   };
 
-  return (
+  // Straight under <body>, so nothing on the page can sit on top of the camera.
+  return createPortal(
     <div className="camera-scan" role="dialog" aria-modal="true" aria-label="Scan with camera">
       <video ref={videoRef} className="camera-video" playsInline muted autoPlay />
       <div className="camera-guide" aria-hidden="true">
@@ -190,6 +195,7 @@ export function CameraScanner({ onCode, onClose }: Props) {
         </div>
         <button className="camera-done" onClick={onClose}>{last ? 'Done scanning' : 'Close camera'}</button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Avatar } from './ProfileEditor';
+import { FeedView } from './FeedView';
 import { acceptRequest, findUser, removeFriend, sendRequest, type Found, type Friend } from '../lib/friends';
 import { cleanUsername, profileLink, type Profile } from '../lib/profile';
 
@@ -78,6 +79,7 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
   const [searchError, setSearchError] = useState<string>();
   const [removing, setRemoving] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<'feed' | 'people'>(friends.some((f) => f.status === 'accepted') ? 'feed' : 'people');
 
   const incoming = friends.filter((f) => f.status === 'pending' && f.incoming);
   const outgoing = friends.filter((f) => f.status === 'pending' && !f.incoming);
@@ -119,12 +121,22 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
     <div className="profile-page friends-page">
       <button className="link small profile-back" onClick={onBack}>← Back to my library</button>
       <h2 className="page-title">Friends</h2>
+      {me && (
+        <nav className="subtabs" aria-label="Friends pages">
+          <button className={tab === 'feed' ? 'active' : ''} onClick={() => setTab('feed')}>Feed</button>
+          <button className={tab === 'people' ? 'active' : ''} onClick={() => setTab('people')}>
+            Friends{incoming.length > 0 && <span className="tab-badge">{incoming.length}</span>}
+          </button>
+        </nav>
+      )}
 
       {!me ? (
         <div className="profile-missing">
           <p>Make your profile first, so friends can find you by your username.</p>
           <button className="btn primary" onClick={onEditProfile}>Set up my profile</button>
         </div>
+      ) : tab === 'feed' ? (
+        <FeedView uid={uid} onOpenProfile={onOpenProfile} hasFriends={accepted.length > 0} onFindFriends={() => setTab('people')} />
       ) : (
         <>
           <section className="panel">

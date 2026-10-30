@@ -146,3 +146,7 @@ Account → Set up your profile: an @username, name, picture (uploaded to the `a
 ## Friends
 
 The Friends tab (signed in, `#friends`): find someone by their exact username, send a request, accept or decline requests, and remove friends. Profiles set to "Friends" are visible to accepted friends. Uses the `friendships` table and the `find_user` / `my_friends` functions in `supabase/03-friends.sql`.
+
+## Feed
+
+Friends → Feed shows what you and your friends started, finished (with rating and a short review), put down, or put on the turntable, and stacks of new additions (grouped, one post per scanning session). Likes, and you can delete your own posts. Turn sharing off in Edit profile. Uses `supabase/04-feed.sql`.

@@ -109,6 +109,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
   const [visibility, setVisibility] = useState<Visibility>(profile?.visibility ?? 'private');
   const [topBooks, setTopBooks] = useState<string[]>(profile?.showcase.topBooks?.map((x) => x.id) ?? []);
   const [topRecords, setTopRecords] = useState<string[]>(profile?.showcase.topRecords?.map((x) => x.id) ?? []);
+  const [share, setShare] = useState(profile?.share_activity ?? true);
   const [busy, setBusy] = useState<'save' | 'photo'>();
   const [error, setError] = useState<string>();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -150,6 +151,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
         avatar_color: color,
         accent,
         visibility,
+        share_activity: share,
         showcase: makeShowcase({ books: topBooks, records: topRecords }),
       });
       onSaved(saved);
@@ -231,6 +233,13 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
               </label>
             ))}
           </fieldset>
+          <label className="check-row">
+            <input id="p-share" type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} />
+            <span>
+              <strong>Share what I read and spin with friends</strong>
+              <span className="muted small">Starting or finishing a book, your rating, putting on a record, and new additions show up in your friends' feed.</span>
+            </span>
+          </label>
           <p className="muted small">
             Your profile shows your name, picture, favorites, what you're reading and spinning, and a few totals. Your full library always stays private.
             {okName && <> Your link: <span className="mono">{profileLink(username)}</span></>}
