@@ -12,7 +12,7 @@ import { readingStreak, type ActiveSession } from '../lib/sessions';
 import { agoLabel, nowSpinning, periodStarts, pickRecord, playsByRecord, spinStreak, spinsSince } from '../lib/spins';
 import type { Profile } from '../lib/profile';
 
-export type HomeTarget = 'buddy' | 'foryou' | 'lending' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
+export type HomeTarget = 'buddy' | 'foryou' | 'lending' | 'groups' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
 
 interface Props {
   allBooks: Book[];
@@ -33,12 +33,16 @@ interface Props {
   buddy?: { title: string; others: string; invite: boolean; myPct: number; leaderPct: number }[];
   /** Borrow requests waiting for you, things due back soon, and your overdue loans. */
   lending?: { asks: number; items: { title: string; line: string; due: string | null }[] };
+  /** Running challenges with friends: your progress and place. */
+  groups?: { name: string; goal: number; measure: string; mine: number; invite: boolean; place: number; of: number }[];
 }
 
 function greeting(d = new Date()) {
   const h = d.getHours();
   return h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
+
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
@@ -201,8 +205,25 @@ export function HomeView(props: Props) {
                 </div>
               ))
             ) : (
-              <p className="muted">Give yourself something to aim for, like 24 books this year.</p>
+              !props.groups?.length && <p className="muted">Give yourself something to aim for, like 24 books this year.</p>
             )}
+            {props.groups?.slice(0, 3).map((g, i) => (
+              <div key={i} className="home-goal">
+                <div className="home-goal-line">
+                  <button className="link-plain" onClick={() => onGo('groups')}><strong>{g.name}</strong></button>
+                  <span className="mono">
+                    {g.mine.toLocaleString()} / {g.goal.toLocaleString()} {g.measure}
+                  </span>
+                </div>
+                <span className="progress-bar">
+                  <i style={{ width: `${Math.min(100, Math.round((g.mine / g.goal) * 100))}%` }} />
+                </span>
+                <span className="muted small">
+                  {g.invite ? 'A friend invited you. ' : g.of > 1 ? `With friends · you're ${ordinal(g.place)} of ${g.of}` : 'With friends · waiting for them to join'}
+                  {g.invite && <button className="link small" onClick={() => onGo('groups')}>Join or decline</button>}
+                </span>
+              </div>
+            ))}
           </section>
 
           <section className="panel">

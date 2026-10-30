@@ -55,6 +55,8 @@ import { awardBadges, progressOf } from './lib/challenges';
 import { currentReading, lastPage, progressPct, readingsOf, todayIso as todayIsoDate } from './lib/reading';
 import { BuddyView } from './components/BuddyView';
 import { LendingView } from './components/LendingView';
+import { GroupChallengesView } from './components/GroupChallengesView';
+import { GroupsNotReady, listGroupChallenges, myProgress, sendGroupProgress, type GroupChallenge } from './lib/groupchallenges';
 import { daysLeft, friendName as loanFriendName, getLendOpen, LendingNotReady, listLoans, markReturned, setLendOpen as saveLendOpen, type Loan } from './lib/lending';
 import { findLocalBook, joinBuddyRead, listBuddyReads, memberName, memberPct, sendProgress, startBuddyRead, type BuddyRead } from './lib/buddy';
 import { allSpotsOf, moveBook, newBookcase, nextPosition, placeLabel, sameSpot, spotName, type Spot } from './lib/shelving';
@@ -213,7 +215,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
-  const [readingTab, setReadingTab] = useState<'overview' | 'foryou' | 'buddy' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
+  const [readingTab, setReadingTab] = useState<'overview' | 'foryou' | 'buddy' | 'groups' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
   const [highlightId, setHighlightId] = useState<string>();
   const [view, setView] = useState<View>('home');
   // Coming back to Books opens the page you were last on.
@@ -463,7 +465,7 @@ export default function App() {
       setMusicTab('collection');
       return goView('music');
     }
-    if (where === 'buddy' || where === 'foryou') {
+    if (where === 'buddy' || where === 'foryou' || where === 'groups') {
       setReadingTab(where);
       return goView('reading');
     }
@@ -498,6 +500,50 @@ export default function App() {
     };
   }, [user, profile?.id, refreshBuddy]);
   const buddyInvites = user ? buddyReads.filter((r) => r.members.find((m) => m.user_id === user.id)?.status === 'invited').length : 0;
+
+  // Reading challenges with friends.
+  const [groups, setGroups] = useState<GroupChallenge[]>([]);
+  const [groupsError, setGroupsError] = useState<string>();
+  const refreshGroups = useCallback(() => {
+    listGroupChallenges().then(
+      (l) => {
+        setGroups(l);
+        setGroupsError(undefined);
+      },
+      (e) => setGroupsError(e instanceof GroupsNotReady ? e.message : `Couldn't load challenges with friends: ${(e as Error).message}`),
+    );
+  }, []);
+  useEffect(() => {
+    if (!user || !profile) {
+      setGroups([]);
+      return;
+    }
+    refreshGroups();
+    const t = window.setInterval(() => !document.hidden && refreshGroups(), 60_000);
+    window.addEventListener('focus', refreshGroups);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', refreshGroups);
+    };
+  }, [user, profile?.id, refreshGroups]);
+  // Your progress follows your reading: send it when it changes (a few days after the end too, for late updates).
+  useEffect(() => {
+    if (!user || !loaded || !groups.length) return;
+    const t = setTimeout(() => {
+      const byId = new Map(allBooks.map((b) => [b.id, b]));
+      const cutoff = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+      const sends = groups.flatMap((g) => {
+        const me = g.members.find((m) => m.user_id === user.id);
+        if (me?.status !== 'joined' || g.end_on < cutoff) return [];
+        const p = myProgress(g, readings, byId);
+        return p.progress !== me.progress || p.latest !== me.latest ? [sendGroupProgress(g.id, user.id, p)] : [];
+      });
+      if (sends.length) Promise.allSettled(sends).then(refreshGroups);
+    }, 2500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loaded, groups, readings, books]);
+  const groupInvites = user ? groups.filter((g) => g.members.find((m) => m.user_id === user.id)?.status === 'invited').length : 0;
 
   /** Your reading of a book, set to "Reading" (made if needed). */
   const ensureReading = async (b: Book): Promise<Reading> => {
@@ -1433,7 +1479,7 @@ export default function App() {
           <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
           <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
           <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>
-            Reading{buddyInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites} buddy read invites`}>{buddyInvites}</span>}
+            Reading{buddyInvites + groupInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites + groupInvites} invites`}>{buddyInvites + groupInvites}</span>}
           </button>
           {user && (
             <button className={friendsOpen ? 'active' : ''} onClick={() => showFriends()}>
@@ -1779,6 +1825,17 @@ export default function App() {
             onGo={goHome}
             onOpenProfile={(n) => showProfile(n)}
             onSignIn={() => openAccount('signin')}
+            groups={
+              user
+                ? groups
+                    .filter((g) => g.end_on >= todayIsoDate() && g.members.some((m) => m.user_id === user.id))
+                    .map((g) => {
+                      const joined = g.members.filter((m) => m.status === 'joined').sort((a, b) => b.progress - a.progress);
+                      const me = g.members.find((m) => m.user_id === user.id)!;
+                      return { name: g.name, goal: g.goal, measure: g.measure, mine: me.progress, invite: me.status === 'invited', place: joined.findIndex((m) => m.progress === me.progress) + 1, of: joined.length };
+                    })
+                : undefined
+            }
             lending={
               user
                 ? {
@@ -1834,6 +1891,7 @@ export default function App() {
                     ['overview', 'Overview'],
                     ['foryou', 'For you'],
                     ['buddy', 'Buddy reads'],
+                    ['groups', 'Challenges with friends'],
                     ['stats', 'Reading stats'],
                     ['notes', 'Quotes and notes'],
                     ['wrap', 'Year in books'],
@@ -1843,6 +1901,7 @@ export default function App() {
                   <button key={k} className={readingTab === k ? 'active' : ''} aria-current={readingTab === k ? 'page' : undefined} onClick={() => setReadingTab(k)}>
                     {l}
                     {k === 'buddy' && buddyInvites > 0 && <span className="tab-badge">{buddyInvites}</span>}
+                    {k === 'groups' && groupInvites > 0 && <span className="tab-badge">{groupInvites}</span>}
                   </button>
                 ))}
               </nav>
@@ -1873,6 +1932,25 @@ export default function App() {
                 onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
               />
             )}
+            {readingTab === 'groups' &&
+              (user && profile ? (
+                <GroupChallengesView
+                  uid={user.id}
+                  books={allBooks}
+                  readings={readings}
+                  friends={friends}
+                  groups={groups}
+                  error={groupsError}
+                  onChanged={refreshGroups}
+                  onOpenProfile={(n) => showProfile(n)}
+                  onFindFriends={() => showFriends()}
+                />
+              ) : (
+                <div className="profile-missing">
+                  <p>Race your friends to a reading goal, like 24 books this year. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
+                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
+                </div>
+              ))}
             {readingTab === 'stats' && <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />}
             {readingTab === 'notes' && <NotesView books={allBooks} notes={notes} onOpen={(b) => setOpen({ book: b })} onSave={saveNote} onRemove={removeNote} />}
             {readingTab === 'wrap' && <YearWrap books={allBooks} readings={readings} notes={notes} challenges={challenges} onOpen={(b) => setOpen({ book: b })} />}

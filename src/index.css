@@ -1337,3 +1337,31 @@ a.rec-title:hover { text-decoration: underline; }
   .welcome-big { flex: 1 1 100%; }
   .welcome-group { padding: 18px; }
 }
+
+/* ---------- Challenges with friends ---------- */
+.groups { display: flex; flex-direction: column; gap: 16px; }
+.group-new { align-self: flex-start; }
+.group-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.group-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.group-form .span-2 { grid-column: 1 / -1; }
+.group-goal { display: flex; gap: 6px; }
+.group-goal input { flex: 1; min-width: 0; }
+.group-start input, .group-start select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); min-width: 0; }
+.group-card.invite { border-color: var(--brass); }
+.group-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.panel .group-name { font-family: var(--font-display); font-size: 1.2rem; text-transform: none; letter-spacing: 0; margin: 0; }
+.group-head p { margin: 4px 0 0; }
+.group-winner { font-weight: 700; white-space: nowrap; }
+.group-invite { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--brass) 12%, var(--surface)); }
+.group-board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.group-board li { display: flex; align-items: center; gap: 10px; }
+.group-board li.me .group-bar strong { color: var(--accent); }
+.group-place { width: 22px; text-align: center; font-family: var(--font-mono); font-weight: 700; color: var(--muted); flex: none; }
+.group-board li:first-child .group-place { color: var(--brass); }
+.group-bar { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.group-bar-line { display: flex; justify-content: space-between; gap: 8px; }
+.group-progress { position: relative; overflow: visible; flex: none; }
+.group-pace { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); opacity: 0.45; border-radius: 1px; }
+.group-legend { display: flex; align-items: center; gap: 6px; margin: 0; }
+.group-pace-key { display: inline-block; width: 2px; height: 12px; background: var(--ink); opacity: 0.45; }
+@media (max-width: 640px) { .group-form { grid-template-columns: minmax(0, 1fr); } }

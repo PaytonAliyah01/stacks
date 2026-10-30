@@ -174,3 +174,7 @@ Music → For you. "Pull these out of your crates" suggests records you own but 
 ## Welcome page
 
 Anyone who isn't signed in (including right after signing out) sees a welcome page: what Stacks does, its features for books, reading, records and friends, three steps to get going, privacy and common questions, with "Sign in" and "Create account" at the top and bottom. "Try it without an account" (or "Open the library on this device" when there's already a library in this browser) opens Stacks without an account and is remembered in this browser until you sign out. Profile links (`#@username`) still open directly for signed-out visitors.
+
+## Challenges with friends
+
+Reading → Challenges with friends. Start one from a preset (this year's reading race, next month's pages, summer reading) or set your own name, goal in books or pages, and dates, then invite friends. Invited friends join or decline. Everyone's progress comes from their own reading (books finished between the dates, including ones already finished) and updates by itself; the leaderboard shows places, the last book each person finished, and a marker for the even pace to finish on time. When it ends, the winner gets a trophy. Running challenges show under "Reading goal" on Home with your place. Uses `supabase/07-group-challenges.sql`.
