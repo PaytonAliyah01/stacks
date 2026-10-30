@@ -5,13 +5,14 @@ import { Cover } from './Cover';
 import { NowReading } from './ReadingView';
 import { FeedView } from './FeedView';
 import { HomeRecs } from './RecsView';
+import { daysLeft, dueLabel } from '../lib/lending';
 import { progressOf } from '../lib/challenges';
 import { currentReading, queueKey, todayIso } from '../lib/reading';
 import { readingStreak, type ActiveSession } from '../lib/sessions';
 import { agoLabel, nowSpinning, periodStarts, pickRecord, playsByRecord, spinStreak, spinsSince } from '../lib/spins';
 import type { Profile } from '../lib/profile';
 
-export type HomeTarget = 'buddy' | 'foryou' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
+export type HomeTarget = 'buddy' | 'foryou' | 'lending' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
 
 interface Props {
   allBooks: Book[];
@@ -30,6 +31,8 @@ interface Props {
   onSignIn: () => void;
   /** Buddy reads you're in, and invites waiting for you. */
   buddy?: { title: string; others: string; invite: boolean; myPct: number; leaderPct: number }[];
+  /** Borrow requests waiting for you, things due back soon, and your overdue loans. */
+  lending?: { asks: number; items: { title: string; line: string; due: string | null }[] };
 }
 
 function greeting(d = new Date()) {
@@ -142,6 +145,32 @@ export function HomeView(props: Props) {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {!!props.lending && (props.lending.asks > 0 || props.lending.items.length > 0) && (
+            <section className="panel">
+              <div className="home-head">
+                <h3>Lending</h3>
+                <button className="link small" onClick={() => onGo('lending')}>Open</button>
+              </div>
+              {props.lending.asks > 0 && (
+                <p className="home-lend-asks">
+                  <button className="link-plain" onClick={() => onGo('lending')}>
+                    {plural(props.lending.asks, 'friend wants', 'friends want')} to borrow something
+                  </button>
+                </p>
+              )}
+              {props.lending.items.length > 0 && (
+                <ul className="home-buddy">
+                  {props.lending.items.slice(0, 3).map((x, i) => (
+                    <li key={i}>
+                      <button className="link-plain" onClick={() => onGo('lending')}>{x.title}</button>
+                      <span className={`muted small ${(daysLeft(x.due) ?? 0) < 0 ? 'late-text' : ''}`}>{x.line} · {dueLabel(x.due)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           )}
 

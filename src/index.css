@@ -1223,3 +1223,45 @@ a.rec-title:hover { text-decoration: underline; }
 .recs-foot { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 0; }
 .home-cover-why { font-size: 0.72rem; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (max-width: 640px) { .recs { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Lending ---------- */
+.lending { display: flex; flex-direction: column; gap: 16px; }
+.lend-switch .check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.lend-switch .check input { margin-top: 4px; flex: none; }
+.lend-switch .check > span { flex: 1; min-width: 0; white-space: normal; display: flex; flex-direction: column; gap: 2px; }
+.lend-switch p { margin: 0; }
+.loans { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.loan { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.loan > .cover { width: 56px; flex: none; }
+.loan-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.loan-who { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.loan-avatar { border: 0; background: none; padding: 0; cursor: pointer; display: inline-flex; }
+.loan-note { color: var(--muted); font-style: italic; }
+.loan-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 4px; }
+.loan-due { font-weight: 600; }
+.loan-due.soon { color: var(--warn); }
+.loan-due.late, .late-text { color: var(--bad); font-weight: 600; }
+.loan-answer { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 420px; margin-top: 4px; }
+.loan-answer input, .lend-form input, .lend-form select, .ask-box input, .friend-shelf-tools input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); min-width: 0; }
+.loan-history { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.lend-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lend-form > input { flex: 1 1 220px; }
+.lend-pick { display: flex; gap: 8px; align-items: center; }
+.lend-hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lend-hits button { display: flex; gap: 10px; align-items: center; width: 100%; border: 1px solid transparent; border-radius: 8px; background: none; padding: 4px 6px; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.lend-hits button:hover:not(:disabled) { border-color: var(--line); background: var(--surface-2); }
+.lend-hits button:disabled { opacity: 0.5; cursor: default; }
+.lend-hits .cover { width: 32px; flex: none; }
+.lend-hits span { display: flex; flex-direction: column; min-width: 0; }
+.friend-shelf-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.friend-shelf-tools input { flex: 1 1 240px; }
+.shelf-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 16px 12px; }
+.shelf-grid li { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.shelf-grid .cover { width: 100%; }
+.shelf-grid strong { font-size: 0.85rem; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ask-box { display: flex; gap: 12px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-soft); margin-bottom: 12px; }
+.ask-box .cover { width: 48px; flex: none; }
+.ask-box > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.home-lend-asks { margin: 0; font-weight: 600; }
+.drawer-loan p { margin: 4px 0 0; }
+@media (max-width: 640px) { .shelf-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } }

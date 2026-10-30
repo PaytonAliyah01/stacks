@@ -414,6 +414,17 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
               <span>Tags, separated by commas</span>
               <input id="f-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="signed, special edition, gift" />
             </label>
+            {draft.loan?.loanId ? (
+              <div className="field span-2 drawer-loan">
+                <span>Lent to</span>
+                <p>
+                  <strong>{draft.loan.to}</strong> since {draft.loan.since}
+                  {draft.loan.due ? `, back by ${draft.loan.due}` : ''}. Lent through Stacks, so they see it too.{' '}
+                  <button type="button" className="link small" onClick={() => set('loan', undefined)}>Got it back</button>
+                </p>
+              </div>
+            ) : (
+              <>
             <label className="field">
               <span>Lent to</span>
               <input id="f-loan-to" value={draft.loan?.to ?? ''} placeholder="Nobody"
@@ -424,6 +435,8 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
               <input id="f-loan-since" type="date" value={draft.loan?.since ?? ''} disabled={!draft.loan}
                 onChange={(e) => draft.loan && set('loan', { ...draft.loan, since: e.target.value })} />
             </label>
+              </>
+            )}
             <label className="field span-2">
               <span>Notes</span>
               <textarea id="f-notes" rows={3} value={draft.notes ?? ''} onChange={(e) => set('notes', e.target.value || undefined)} />

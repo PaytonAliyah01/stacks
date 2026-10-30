@@ -52,6 +52,8 @@ import type { ImportPlan } from './lib/importHistory';
 import { awardBadges, progressOf } from './lib/challenges';
 import { currentReading, lastPage, progressPct, readingsOf, todayIso as todayIsoDate } from './lib/reading';
 import { BuddyView } from './components/BuddyView';
+import { LendingView } from './components/LendingView';
+import { daysLeft, friendName as loanFriendName, getLendOpen, LendingNotReady, listLoans, markReturned, setLendOpen as saveLendOpen, type Loan } from './lib/lending';
 import { findLocalBook, joinBuddyRead, listBuddyReads, memberName, memberPct, sendProgress, startBuddyRead, type BuddyRead } from './lib/buddy';
 import { allSpotsOf, moveBook, newBookcase, nextPosition, placeLabel, sameSpot, spotName, type Spot } from './lib/shelving';
 
@@ -254,7 +256,8 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileName, setProfileName] = useState(usernameFromHash);
-  const [friendsOpen, setFriendsOpen] = useState(() => location.hash === '#friends');
+  const [friendsOpen, setFriendsOpen] = useState(() => location.hash === '#friends' || location.hash === '#lending');
+  const [friendsTab, setFriendsTab] = useState<'feed' | 'people' | 'lending' | undefined>(() => (location.hash === '#lending' ? 'lending' : undefined));
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendsError, setFriendsError] = useState<string>();
 
@@ -304,7 +307,8 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       setProfileName(usernameFromHash());
-      setFriendsOpen(location.hash === '#friends');
+      setFriendsOpen(location.hash === '#friends' || location.hash === '#lending');
+      if (location.hash === '#lending') setFriendsTab('lending');
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -316,8 +320,9 @@ export default function App() {
     setFriendsOpen(false);
     window.scrollTo(0, 0);
   };
-  const showFriends = () => {
-    location.hash = 'friends';
+  const showFriends = (tab?: 'lending') => {
+    setFriendsTab(tab);
+    location.hash = tab ?? 'friends';
     setFriendsOpen(true);
     setProfileName(undefined);
     window.scrollTo(0, 0);
@@ -345,6 +350,77 @@ export default function App() {
       window.removeEventListener('focus', refreshFriends);
     };
   }, [user, profile?.id, refreshFriends]);
+  // Lending: your loans both ways, refreshed like friends.
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [loansError, setLoansError] = useState<string>();
+  const [lendOpen, setLendOpenState] = useState<boolean>();
+  const refreshLoans = useCallback(() => {
+    listLoans().then(
+      (l) => {
+        setLoans(l);
+        setLoansError(undefined);
+      },
+      (e) => setLoansError(e instanceof LendingNotReady ? e.message : `Couldn't load lending: ${(e as Error).message}`),
+    );
+  }, []);
+  useEffect(() => {
+    if (!user || !profile) {
+      setLoans([]);
+      setLendOpenState(undefined);
+      return;
+    }
+    refreshLoans();
+    getLendOpen(user.id).then(setLendOpenState, () => setLendOpenState(false));
+    const t = window.setInterval(() => !document.hidden && refreshLoans(), 60_000);
+    window.addEventListener('focus', refreshLoans);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', refreshLoans);
+    };
+  }, [user, profile?.id, refreshLoans]);
+  const changeLendOpen = async (open: boolean) => {
+    if (!user) return;
+    setLendOpenState(open);
+    try {
+      await saveLendOpen(user.id, open);
+      setToast(open ? 'Friends can now browse your shelves and ask to borrow.' : 'Your shelves are closed for borrowing.');
+    } catch (e) {
+      setLendOpenState(!open);
+      setToast((e as Error).message);
+    }
+  };
+  // Keep "Lent to" on your own books in step with loans, on every device.
+  useEffect(() => {
+    if (!user || !loaded) return;
+    const fixes: Book[] = [];
+    for (const b of books) {
+      const out = loans.find((l) => l.owner === user.id && l.item_id === b.id && l.status === 'lent');
+      if (out) {
+        const want = { to: loanFriendName(out.other), since: (out.lent_at ?? out.created_at).slice(0, 10), due: out.due_on ?? undefined, loanId: out.id };
+        if (JSON.stringify(b.loan) !== JSON.stringify(want)) fixes.push({ ...b, loan: want, updatedAt: new Date().toISOString() });
+      } else if (b.loan?.loanId && loans.some((l) => l.id === b.loan!.loanId && l.status !== 'lent')) {
+        fixes.push({ ...b, loan: undefined, updatedAt: new Date().toISOString() });
+      }
+    }
+    if (!fixes.length) return;
+    store.putMany(fixes).then(() => setBooks((l) => l.map((b) => fixes.find((f) => f.id === b.id) ?? b)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loans, user, loaded]);
+  const loanAsks = user ? loans.filter((l) => l.owner === user.id && l.status === 'requested').length : 0;
+  /** Start reading something a friend lent you: it goes in as a book you don't own. */
+  const readBorrowed = async (l: Loan) => {
+    let b = sameBook(allBooks, { title: l.item.title, authors: l.item.by ? [l.item.by] : [] });
+    if (!b) {
+      b = newBook({ ...blankMeta(), kind: 'book', title: l.item.title, authors: l.item.by ? [l.item.by] : [], coverUrl: l.item.cover }, defaultFormat);
+      b.owned = false;
+      b.placement = undefined;
+      b.notes = `Borrowed from ${loanFriendName(l.other)}`;
+      await store.put(b);
+      setBooks((x) => [...x, b!]);
+    }
+    await ensureReading(b);
+    setToast(`Enjoy “${l.item.title}”. It's under Currently reading.`);
+  };
   const onPage = !!profileName || (friendsOpen && !!user);
   const goView = (v: View) => {
     if (onPage) showProfile(undefined);
@@ -353,6 +429,7 @@ export default function App() {
   const goHome = (where: HomeTarget) => {
     window.scrollTo(0, 0);
     if (where === 'friends') return showFriends();
+    if (where === 'lending') return showFriends('lending');
     if (where === 'listening') {
       setMusicTab('listening');
       return goView('music');
@@ -896,6 +973,8 @@ export default function App() {
     // Save everything but the shelf spot, then move the book so its neighbours renumber.
     const all = await store.list();
     const prev = all.find((b) => b.id === book.id);
+    // Cleared "Lent to" on something lent through Stacks: it came back.
+    if (prev?.loan?.loanId && book.loan?.loanId !== prev.loan.loanId) void markReturned(prev.loan.loanId).then(refreshLoans, () => undefined);
     const wanted = book.placement;
     const base: Book = { ...book, placement: prev?.placement };
     await store.put(base);
@@ -1280,8 +1359,8 @@ export default function App() {
             Reading{buddyInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites} buddy read invites`}>{buddyInvites}</span>}
           </button>
           {user && (
-            <button className={friendsOpen ? 'active' : ''} onClick={showFriends}>
-              Friends{friendRequests > 0 && <span className="tab-badge" aria-label={`${friendRequests} new`}>{friendRequests}</span>}
+            <button className={friendsOpen ? 'active' : ''} onClick={() => showFriends()}>
+              Friends{friendRequests + loanAsks > 0 && <span className="tab-badge" aria-label={`${friendRequests + loanAsks} new`}>{friendRequests + loanAsks}</span>}
             </button>
           )}
         </nav>
@@ -1377,6 +1456,8 @@ export default function App() {
           uid={user?.id}
           friends={friends}
           onFriendsChanged={refreshFriends}
+          loans={loans}
+          onLoansChanged={refreshLoans}
         />
       )}
       {friendsOpen && !profileName && user && (
@@ -1389,6 +1470,24 @@ export default function App() {
           onOpenProfile={(n) => showProfile(n)}
           onEditProfile={() => setProfileEditing(true)}
           onBack={() => showProfile(undefined)}
+          key={friendsTab ?? 'friends'}
+          initialTab={friendsTab}
+          lendingBadge={loanAsks}
+          lending={
+            <LendingView
+              uid={user.id}
+              books={allBooks}
+              friends={friends}
+              loans={loans}
+              error={loansError}
+              open={lendOpen}
+              onSetOpen={changeLendOpen}
+              onChanged={refreshLoans}
+              onOpenProfile={(n) => showProfile(n)}
+              onOpenBook={(b) => setOpen({ book: b })}
+              onRead={readBorrowed}
+            />
+          }
         />
       )}
       <main className={`layout ${view === 'home' ? 'on-home' : ''}`} hidden={!!profileName || (friendsOpen && !!user)}>
@@ -1603,6 +1702,16 @@ export default function App() {
             onGo={goHome}
             onOpenProfile={(n) => showProfile(n)}
             onSignIn={() => setAccountOpen(true)}
+            lending={
+              user
+                ? {
+                    asks: loanAsks,
+                    items: loans
+                      .filter((l) => l.status === 'lent' && (l.borrower === user.id ? (daysLeft(l.due_on) ?? 99) <= 7 : (daysLeft(l.due_on) ?? 0) < 0))
+                      .map((l) => ({ title: l.item.title, line: l.borrower === user.id ? `from ${loanFriendName(l.other)}` : `with ${loanFriendName(l.other)}`, due: l.due_on })),
+                  }
+                : undefined
+            }
             buddy={
               user
                 ? buddyReads.map((read) => {
@@ -1684,7 +1793,7 @@ export default function App() {
                 onOpen={(b) => setOpen({ book: b })}
                 onWant={wantRec}
                 onWish={wishRec}
-                onFindFriends={user && profile ? showFriends : () => (user ? setProfileEditing(true) : setAccountOpen(true))}
+                onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : setAccountOpen(true))}
               />
             )}
             {readingTab === 'stats' && <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />}
@@ -1705,7 +1814,7 @@ export default function App() {
                   onStart={startBuddy}
                   onJoin={joinBuddy}
                   onOpenProfile={(n) => showProfile(n)}
-                  onFindFriends={showFriends}
+                  onFindFriends={() => showFriends()}
                 />
               ) : (
                 <div className="profile-missing">

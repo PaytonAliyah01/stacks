@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Cover } from './Cover';
 import { Avatar } from './ProfileEditor';
 import { FriendButton } from './FriendsView';
+import { FriendShelf } from './FriendShelf';
+import type { Loan } from '../lib/lending';
 import type { Friend } from '../lib/friends';
 import { loadProfileByUsername, profileLink, type Profile, type ShowcaseItem } from '../lib/profile';
 
@@ -16,6 +18,8 @@ interface Props {
   uid?: string;
   friends?: Friend[];
   onFriendsChanged?: () => void;
+  loans?: Loan[];
+  onLoansChanged?: () => void;
 }
 
 function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]; square?: boolean }) {
@@ -41,7 +45,7 @@ function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]
   );
 }
 
-export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn, uid, friends, onFriendsChanged }: Props) {
+export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn, uid, friends, onFriendsChanged, loans, onLoansChanged }: Props) {
   const own = mine?.username === username;
   const [p, setP] = useState<Profile | null | undefined>(own ? mine : undefined);
   const [failed, setFailed] = useState(false);
@@ -140,6 +144,9 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
       <Shelf title="Currently reading" items={s.reading} />
       <Shelf title="Top 4 books" items={s.topBooks} />
       <Shelf title="Top 4 records" items={s.topRecords} square />
+      {!own && uid && mine && loans && onLoansChanged && friends?.some((f) => f.id === p.id && f.status === 'accepted') && (
+        <FriendShelf uid={uid} friendId={p.id} friendName={p.display_name || `@${p.username}`} loans={loans} onChanged={onLoansChanged} />
+      )}
       {own && !s.topBooks?.length && !s.topRecords?.length && (
         <p className="muted">Pick your top 4 books and records under <button className="link" onClick={onEdit}>Edit profile</button>.</p>
       )}

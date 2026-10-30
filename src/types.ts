@@ -104,7 +104,8 @@ export interface Book extends BookMetadata {
   myValue?: number;
   /** Stacks has looked up this Discogs release's details and cover. */
   discogsChecked?: boolean;
-  loan?: { to: string; since: string }; // lent to a friend
+  /** Lent out. With a loanId it was lent through Stacks to a friend, who sees it too. */
+  loan?: { to: string; since: string; due?: string; loanId?: string };
   /** false for a book read but not owned (e.g. imported from Goodreads); it then stays off shelves and out of library counts. */
   owned?: boolean;
   /** A book you'd like to buy. Only for books you don't own. */
