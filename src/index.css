@@ -1161,3 +1161,47 @@ ol.most-played .record-row::before { counter-increment: mp; content: counter(mp)
   .layout.on-home .scan-panel { gap: 10px; }
   .layout.on-home .scan-panel:not(:has(.scan-list)) .session-head { display: none; }
 }
+
+/* ---------- buddy reads ---------- */
+.buddy { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.buddy-intro { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.buddy-intro p { margin: 0; flex: 1 1 260px; }
+.buddy-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.buddy-card.invite { border-color: var(--brass); }
+.buddy-top { display: flex; gap: 14px; align-items: flex-start; }
+.buddy-top .cover { width: 64px; flex: none; }
+.buddy-title { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.buddy-title .link-plain { text-align: left; font-family: var(--font-display); font-size: 1.15rem; }
+.buddy-note { font-style: italic; }
+.buddy-invite p { margin: 0 0 10px; }
+.buddy-progress { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.buddy-progress li { display: flex; align-items: center; gap: 10px; }
+.buddy-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.buddy-name { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.buddy-who .progress-bar { flex: none; }
+.buddy-invited { opacity: 0.75; }
+.buddy-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.buddy-done { padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--brass) 14%, transparent); }
+.buddy-done ul { margin: 6px 0 0; padding-left: 18px; }
+.buddy-chosen { display: flex; align-items: center; gap: 12px; }
+.buddy-chosen .cover { width: 44px; }
+.buddy-chosen > span { flex: 1; display: flex; flex-direction: column; }
+.buddy-friends { display: flex; flex-wrap: wrap; gap: 8px; }
+.buddy-friend { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--surface); color: inherit; font: inherit; }
+.buddy-friend.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.buddy-friend input { width: auto; margin: 0; accent-color: var(--accent); }
+.buddy-chat { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.chat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; }
+.chat-list li { display: flex; gap: 8px; align-items: flex-start; }
+.chat-bubble { flex: 1; min-width: 0; background: var(--surface-2); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+.chat-list li.mine .chat-bubble { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.chat-bubble p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.chat-meta { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.chat-page { font-family: var(--font-mono); font-size: 0.75rem; padding: 0 6px; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); }
+.chat-spoiler { border: 1px dashed var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; text-align: left; cursor: pointer; color: var(--muted); font: inherit; font-size: 0.9rem; }
+.chat-form { display: flex; flex-direction: column; gap: 6px; }
+.chat-send { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.chat-send input { width: 80px; display: inline-block; margin-left: 4px; }
+.home-buddy { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.home-buddy li { display: flex; flex-direction: column; }
+.home-buddy .link-plain { text-align: left; }

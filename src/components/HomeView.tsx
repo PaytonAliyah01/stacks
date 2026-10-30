@@ -10,7 +10,7 @@ import { readingStreak, type ActiveSession } from '../lib/sessions';
 import { agoLabel, nowSpinning, periodStarts, pickRecord, playsByRecord, spinStreak, spinsSince } from '../lib/spins';
 import type { Profile } from '../lib/profile';
 
-export type HomeTarget = 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
+export type HomeTarget = 'buddy' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
 
 interface Props {
   allBooks: Book[];
@@ -27,6 +27,8 @@ interface Props {
   onGo: (where: HomeTarget) => void;
   onOpenProfile: (username: string) => void;
   onSignIn: () => void;
+  /** Buddy reads you're in, and invites waiting for you. */
+  buddy?: { title: string; others: string; invite: boolean; myPct: number; leaderPct: number }[];
 }
 
 function greeting(d = new Date()) {
@@ -122,6 +124,25 @@ export function HomeView(props: Props) {
             active={props.active}
             onStartTimer={props.onStartTimer}
           />
+
+          {!!props.buddy?.length && (
+            <section className="panel">
+              <div className="home-head">
+                <h3>Buddy reads</h3>
+                <button className="link small" onClick={() => onGo('buddy')}>Open</button>
+              </div>
+              <ul className="home-buddy">
+                {props.buddy.slice(0, 3).map((x, i) => (
+                  <li key={i}>
+                    <button className="link-plain" onClick={() => onGo('buddy')}>{x.title}</button>
+                    <span className="muted small">
+                      {x.invite ? `${x.others} invited you` : `with ${x.others} · you ${x.myPct}%${x.leaderPct > x.myPct ? `, ahead is ${x.leaderPct}%` : ''}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section className="panel">
             <div className="home-head">

@@ -48,7 +48,9 @@ import { sameBook } from './lib/wishlist';
 import { ImportDialog } from './components/ImportDialog';
 import type { ImportPlan } from './lib/importHistory';
 import { awardBadges, progressOf } from './lib/challenges';
-import { currentReading, progressPct, readingsOf, todayIso as todayIsoDate } from './lib/reading';
+import { currentReading, lastPage, progressPct, readingsOf, todayIso as todayIsoDate } from './lib/reading';
+import { BuddyView } from './components/BuddyView';
+import { findLocalBook, joinBuddyRead, listBuddyReads, memberName, memberPct, sendProgress, startBuddyRead, type BuddyRead } from './lib/buddy';
 import { allSpotsOf, moveBook, newBookcase, nextPosition, placeLabel, sameSpot, spotName, type Spot } from './lib/shelving';
 
 type ScanState = 'looking' | 'added' | 'duplicate' | 'not-found' | 'error' | 'invalid' | 'undone';
@@ -205,7 +207,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
-  const [readingTab, setReadingTab] = useState<'overview' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
+  const [readingTab, setReadingTab] = useState<'overview' | 'buddy' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
   const [highlightId, setHighlightId] = useState<string>();
   const [view, setView] = useState<View>('home');
   // Coming back to Books opens the page you were last on.
@@ -357,11 +359,76 @@ export default function App() {
       setMusicTab('collection');
       return goView('music');
     }
+    if (where === 'buddy') {
+      setReadingTab('buddy');
+      return goView('reading');
+    }
     if (where === 'challenges' || where === 'reading') {
       setReadingTab('overview');
       return goView('reading');
     }
     goView(where);
+  };
+  const [buddyReads, setBuddyReads] = useState<BuddyRead[]>([]);
+  const [buddyError, setBuddyError] = useState<string>();
+  const refreshBuddy = useCallback(() => {
+    listBuddyReads().then(
+      (l) => {
+        setBuddyReads(l);
+        setBuddyError(undefined);
+      },
+      (e) => setBuddyError(`Couldn't load buddy reads: ${(e as Error).message}`),
+    );
+  }, []);
+  useEffect(() => {
+    if (!user || !profile) {
+      setBuddyReads([]);
+      return;
+    }
+    refreshBuddy();
+    const t = window.setInterval(() => !document.hidden && refreshBuddy(), 60_000);
+    window.addEventListener('focus', refreshBuddy);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', refreshBuddy);
+    };
+  }, [user, profile?.id, refreshBuddy]);
+  const buddyInvites = user ? buddyReads.filter((r) => r.members.find((m) => m.user_id === user.id)?.status === 'invited').length : 0;
+
+  /** Your reading of a book, set to "Reading" (made if needed). */
+  const ensureReading = async (b: Book): Promise<Reading> => {
+    const cur = currentReading(readings, b.id);
+    if (cur?.status === 'reading') return cur;
+    const now = new Date().toISOString();
+    const r: Reading =
+      cur?.status === 'want'
+        ? { ...cur, status: 'reading', startedOn: cur.startedOn ?? todayIsoDate(), updatedAt: now }
+        : { id: newId(), bookId: b.id, status: 'reading', startedOn: todayIsoDate(), updates: [], createdAt: now, updatedAt: now };
+    await saveReading(r);
+    return r;
+  };
+  const progressOfReading = (r: Reading, b: Book) => ({ page: lastPage(r), pct: progressPct(r, b), finished: r.status === 'read', rating: r.rating });
+  const startBuddy = async (b: Book, friendIds: string[], note: string, finishBy?: string) => {
+    if (!user) return;
+    const r = await ensureReading(b);
+    await startBuddyRead(user.id, b, friendIds, note, finishBy, progressOfReading(r, b));
+    refreshBuddy();
+    setToast(`Buddy read started. Your friend${friendIds.length === 1 ? ' has' : 's have'} been invited.`);
+  };
+  const joinBuddy = async (read: BuddyRead) => {
+    if (!user) return;
+    const me = read.members.find((m) => m.user_id === user.id);
+    let b = findLocalBook(read, me, allBooks);
+    if (!b) {
+      b = newBook({ ...blankMeta({ isbn13: read.book.isbn13 }), title: read.book.title, authors: read.book.by ? [read.book.by] : [], coverUrl: read.book.cover, pageCount: read.book.pages }, defaultFormat);
+      b.owned = false;
+      b.placement = undefined;
+      await store.put(b);
+      setBooks((l) => [...l, b!]);
+    }
+    const r = await ensureReading(b);
+    await joinBuddyRead(read.id, user.id, b.id, progressOfReading(r, b));
+    setToast(`You joined the buddy read of “${read.book.title}”.`);
   };
   const friendRequests = friends.filter((f) => f.status === 'pending' && f.incoming).length;
   const topIdsOf = (p: Profile | null) => ({ books: p?.showcase.topBooks?.map((x) => x.id) ?? [], records: p?.showcase.topRecords?.map((x) => x.id) ?? [] });
@@ -888,6 +955,13 @@ export default function App() {
     // Tell friends about new starts, finishes and ratings.
     const b = allBooks.find((x) => x.id === r.bookId);
     if (!b) return;
+    // And your buddy reads of this book.
+    if (user)
+      for (const read of buddyReads) {
+        const me = read.members.find((m) => m.user_id === user.id);
+        if (me?.status !== 'joined' || findLocalBook(read, me, allBooks)?.id !== b.id) continue;
+        void sendProgress(read.id, user.id, { page: lastPage(r), pct: progressPct(r, b), finished: r.status === 'read', rating: r.rating }, me.finished_at).then(refreshBuddy, () => undefined);
+      }
     const review = r.review?.trim() ? r.review.trim().slice(0, 280) : undefined;
     if (r.status !== prev?.status) {
       if (r.status === 'reading') void post('started', [itemOf(b)]);
@@ -1169,7 +1243,9 @@ export default function App() {
           <button className={view === 'home' && !onPage ? 'active' : ''} onClick={() => goView('home')}>Home</button>
           <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
           <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
-          <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>Reading</button>
+          <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>
+            Reading{buddyInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites} buddy read invites`}>{buddyInvites}</span>}
+          </button>
           {user && (
             <button className={friendsOpen ? 'active' : ''} onClick={showFriends}>
               Friends{friendRequests > 0 && <span className="tab-badge" aria-label={`${friendRequests} new`}>{friendRequests}</span>}
@@ -1494,6 +1570,22 @@ export default function App() {
             onGo={goHome}
             onOpenProfile={(n) => showProfile(n)}
             onSignIn={() => setAccountOpen(true)}
+            buddy={
+              user
+                ? buddyReads.map((read) => {
+                    const me = read.members.find((m) => m.user_id === user.id);
+                    const others = read.members.filter((m) => m.user_id !== user.id);
+                    const pctOf = (m: (typeof read.members)[number]) => memberPct(m, read.book.pages);
+                    return {
+                      title: read.book.title,
+                      others: me?.status === 'invited' ? memberName(read.members.find((m) => m.user_id === read.owner) ?? others[0]) : others.map(memberName).join(', '),
+                      invite: me?.status === 'invited',
+                      myPct: me ? pctOf(me) : 0,
+                      leaderPct: Math.max(0, ...others.filter((m) => m.status === 'joined').map(pctOf)),
+                    };
+                  })
+                : undefined
+            }
           />
         ) : view === 'wishlist' ? (
           <section className="library" aria-label="Wishlist">
@@ -1521,6 +1613,7 @@ export default function App() {
                 {(
                   [
                     ['overview', 'Overview'],
+                    ['buddy', 'Buddy reads'],
                     ['stats', 'Reading stats'],
                     ['notes', 'Quotes and notes'],
                     ['wrap', 'Year in books'],
@@ -1529,6 +1622,7 @@ export default function App() {
                 ).map(([k, l]) => (
                   <button key={k} className={readingTab === k ? 'active' : ''} aria-current={readingTab === k ? 'page' : undefined} onClick={() => setReadingTab(k)}>
                     {l}
+                    {k === 'buddy' && buddyInvites > 0 && <span className="tab-badge">{buddyInvites}</span>}
                   </button>
                 ))}
               </nav>
@@ -1550,6 +1644,29 @@ export default function App() {
             {readingTab === 'stats' && <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />}
             {readingTab === 'notes' && <NotesView books={allBooks} notes={notes} onOpen={(b) => setOpen({ book: b })} onSave={saveNote} onRemove={removeNote} />}
             {readingTab === 'wrap' && <YearWrap books={allBooks} readings={readings} notes={notes} challenges={challenges} onOpen={(b) => setOpen({ book: b })} />}
+            {readingTab === 'buddy' &&
+              (user && profile ? (
+                <BuddyView
+                  uid={user.id}
+                  books={allBooks}
+                  readings={readings}
+                  friends={friends}
+                  reads={buddyReads}
+                  error={buddyError}
+                  onRefresh={refreshBuddy}
+                  onOpen={(b) => setOpen({ book: b })}
+                  onSaveReading={saveReading}
+                  onStart={startBuddy}
+                  onJoin={joinBuddy}
+                  onOpenProfile={(n) => showProfile(n)}
+                  onFindFriends={showFriends}
+                />
+              ) : (
+                <div className="profile-missing">
+                  <p>Buddy reads let you read a book together with friends. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
+                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : setAccountOpen(true))}>{user ? 'Set up my profile' : 'Sign in'}</button>
+                </div>
+              ))}
             {readingTab === 'achievements' && (
               <AchievementsView books={allBooks} readings={readings} challenges={challenges} onGoToChallenges={() => setReadingTab('overview')} />
             )}

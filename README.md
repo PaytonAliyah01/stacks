@@ -154,3 +154,7 @@ Friends → Feed shows what you and your friends started, finished (with rating 
 ## Home
 
 Stacks opens on Home (also the logo): a greeting, your totals, currently reading with quick progress and the timer, your running reading goal, the top of your Up next queue, what's spinning or a record to put on, recently added, and the newest posts from your friends. The scanner stays on the left on a computer; on a phone only the scan button stays above the dashboard.
+
+## Buddy reads
+
+Reading → Buddy reads: start one from a book in your library and invite friends. Everyone's page shows side by side, updated automatically when you update the book in your own library (joining adds the book if you don't have it). Chat messages carry the page they're about and stay hidden behind a spoiler note for anyone who hasn't reached it. When everyone finishes, the finish line shows who finished when and their ratings. Uses `supabase/05-buddy-reads.sql`.
