@@ -55,6 +55,19 @@ const DB_NAME = 'stacks';
 
 export class StorageError extends Error {}
 
+/** The stores that sync to your account. */
+export const SYNC_STORES = ['books', 'bookcases', 'readings', 'challenges', 'notes', 'spins'] as const;
+export type SyncStore = (typeof SYNC_STORES)[number];
+
+type ChangeListener = (store: SyncStore, ids: string[]) => void;
+let changeListener: ChangeListener | undefined;
+/** Told about every saved or deleted item, so sync knows what to send. */
+export function onLocalChange(fn: ChangeListener | undefined) {
+  changeListener = fn;
+}
+const changed = (store: SyncStore, ...ids: string[]) => ids.length && changeListener?.(store, ids);
+
+
 class IndexedDbStore implements LibraryStore {
   private db: Promise<IDBPDatabase>;
 
@@ -129,14 +142,17 @@ class IndexedDbStore implements LibraryStore {
   }
   async put(book: Book) {
     await (await this.db).put('books', book);
+    changed('books', book.id);
   }
   async remove(id: string) {
     await (await this.db).delete('books', id);
+    changed('books', id);
   }
   async putMany(books: Book[]) {
     const tx = (await this.db).transaction('books', 'readwrite');
     for (const b of books) await tx.store.put(b);
     await tx.done;
+    changed('books', ...books.map((b) => b.id));
   }
   async importMany(books: Book[], bookcases: Bookcase[] = [], readings: Reading[] = [], challenges: Challenge[] = [], notes: BookNote[] = [], spins: Spin[] = []) {
     const tx = (await this.db).transaction(['books', 'bookcases', 'readings', 'challenges', 'notes', 'spins'], 'readwrite');
@@ -147,6 +163,12 @@ class IndexedDbStore implements LibraryStore {
     for (const c of bookcases) await tx.objectStore('bookcases').put(c);
     for (const r of readings) await tx.objectStore('readings').put(r);
     await tx.done;
+    changed('spins', ...spins.map((x) => x.id));
+    changed('notes', ...notes.map((x) => x.id));
+    changed('challenges', ...challenges.map((x) => x.id));
+    changed('books', ...books.map((x) => x.id));
+    changed('bookcases', ...bookcases.map((x) => x.id));
+    changed('readings', ...readings.map((x) => x.id));
     return books.length;
   }
   async listBookcases() {
@@ -155,12 +177,15 @@ class IndexedDbStore implements LibraryStore {
   }
   async putBookcase(bookcase: Bookcase) {
     await (await this.db).put('bookcases', bookcase);
+    changed('bookcases', bookcase.id);
   }
   async removeBookcase(id: string) {
     const tx = (await this.db).transaction(['books', 'bookcases'], 'readwrite');
     const books = tx.objectStore('books');
+    const moved: string[] = [];
     for (const b of (await books.getAll()) as Book[]) {
       if (b.placement?.bookcaseId === id) {
+        moved.push(b.id);
         const { placement: _gone, ...rest } = b;
         void _gone;
         await books.put({ ...rest, updatedAt: new Date().toISOString() });
@@ -168,61 +193,99 @@ class IndexedDbStore implements LibraryStore {
     }
     await tx.objectStore('bookcases').delete(id);
     await tx.done;
+    changed('books', ...moved);
+    changed('bookcases', id);
   }
   async listReadings() {
     return (await this.db).getAll('readings') as Promise<Reading[]>;
   }
   async putReading(reading: Reading) {
     await (await this.db).put('readings', reading);
+    changed('readings', reading.id);
   }
   async removeReading(id: string) {
     await (await this.db).delete('readings', id);
+    changed('readings', id);
   }
   async listChallenges() {
     return (await this.db).getAll('challenges') as Promise<Challenge[]>;
   }
   async putChallenge(c: Challenge) {
     await (await this.db).put('challenges', c);
+    changed('challenges', c.id);
   }
   async removeChallenge(id: string) {
     await (await this.db).delete('challenges', id);
+    changed('challenges', id);
   }
   async listNotes() {
     return (await this.db).getAll('notes') as Promise<BookNote[]>;
   }
   async putNote(n: BookNote) {
     await (await this.db).put('notes', n);
+    changed('notes', n.id);
   }
   async removeNote(id: string) {
     await (await this.db).delete('notes', id);
+    changed('notes', id);
   }
   async removeNotesOf(bookId: string) {
     const tx = (await this.db).transaction('notes', 'readwrite');
-    for (const key of await tx.store.index('bookId').getAllKeys(bookId)) await tx.store.delete(key);
+    const keys = await tx.store.index('bookId').getAllKeys(bookId);
+    for (const key of keys) await tx.store.delete(key);
     await tx.done;
+    changed('notes', ...keys.map(String));
   }
   async listSpins() {
     return (await this.db).getAll('spins') as Promise<Spin[]>;
   }
   async putSpin(x: Spin) {
     await (await this.db).put('spins', x);
+    changed('spins', x.id);
   }
   async removeSpin(id: string) {
     await (await this.db).delete('spins', id);
+    changed('spins', id);
   }
   async removeSpinsOf(bookId: string) {
     const tx = (await this.db).transaction('spins', 'readwrite');
-    for (const key of await tx.store.index('bookId').getAllKeys(bookId)) await tx.store.delete(key);
+    const keys = await tx.store.index('bookId').getAllKeys(bookId);
+    for (const key of keys) await tx.store.delete(key);
     await tx.done;
+    changed('spins', ...keys.map(String));
   }
   async removeReadingsOf(bookId: string) {
     const tx = (await this.db).transaction('readings', 'readwrite');
-    for (const key of await tx.store.index('bookId').getAllKeys(bookId)) await tx.store.delete(key);
+    const keys = await tx.store.index('bookId').getAllKeys(bookId);
+    for (const key of keys) await tx.store.delete(key);
+    await tx.done;
+    changed('readings', ...keys.map(String));
+  }
+
+  /** For sync: read, write and delete any item without telling the sync about it. */
+  async rawAll(name: SyncStore) {
+    return (await this.db).getAll(name) as Promise<{ id: string }[]>;
+  }
+  async rawGet(name: SyncStore, id: string) {
+    return (await this.db).get(name, id) as Promise<{ id: string } | undefined>;
+  }
+  async rawApply(name: SyncStore, puts: { id: string }[], deletes: string[]) {
+    const tx = (await this.db).transaction(name, 'readwrite');
+    for (const x of puts) await tx.store.put(x);
+    for (const id of deletes) await tx.store.delete(id);
+    await tx.done;
+  }
+  /** Empties every store, e.g. when someone signs out of a shared phone. */
+  async rawClearAll() {
+    const tx = (await this.db).transaction([...SYNC_STORES], 'readwrite');
+    for (const n of SYNC_STORES) await tx.objectStore(n).clear();
     await tx.done;
   }
 }
 
-export const store: LibraryStore = new IndexedDbStore();
+const idb = new IndexedDbStore();
+export const store: LibraryStore = idb;
+export const rawStore = idb;
 
 export function newId(): string {
   return crypto.randomUUID();

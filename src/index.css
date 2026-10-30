@@ -988,3 +988,21 @@ ol.most-played .record-row::before { counter-increment: mp; content: counter(mp)
   .scan-field .scan-head { display: none; }
   .scan-field .camera-btn { order: -1; margin: 0; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); padding: 12px; font-size: 1rem; }
 }
+
+/* ---------- account and sync ---------- */
+.account-btn { gap: 7px; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.sync-dot.syncing { background: var(--brass); }
+.sync-dot.offline, .sync-dot.error { background: var(--bad); }
+.account-card { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.account-email { font-size: 1.05rem; overflow-wrap: anywhere; }
+.sync-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+.sync-pill.syncing .dot { background: var(--brass); box-shadow: none; }
+.sync-pill.offline .dot, .sync-pill.error .dot { background: var(--bad); box-shadow: none; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.account-signout { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; }
+.account-signout p { margin: 0; }
+.account-switch { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.account-error { margin: 0; color: var(--bad); font-weight: 500; }
+.account-info { margin: 0; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.account-form > .btn.primary { justify-content: center; padding: 11px 14px; }

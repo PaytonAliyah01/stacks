@@ -4,6 +4,9 @@ import { formatIsbn13, parseScan } from './lib/isbn';
 import { fetchDiscogsRelease, fetchSeries, fetchSubjects, findAlbumCover, fetchTrackList, getDiscogsToken, fetchMarketPrices, discogsIdForBarcode, lookupBarcode, lookupIsbn, type SearchHit } from './lib/lookup';
 import { downloadFile, makeBackup, newId, parseBackup, store, toCsv } from './lib/storage';
 import { digitOf, useBarcodeScanner } from './lib/useBarcodeScanner';
+import { AccountDialog, syncLabel } from './components/AccountDialog';
+import { onRemote, prefChanged, startSync, supabase, syncState, watchSync, type SyncState } from './lib/cloud';
+import type { User } from '@supabase/supabase-js';
 import { CameraScanner, cameraNeedsHttps, cameraSupported } from './components/CameraScanner';
 import { Cover } from './components/Cover';
 import { BookDrawer } from './components/BookDrawer';
@@ -167,6 +170,7 @@ export default function App() {
   const [styluses, setStylusList] = useState<Stylus[]>(loadStyluses);
   const setStyluses = (list: Stylus[]) => {
     saveStyluses(list);
+    prefChanged('styluses');
     setStylusList(list);
   };
   const [priceRun, setPriceRun] = useState<PriceRun | null>(null);
@@ -232,6 +236,11 @@ export default function App() {
   const sinkRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDetailsElement>(null);
 
+  const [user, setUser] = useState<User | null>(null);
+  const [sync, setSync] = useState<SyncState>(syncState);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+
   const reload = useCallback(async () => {
     await clearAutoPurchaseDates();
     const [b, c, r, ch, n, sp] = await Promise.all([store.list(), store.listBookcases(), store.listReadings(), store.listChallenges(), store.listNotes(), store.listSpins()]);
@@ -242,6 +251,27 @@ export default function App() {
     setChallenges(ch);
     setNotes(n);
   }, []);
+
+  // Accounts: follow sign-ins, and reload the screens when changes arrive from your other devices.
+  useEffect(() => {
+    onRemote(() => {
+      void reload();
+      setStylusList(loadStyluses());
+    });
+    const unwatch = watchSync(setSync);
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      if (event === 'PASSWORD_RECOVERY') {
+        setRecovering(true);
+        setAccountOpen(true);
+      }
+    });
+    startSync();
+    return () => {
+      unwatch();
+      data.subscription.unsubscribe();
+    };
+  }, [reload]);
 
   // Fill in moods, pace and warnings for books that have none, guessed from their genres.
   // Runs quietly in the background, one book at a time, and never touches a book you've tagged.
@@ -569,7 +599,7 @@ export default function App() {
     [defaultFormat, scanTarget, scanSpot?.bookcaseId, scanSpot?.shelf, scanSpot?.section, reload],
   );
 
-  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !cameraOpen && !open && !editingCase && !searchFor && !settingsOpen && !importOpen && wishSearch === false);
+  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !cameraOpen && !accountOpen && !open && !editingCase && !searchFor && !settingsOpen && !importOpen && wishSearch === false);
 
   // Keep the scan box ready: focus it on start and whenever a panel closes.
   useEffect(() => {
@@ -972,7 +1002,7 @@ export default function App() {
     setBackupNote(today);
   };
   const daysSinceBackup = backupNote ? Math.floor((Date.now() - Date.parse(backupNote)) / 86_400_000) : Infinity;
-  const backupDue = books.length >= 5 && daysSinceBackup >= 14 && Date.now() > snoozedUntil;
+  const backupDue = !user && books.length >= 5 && daysSinceBackup >= 14 && Date.now() > snoozedUntil;
 
   const inBooks = BOOK_PAGES.some(([k]) => k === view);
   const booksNav = (
@@ -1041,6 +1071,15 @@ export default function App() {
         <div className="topbar-actions">
           <button className="btn ghost" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true })}>
             Add by hand
+          </button>
+          <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => setAccountOpen(true)} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
+            {user ? (
+              <>
+                <span className={`sync-dot ${sync.kind}`} aria-hidden="true" /> Account
+              </>
+            ) : (
+              'Sign in'
+            )}
           </button>
           <details className="menu" ref={menuRef}>
             <summary className="btn ghost">Backup</summary>
@@ -1124,6 +1163,7 @@ export default function App() {
             aria-label="Barcode scanner"
             tabIndex={-1}
             autoComplete="off"
+            inputMode="none"
             onKeyDown={onSinkKey}
           />
           <form className={`scan-field ${flash ? 'flash' : ''}`} onSubmit={submitEntry}>
@@ -1134,7 +1174,7 @@ export default function App() {
                 ))}
               </div>
               <div>
-                {open || editingCase || searchFor || settingsOpen || importOpen || wishSearch !== false ? (
+                {open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false ? (
                   <>
                     <p className="scan-status paused"><span className="dot" /> Scanner paused</p>
                     <p className="scan-hint">Close the panel on the right to scan again.</p>
@@ -1679,6 +1719,24 @@ export default function App() {
                 ? `Added ${plan.newBooks.length} record${plan.newBooks.length === 1 ? '' : 's'} to your wantlist${plan.alreadyOwned.length ? `. ${plan.alreadyOwned.length} you already own were left off` : ''}.`
                 : `Imported ${plan.newBooks.length} record${plan.newBooks.length === 1 ? '' : 's'} from Discogs${plan.updated.length ? ` and updated ${plan.updated.length} you already had` : ''}.`,
             );
+          }}
+        />
+      )}
+
+      {accountOpen && (
+        <AccountDialog
+          user={user}
+          sync={sync}
+          recovering={recovering}
+          onClose={() => {
+            setAccountOpen(false);
+            setRecovering(false);
+          }}
+          onSignedOut={() => {
+            setAccountOpen(false);
+            void reload();
+            setStylusList(loadStyluses());
+            setToast('Signed out.');
           }}
         />
       )}

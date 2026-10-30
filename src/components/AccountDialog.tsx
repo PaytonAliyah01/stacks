@@ -1,0 +1,206 @@
+import { useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
+import { SITE_URL, pendingCount, signOut, supabase, syncNow, type SyncState } from '../lib/cloud';
+
+interface Props {
+  user: User | null;
+  sync: SyncState;
+  /** Opened from a "reset your password" email link. */
+  recovering?: boolean;
+  onClose: () => void;
+  onSignedOut: () => void;
+}
+
+type Mode = 'signin' | 'signup' | 'forgot';
+
+function authMessage(e: { message?: string } | null | undefined): string {
+  const m = e?.message ?? '';
+  if (/invalid login credentials/i.test(m)) return 'That email and password don’t match. Check them, or press “Forgot password”.';
+  if (/email not confirmed/i.test(m)) return 'Confirm your email first: open the email from Stacks and press the link.';
+  if (/already registered|already exists/i.test(m)) return 'There’s already an account with this email. Sign in instead.';
+  if (/password should be|at least 6/i.test(m)) return 'Your password needs at least 6 characters.';
+  if (/rate limit|too many/i.test(m)) return 'Too many tries. Wait a minute and try again.';
+  if (/fetch|network/i.test(m)) return 'No internet connection. Try again when you’re online.';
+  return m || 'Something went wrong. Try again.';
+}
+
+export function syncLabel(s: SyncState): string {
+  switch (s.kind) {
+    case 'off':
+      return 'Not signed in';
+    case 'syncing':
+      return 'Syncing…';
+    case 'synced':
+      return Date.now() - Date.parse(s.at) < 60_000 ? 'Synced just now' : `Synced at ${new Date(s.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+    case 'offline':
+      return s.pending ? `Offline · ${s.pending} change${s.pending === 1 ? '' : 's'} to send` : 'Offline';
+    case 'error':
+      return 'Sync problem';
+  }
+}
+
+export function AccountDialog({ user, sync, recovering, onClose, onSignedOut }: Props) {
+  const [mode, setMode] = useState<Mode>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const [info, setInfo] = useState<string>();
+  const [confirmOut, setConfirmOut] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError(undefined);
+    setInfo(undefined);
+    try {
+      await fn();
+    } catch (e) {
+      setError(authMessage(e as Error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (recovering) {
+      return run(async () => {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        setInfo('Your new password is saved.');
+        setPassword('');
+      });
+    }
+    if (mode === 'forgot') {
+      return run(async () => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: SITE_URL });
+        if (error) throw error;
+        setInfo('Check your email for a link to choose a new password.');
+      });
+    }
+    if (mode === 'signup') {
+      return run(async () => {
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: SITE_URL } });
+        if (error) throw error;
+        if (!data.session) setInfo(`Almost done. We sent an email to ${email.trim()}. Press the link in it, then sign in here.`);
+      });
+    }
+    return run(async () => {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
+    });
+  };
+
+  const doSignOut = (keepCopy: boolean) =>
+    run(async () => {
+      await signOut(keepCopy);
+      onSignedOut();
+    });
+
+  return (
+    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Account">
+        <form className="drawer-form account-form" onSubmit={submit}>
+          <header className="drawer-head">
+            <h2 className="drawer-heading">{user ? 'Your account' : mode === 'signup' ? 'Make an account' : mode === 'forgot' ? 'Forgot password' : 'Sign in'}</h2>
+            <button type="button" className="icon-btn close" onClick={onClose} aria-label="Close">✕</button>
+          </header>
+
+          {user && recovering ? (
+            <>
+              <p>Choose a new password for {user.email}.</p>
+              <label className="field">
+                <span>New password</span>
+                <input id="acct-new-password" type="password" autoComplete="new-password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
+              </label>
+              <button className="btn primary" disabled={busy || password.length < 6}>{busy ? 'Saving…' : 'Save new password'}</button>
+            </>
+          ) : user ? (
+            <>
+              <div className="account-card">
+                <span className="stat-label">Signed in as</span>
+                <strong className="account-email">{user.email}</strong>
+                <span className={`sync-pill ${sync.kind}`}>
+                  <span className="dot" /> {syncLabel(sync)}
+                </span>
+                {sync.kind === 'error' && <p className="muted small">{sync.message}</p>}
+              </div>
+              <p className="muted small">
+                Your library is saved in your account and on this device. Sign in on your phone or another computer with the same email and it all shows up there too.
+                Changes made offline are sent as soon as you’re back online.
+              </p>
+              <div className="account-actions">
+                <button type="button" className="btn" onClick={() => void syncNow()} disabled={sync.kind === 'syncing'}>Sync now</button>
+                {!confirmOut && <button type="button" className="btn ghost" onClick={() => setConfirmOut(true)}>Sign out</button>}
+              </div>
+              {confirmOut && (
+                <div className="account-signout">
+                  <p>Signing out on a phone or computer that other people use? Take your library off it too. It stays safe in your account.</p>
+                  <div className="account-actions">
+                    <button type="button" className="btn primary" disabled={busy} onClick={() => doSignOut(false)}>Sign out and remove from this device</button>
+                    <button type="button" className="btn ghost" disabled={busy} onClick={() => doSignOut(true)}>Sign out, keep a copy here</button>
+                    <button type="button" className="link small" onClick={() => setConfirmOut(false)}>Cancel</button>
+                  </div>
+                  {pendingCount() > 0 && <p className="muted small">{pendingCount()} change{pendingCount() === 1 ? ' is' : 's are'} still waiting to be sent.</p>}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="muted">
+                {mode === 'signup'
+                  ? 'An account keeps your library safe and the same on all your devices. It’s free.'
+                  : mode === 'forgot'
+                    ? 'Type your email and we’ll send you a link to choose a new password.'
+                    : 'Sign in to keep your library safe and the same on your phone and computer.'}
+              </p>
+              <label className="field">
+                <span>Email</span>
+                <input id="acct-email" type="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </label>
+              {mode !== 'forgot' && (
+                <label className="field">
+                  <span>Password</span>
+                  <input
+                    id="acct-password"
+                    type="password"
+                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  {mode === 'signup' && <span className="hint">At least 6 characters.</span>}
+                </label>
+              )}
+              <button className="btn primary" disabled={busy}>
+                {busy ? 'One moment…' : mode === 'signup' ? 'Make my account' : mode === 'forgot' ? 'Send the link' : 'Sign in'}
+              </button>
+              <div className="account-switch">
+                {mode === 'signin' ? (
+                  <>
+                    <button type="button" className="link small" onClick={() => setMode('signup')}>New here? Make an account</button>
+                    <button type="button" className="link small" onClick={() => setMode('forgot')}>Forgot password</button>
+                  </>
+                ) : (
+                  <button type="button" className="link small" onClick={() => setMode('signin')}>I already have an account</button>
+                )}
+              </div>
+              {mode === 'signup' && (
+                <p className="muted small">The books, records and reading history already on this device go into your new account.</p>
+              )}
+            </>
+          )}
+          {error && <p className="account-error" role="alert">{error}</p>}
+          {info && <p className="account-info" role="status">{info}</p>}
+        </form>
+      </aside>
+    </div>
+  );
+}

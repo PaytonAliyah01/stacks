@@ -132,3 +132,9 @@ Where things live:
 **Stylus tracker (Music → Listening → Stylus):** tell Stacks which stylus is on your turntable, its tip shape (sets how many hours it lasts: conical ~500, elliptical ~800, fine line ~1000) and when you put it on. Every vinyl spin adds the record's length (from its track list, or a typical length for its size); CDs don't count. You see hours used, % worn and roughly how long it has left at your pace, with a warning from 85%. **I replaced it** starts a new one and keeps the old in a history. Styluses are saved in this browser and in backups.
 
 **Year in music (Music → Year in music):** your spins, hours of music, different records and days with music for the year, your most played records ("On repeat"), top artists, spins month by month, new records added and what you spent, your longest streak, and records you played for the first time. **Save picture** / **Copy picture** make a 1080×1350 image to share. In December and January the Listening page points you to it.
+
+## Phones, camera scanning and accounts
+
+- **Online:** Stacks is published at https://paytonaliyah01.github.io/stacks/ on every push to `main` (`.github/workflows/pages.yml`). Phones need this https link: the camera only works on https.
+- **Camera scanning:** "Scan with camera" opens the back camera and keeps scanning until you press Done. It uses the browser's own barcode reader where there is one (Chrome on Android), otherwise ZXing (iPhone, Firefox).
+- **Accounts (Supabase):** sign in from the Account button. Your library stays in the browser first, so Stacks works offline; when signed in, every change is sent to the `items` table (one row per book, bookcase, reading, note, play or setting) and changes from your other devices come back on focus, every minute, or with Sync now. Row level security means each person only sees their own rows. Signing out can remove the library from a shared device.
