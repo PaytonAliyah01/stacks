@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { Avatar } from './ProfileEditor';
+import type { Profile } from '../lib/profile';
 import { SITE_URL, pendingCount, signOut, supabase, syncNow, type SyncState } from '../lib/cloud';
 
 interface Props {
@@ -9,6 +11,9 @@ interface Props {
   recovering?: boolean;
   onClose: () => void;
   onSignedOut: () => void;
+  profile?: Profile | null;
+  onEditProfile?: () => void;
+  onViewProfile?: () => void;
 }
 
 type Mode = 'signin' | 'signup' | 'forgot';
@@ -39,7 +44,7 @@ export function syncLabel(s: SyncState): string {
   }
 }
 
-export function AccountDialog({ user, sync, recovering, onClose, onSignedOut }: Props) {
+export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, profile, onEditProfile, onViewProfile }: Props) {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -130,6 +135,29 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut }: 
                   <span className="dot" /> {syncLabel(sync)}
                 </span>
                 {sync.kind === 'error' && <p className="muted small">{sync.message}</p>}
+              </div>
+              <div className="account-profile">
+                {profile ? (
+                  <>
+                    <Avatar p={profile} size={48} />
+                    <span className="account-profile-text">
+                      <strong>{profile.display_name || `@${profile.username}`}</strong>
+                      <span className="muted small">@{profile.username} · {profile.visibility === 'public' ? 'anyone with the link' : profile.visibility === 'friends' ? 'friends only' : 'only you'}</span>
+                    </span>
+                    <span className="account-actions">
+                      <button type="button" className="btn small-btn" onClick={onViewProfile}>View</button>
+                      <button type="button" className="btn ghost small-btn" onClick={onEditProfile}>Edit</button>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="account-profile-text">
+                      <strong>Make your profile</strong>
+                      <span className="muted small">Pick a username and picture, and show off your top 4 books and records.</span>
+                    </span>
+                    <button type="button" className="btn primary small-btn" onClick={onEditProfile}>Set up</button>
+                  </>
+                )}
               </div>
               <p className="muted small">
                 Your library is saved in your account and on this device. Sign in on your phone or another computer with the same email and it all shows up there too.

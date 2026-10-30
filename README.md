@@ -138,3 +138,7 @@ Where things live:
 - **Online:** Stacks is published at https://paytonaliyah01.github.io/stacks/ on every push to `main` (`.github/workflows/pages.yml`). Phones need this https link: the camera only works on https.
 - **Camera scanning:** "Scan with camera" opens the back camera and keeps scanning until you press Done. It uses the browser's own barcode reader where there is one (Chrome on Android), otherwise ZXing (iPhone, Firefox).
 - **Accounts (Supabase):** sign in from the Account button. Your library stays in the browser first, so Stacks works offline; when signed in, every change is sent to the `items` table (one row per book, bookcase, reading, note, play or setting) and changes from your other devices come back on focus, every minute, or with Sync now. Row level security means each person only sees their own rows. Signing out can remove the library from a shared device.
+
+## Profiles
+
+Account → Set up your profile: an @username, name, picture (uploaded to the `avatars` bucket, or initials in a color), bio, profile color, top 4 books and top 4 records, and who can see it (only me, friends, anyone with the link). The profile shows a snapshot (`profiles.showcase`) of what you're reading and spinning and a few totals, refreshed a few seconds after your library changes; your full library stays private. Profiles open at `#@username`. The SQL for Supabase is in `supabase/`.

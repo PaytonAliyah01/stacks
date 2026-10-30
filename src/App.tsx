@@ -7,6 +7,9 @@ import { digitOf, useBarcodeScanner } from './lib/useBarcodeScanner';
 import { AccountDialog, syncLabel } from './components/AccountDialog';
 import { onRemote, prefChanged, startSync, supabase, syncState, watchSync, type SyncState } from './lib/cloud';
 import type { User } from '@supabase/supabase-js';
+import { ProfileEditor, Avatar } from './components/ProfileEditor';
+import { ProfileView } from './components/ProfileView';
+import { buildShowcase, loadMyProfile, saveShowcase, usernameFromHash, type Profile } from './lib/profile';
 import { CameraScanner, cameraNeedsHttps, cameraSupported } from './components/CameraScanner';
 import { Cover } from './components/Cover';
 import { BookDrawer } from './components/BookDrawer';
@@ -240,6 +243,9 @@ export default function App() {
   const [sync, setSync] = useState<SyncState>(syncState);
   const [accountOpen, setAccountOpen] = useState(false);
   const [recovering, setRecovering] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [profileName, setProfileName] = useState(usernameFromHash);
 
   const reload = useCallback(async () => {
     await clearAutoPurchaseDates();
@@ -272,6 +278,38 @@ export default function App() {
       data.subscription.unsubscribe();
     };
   }, [reload]);
+
+  // Profiles: yours loads when you sign in; #@name in the address opens someone's profile.
+  useEffect(() => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    loadMyProfile(user.id).then(setProfile, () => undefined);
+  }, [user]);
+  useEffect(() => {
+    const onHash = () => setProfileName(usernameFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const showProfile = (name?: string) => {
+    if (name) location.hash = `@${name}`;
+    else history.replaceState(null, '', location.pathname + location.search);
+    setProfileName(name);
+    window.scrollTo(0, 0);
+  };
+  const topIdsOf = (p: Profile | null) => ({ books: p?.showcase.topBooks?.map((x) => x.id) ?? [], records: p?.showcase.topRecords?.map((x) => x.id) ?? [] });
+  // Keep your profile's snapshot (reading, spinning, totals) up to date, a little after things settle.
+  useEffect(() => {
+    if (!user || !profile || !loaded) return;
+    const t = setTimeout(() => {
+      const next = buildShowcase(allBooks, readings, spins, topIdsOf(profile));
+      if (JSON.stringify(next) === JSON.stringify(profile.showcase)) return;
+      saveShowcase(user.id, next).then(() => setProfile((p) => (p ? { ...p, showcase: next } : p)), () => undefined);
+    }, 4000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile, loaded, allBooks, readings, spins]);
 
   // Fill in moods, pace and warnings for books that have none, guessed from their genres.
   // Runs quietly in the background, one book at a time, and never touches a book you've tagged.
@@ -599,7 +637,7 @@ export default function App() {
     [defaultFormat, scanTarget, scanSpot?.bookcaseId, scanSpot?.shelf, scanSpot?.section, reload],
   );
 
-  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !cameraOpen && !accountOpen && !open && !editingCase && !searchFor && !settingsOpen && !importOpen && wishSearch === false);
+  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !profileName && !profileEditing && !cameraOpen && !accountOpen && !open && !editingCase && !searchFor && !settingsOpen && !importOpen && wishSearch === false);
 
   // Keep the scan box ready: focus it on start and whenever a panel closes.
   useEffect(() => {
@@ -1075,7 +1113,8 @@ export default function App() {
           <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => setAccountOpen(true)} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
             {user ? (
               <>
-                <span className={`sync-dot ${sync.kind}`} aria-hidden="true" /> Account
+                {profile ? <Avatar p={profile} size={22} /> : null}
+                <span className={`sync-dot ${sync.kind}`} aria-hidden="true" /> {profile ? `@${profile.username}` : 'Account'}
               </>
             ) : (
               'Sign in'
@@ -1133,7 +1172,17 @@ export default function App() {
         </div>
       )}
 
-      <main className="layout">
+      {profileName && (
+        <ProfileView
+          username={profileName}
+          mine={profile}
+          signedIn={!!user}
+          onEdit={() => setProfileEditing(true)}
+          onBack={() => showProfile(undefined)}
+          onSignIn={() => setAccountOpen(true)}
+        />
+      )}
+      <main className="layout" hidden={!!profileName}>
         {view === 'reading' && (
           <aside className="scan-panel" aria-label="Currently reading">
             <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => setActiveSession(startSession(r, b))} />
@@ -1728,6 +1777,12 @@ export default function App() {
           user={user}
           sync={sync}
           recovering={recovering}
+          profile={profile}
+          onEditProfile={() => setProfileEditing(true)}
+          onViewProfile={() => {
+            setAccountOpen(false);
+            if (profile) showProfile(profile.username);
+          }}
           onClose={() => {
             setAccountOpen(false);
             setRecovering(false);
@@ -1737,6 +1792,24 @@ export default function App() {
             void reload();
             setStylusList(loadStyluses());
             setToast('Signed out.');
+          }}
+        />
+      )}
+
+      {profileEditing && user && (
+        <ProfileEditor
+          uid={user.id}
+          email={user.email}
+          profile={profile}
+          books={allBooks}
+          makeShowcase={(top) => buildShowcase(allBooks, readings, spins, top)}
+          onClose={() => setProfileEditing(false)}
+          onSaved={(p) => {
+            setProfile(p);
+            setProfileEditing(false);
+            setAccountOpen(false);
+            showProfile(p.username);
+            setToast('Profile saved.');
           }}
         />
       )}
