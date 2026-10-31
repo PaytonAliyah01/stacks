@@ -1,3 +1,4 @@
+import { paintBackdrop, paintSpines } from '../lib/backdrop';
 import { useMemo, useState } from 'react';
 import type { Book, BookNote, Challenge, Reading } from '../types';
 import { shortTitle, wrapYear, type Wrap } from '../lib/wrapup';
@@ -47,8 +48,8 @@ async function drawShareImage(w: Wrap): Promise<Blob | null> {
   const g = c.getContext('2d')!;
   const serif = "Literata, Georgia, 'Times New Roman', serif";
   const sans = 'system-ui, -apple-system, Segoe UI, sans-serif';
-  g.fillStyle = '#16302a';
-  g.fillRect(0, 0, W, H);
+  paintBackdrop(g, W, H, 'books');
+  paintSpines(g, W - 110, 330);
   g.fillStyle = '#d8ad55';
   g.font = `600 34px ${sans}`;
   g.fillText('STACKS', 80, 110);
@@ -186,6 +187,9 @@ export function YearWrap({ books, readings, notes, challenges, onOpen }: Props) 
       </div>
 
       <section className="wrap-hero">
+        <svg className="wrap-spines" viewBox="0 0 319 300" aria-hidden="true">
+          <rect x="0" y="70" width="34" height="230" fill="#d8ad55" /><rect x="0" y="92" width="34" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="0" y="266" width="34" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="40" y="30" width="26" height="270" fill="#7a3b4a" /><rect x="40" y="52" width="26" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="40" y="266" width="26" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="72" y="90" width="40" height="210" fill="#3f7f6c" /><rect x="72" y="112" width="40" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="72" y="266" width="40" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="118" y="50" width="22" height="250" fill="#e9dfc8" /><rect x="118" y="72" width="22" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="118" y="266" width="22" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="146" y="15" width="36" height="285" fill="#a5583a" /><rect x="146" y="37" width="36" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="146" y="266" width="36" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="188" y="65" width="30" height="235" fill="#2f5a8a" /><rect x="188" y="87" width="30" height="6" fill="rgb(0 0 0 / 0.18)" /><rect x="188" y="266" width="30" height="6" fill="rgb(0 0 0 / 0.18)" /><g transform="translate(228 300) rotate(12.6)"><rect x="0" y="-240" width="32" height="240" fill="#c98f3a" /><rect x="0" y="-218" width="32" height="6" fill="rgb(0 0 0 / 0.18)" /></g>
+        </svg>
         <span className="wrap-kicker">Stacks</span>
         <h3 className="wrap-title">My {year} in books</h3>
         <div className="wrap-numbers">

@@ -1,3 +1,4 @@
+import { paintBackdrop } from '../lib/backdrop';
 import { useMemo, useState } from 'react';
 import type { Book, Spin } from '../types';
 import { formatMoney } from '../types';
@@ -28,8 +29,7 @@ async function drawShareImage(w: Wrap): Promise<Blob | null> {
   const ink = '#f4ede2';
   const soft = '#c3b5c9';
   const gold = '#e0b65a';
-  g.fillStyle = '#231a2c';
-  g.fillRect(0, 0, W, H);
+  paintBackdrop(g, W, H, 'music');
 
   // A record in the corner.
   const cx = W - 150;
