@@ -199,3 +199,7 @@ Reading → New releases and Music → New releases. Stacks follows the authors 
 ## Book clubs
 
 Reading → Book clubs. Start a club, give it a name and a line about it, and invite friends; any member who joined can invite their own friends too. The host picks the club's book (from their library, a suggestion, or any title typed in) with an optional meeting date and place or video link. Each club book is a buddy read for everyone in the club: each person joins when they start it, and then sees everyone's progress and a spoiler-free chat. Members suggest books for next time and vote on them; the host makes one the next book. Past books are listed with how many finished and the average rating. Clubs show on Home with the next meeting. Club books stay off the Buddy reads page. Uses `supabase/09-book-clubs.sql` (needs 05).
+
+## Wishlist gifts
+
+Friends → Gifts, and "Gift ideas" on a friend's profile. Friends see your book wishlist and record wantlist (things you don't own that you marked Wishlist or Want to read) and can say "I'm getting this"; other friends then see it's taken, so nobody buys the same present twice. You never see who's getting what on your own list. The Gifts page lists the presents you're getting, by friend, and warns when someone took a thing off their list (they may have bought it). A switch at the top of Books → Wishlist and Music → Wantlist turns sharing off. Uses `supabase/10-gifts.sql`.

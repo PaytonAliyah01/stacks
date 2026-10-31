@@ -34,6 +34,8 @@ import { ListeningView } from './components/ListeningView';
 import { LastfmPanel } from './components/LastfmPanel';
 import { NewReleasesView } from './components/NewReleasesView';
 import { ClubsView } from './components/ClubsView';
+import { GiftsView } from './components/GiftsView';
+import { WishlistSharing } from './components/FriendWishlist';
 import { listClubs, meetingSoon, type Club } from './lib/clubs';
 import { cacheReleases, cachedReleases, dateLabel, findReleases, followId, followedArtists, followedAuthors, seenReleases, type Release, type ReleaseResult } from './lib/newreleases';
 import { hiddenRecs, hideRec } from './lib/recommend';
@@ -289,8 +291,8 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileName, setProfileName] = useState(usernameFromHash);
-  const [friendsOpen, setFriendsOpen] = useState(() => location.hash === '#friends' || location.hash === '#lending');
-  const [friendsTab, setFriendsTab] = useState<'feed' | 'people' | 'lending' | undefined>(() => (location.hash === '#lending' ? 'lending' : undefined));
+  const [friendsOpen, setFriendsOpen] = useState(() => location.hash === '#friends' || location.hash === '#lending' || location.hash === '#gifts');
+  const [friendsTab, setFriendsTab] = useState<'feed' | 'people' | 'lending' | 'gifts' | undefined>(() => (location.hash === '#lending' ? 'lending' : location.hash === '#gifts' ? 'gifts' : undefined));
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendsError, setFriendsError] = useState<string>();
 
@@ -381,8 +383,9 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       setProfileName(usernameFromHash());
-      setFriendsOpen(location.hash === '#friends' || location.hash === '#lending');
+      setFriendsOpen(location.hash === '#friends' || location.hash === '#lending' || location.hash === '#gifts');
       if (location.hash === '#lending') setFriendsTab('lending');
+      if (location.hash === '#gifts') setFriendsTab('gifts');
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -394,7 +397,7 @@ export default function App() {
     setFriendsOpen(false);
     window.scrollTo(0, 0);
   };
-  const showFriends = (tab?: 'lending') => {
+  const showFriends = (tab?: 'lending' | 'gifts') => {
     setFriendsTab(tab);
     location.hash = tab ?? 'friends';
     setFriendsOpen(true);
@@ -1768,6 +1771,7 @@ export default function App() {
           key={friendsTab ?? 'friends'}
           initialTab={friendsTab}
           lendingBadge={loanAsks}
+          gifts={<GiftsView uid={user.id} friends={friends} onOpenProfile={(n) => showProfile(n)} />}
           lending={
             <LendingView
               uid={user.id}
@@ -2048,6 +2052,7 @@ export default function App() {
         ) : view === 'wishlist' ? (
           <section className="library" aria-label="Wishlist">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+            {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
             <WishlistView
               books={allBooks.filter((b) => !isMusic(b))}
               readings={readings}
@@ -2260,6 +2265,7 @@ export default function App() {
         ) : view === 'music' && musicTab === 'wantlist' ? (
           <section className="library" aria-label="Wantlist">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+            {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
             <WishlistView
               music
               books={allBooks.filter(isMusic)}

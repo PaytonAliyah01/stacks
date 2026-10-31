@@ -1423,3 +1423,25 @@ a.rec-title:hover { text-decoration: underline; }
 .club-card-meet { color: var(--accent); font-weight: 600; }
 .confirm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .club-meeting a { color: var(--accent); font-weight: 600; }
+
+/* Wishlist gifts */
+.wish-share { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); margin-bottom: 12px; }
+.wish-share .check > span { white-space: normal; }
+.wish-gifts { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.wish-gifts li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.wish-gifts li.taken { opacity: 0.6; }
+.wish-gift-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wish-gift-action { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.gift-mine { color: var(--accent); font-weight: 600; }
+.gift-group { display: grid; gap: 8px; padding-top: 8px; }
+.gift-group + .gift-group { border-top: 1px solid var(--line); margin-top: 6px; }
+.gift-friend { display: inline-flex; align-items: center; gap: 8px; }
+.gift-friends { display: flex; flex-wrap: wrap; gap: 8px; }
+.gifts-page { display: grid; gap: 14px; }
+.small-tabs { margin-bottom: 10px; }
+@media (max-width: 480px) {
+  .wish-gifts li { grid-template-columns: 40px minmax(0, 1fr); }
+  .wish-gift-action { grid-column: 2; align-items: flex-start; text-align: left; }
+}
+.gift-friends .chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.gift-friends .chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

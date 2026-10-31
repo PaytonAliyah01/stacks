@@ -16,7 +16,9 @@ interface Props {
   /** The Lending page, and how many requests wait there. */
   lending?: React.ReactNode;
   lendingBadge?: number;
-  initialTab?: 'feed' | 'people' | 'lending';
+  /** The Gifts page. */
+  gifts?: React.ReactNode;
+  initialTab?: 'feed' | 'people' | 'lending' | 'gifts';
 }
 
 const nameOf = (f: Pick<Friend, 'display_name' | 'username'>) => f.display_name || `@${f.username}`;
@@ -76,14 +78,14 @@ function Person({ f, onOpen, children }: { f: Found; onOpen?: () => void; childr
   );
 }
 
-export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProfile, onEditProfile, onBack, lending, lendingBadge = 0, initialTab }: Props) {
+export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProfile, onEditProfile, onBack, lending, lendingBadge = 0, gifts, initialTab }: Props) {
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Found | null | undefined>();
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>();
   const [removing, setRemoving] = useState<string>();
   const [copied, setCopied] = useState(false);
-  const [tab, setTab] = useState<'feed' | 'people' | 'lending'>(initialTab ?? (friends.some((f) => f.status === 'accepted') ? 'feed' : 'people'));
+  const [tab, setTab] = useState<'feed' | 'people' | 'lending' | 'gifts'>(initialTab ?? (friends.some((f) => f.status === 'accepted') ? 'feed' : 'people'));
 
   const incoming = friends.filter((f) => f.status === 'pending' && f.incoming);
   const outgoing = friends.filter((f) => f.status === 'pending' && !f.incoming);
@@ -136,6 +138,7 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
               Lending{lendingBadge > 0 && <span className="tab-badge">{lendingBadge}</span>}
             </button>
           )}
+          {gifts && <button className={tab === 'gifts' ? 'active' : ''} onClick={() => setTab('gifts')}>Gifts</button>}
         </nav>
       )}
 
@@ -146,6 +149,8 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
         </div>
       ) : tab === 'lending' && lending ? (
         lending
+      ) : tab === 'gifts' && gifts ? (
+        gifts
       ) : tab === 'feed' ? (
         <FeedView uid={uid} onOpenProfile={onOpenProfile} hasFriends={accepted.length > 0} onFindFriends={() => setTab('people')} />
       ) : (

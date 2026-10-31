@@ -3,6 +3,7 @@ import { Cover } from './Cover';
 import { Avatar } from './ProfileEditor';
 import { FriendButton } from './FriendsView';
 import { FriendShelf } from './FriendShelf';
+import { FriendWishlist } from './FriendWishlist';
 import type { Loan } from '../lib/lending';
 import type { Friend } from '../lib/friends';
 import { loadProfileByUsername, profileLink, type Profile, type ShowcaseItem } from '../lib/profile';
@@ -146,6 +147,9 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
       <Shelf title="Top 4 records" items={s.topRecords} square />
       {!own && uid && mine && loans && onLoansChanged && friends?.some((f) => f.id === p.id && f.status === 'accepted') && (
         <FriendShelf uid={uid} friendId={p.id} friendName={p.display_name || `@${p.username}`} loans={loans} onChanged={onLoansChanged} />
+      )}
+      {!own && uid && mine && friends?.some((f) => f.id === p.id && f.status === 'accepted') && (
+        <FriendWishlist uid={uid} friendId={p.id} friendName={p.display_name || `@${p.username}`} />
       )}
       {own && !s.topBooks?.length && !s.topRecords?.length && (
         <p className="muted">Pick your top 4 books and records under <button className="link" onClick={onEdit}>Edit profile</button>.</p>
