@@ -14,6 +14,7 @@ import { Welcome } from './components/Welcome';
 import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
+import { GroupedTabs } from './components/GroupedTabs';
 import { NotificationBell } from './components/NotificationBell';
 import { gatherNotifications, type NotifTarget } from './lib/notifications';
 import { FriendsView } from './components/FriendsView';
@@ -1056,7 +1057,7 @@ export default function App() {
             message:
               parsed.type === 'isbn'
                 ? "Open Library and Google Books don't know this ISBN. Add the details yourself."
-                : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (Backup → Lookup keys) and press Retry.",
+                : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (More → Lookup keys) and press Retry.",
           });
         } else {
           patchScan(key, { state: 'error', message: result.message });
@@ -1480,6 +1481,20 @@ export default function App() {
   }, [loaded, readings, allBooks, challenges]);
 
   const closeMenu = () => menuRef.current?.removeAttribute('open');
+  // The More menu closes when you click elsewhere or press Escape.
+  useEffect(() => {
+    const close = (e: Event) => {
+      const d = menuRef.current;
+      if (!d?.open) return;
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !d.contains(e.target as Node)) d.open = false;
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, []);
   const today = new Date().toISOString().slice(0, 10);
 
   const saveBookcase = async (bc: Bookcase) => {
@@ -1588,25 +1603,19 @@ export default function App() {
     </div>
   );
   const musicNav = (
-    <div className="subtabs-line">
-      <nav className="subtabs" aria-label="Music pages">
-        {(
-          [
-            ['collection', 'Collection'],
-            ['foryou', 'For you'],
-            ['new', 'New releases'],
-            ['listening', 'Listening'],
-            ['value', 'Value'],
-            ['wantlist', 'Wantlist'],
-            ['wrap', 'Year in music'],
-          ] as const
-        ).map(([k, l]) => (
-          <button key={k} className={musicTab === k ? 'active' : ''} aria-current={musicTab === k ? 'page' : undefined} onClick={() => setMusicTab(k)}>
-            {l}
-          </button>
-        ))}
-      </nav>
-    </div>
+    <GroupedTabs
+      line
+      label="Music pages"
+      current={musicTab}
+      onPick={setMusicTab}
+      groups={[
+        { label: 'Collection', pages: [['collection', 'Collection']] },
+        { label: 'Wantlist', pages: [['wantlist', 'Wantlist']] },
+        { label: 'Listening', pages: [['listening', 'Listening']] },
+        { label: 'Discover', pages: [['foryou', 'For you'], ['new', 'New releases']] },
+        { label: 'Stats', pages: [['value', 'What it’s worth'], ['wrap', 'Year in music']] },
+      ]}
+    />
   );
   const sectionCount = books.filter((b) => (view === 'music') === isMusic(b)).length;
   const sessionAdded = scans.filter((s) => s.state === 'added').length;
@@ -1690,9 +1699,6 @@ export default function App() {
         </dl>
         <div className="topbar-actions">
           {user && <NotificationBell notifs={notifs} onGo={(t: NotifTarget) => goHome(t === 'people' ? 'friends' : t)} />}
-          <button className="btn ghost" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true })}>
-            Add by hand
-          </button>
           <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => openAccount('signin')} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
             {user ? (
               <>
@@ -1704,8 +1710,12 @@ export default function App() {
             )}
           </button>
           <details className="menu" ref={menuRef}>
-            <summary className="btn ghost">Backup</summary>
+            <summary className="btn ghost" aria-label="More">More ▾</summary>
             <div className="menu-pop">
+              <button onClick={async () => { closeMenu(); setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true }); }}>
+                Add {view === 'music' ? 'a record or CD' : 'a book'} by hand…
+              </button>
+              <hr className="menu-sep" />
               <button onClick={() => { closeMenu(); downloadBackup(); }}>
                 Download backup (.json)
               </button>
@@ -2084,29 +2094,18 @@ export default function App() {
           <section className="library" aria-label="Reading">
             <div className="library-tools">
               <h2>Your reading</h2>
-              <nav className="subtabs" aria-label="Reading pages">
-                {(
-                  [
-                    ['overview', 'Overview'],
-                    ['foryou', 'For you'],
-                    ['new', 'New releases'],
-                    ['buddy', 'Buddy reads'],
-                    ['clubs', 'Book clubs'],
-                    ['groups', 'Challenges with friends'],
-                    ['stats', 'Reading stats'],
-                    ['notes', 'Quotes and notes'],
-                    ['wrap', 'Year in books'],
-                    ['achievements', 'Achievements'],
-                  ] as const
-                ).map(([k, l]) => (
-                  <button key={k} className={readingTab === k ? 'active' : ''} aria-current={readingTab === k ? 'page' : undefined} onClick={() => setReadingTab(k)}>
-                    {l}
-                    {k === 'buddy' && buddyInvites > 0 && <span className="tab-badge">{buddyInvites}</span>}
-                    {k === 'groups' && groupInvites > 0 && <span className="tab-badge">{groupInvites}</span>}
-                    {k === 'clubs' && clubInvites > 0 && <span className="tab-badge">{clubInvites}</span>}
-                  </button>
-                ))}
-              </nav>
+              <GroupedTabs
+                label="Reading pages"
+                current={readingTab}
+                onPick={setReadingTab}
+                groups={[
+                  { label: 'Overview', pages: [['overview', 'Overview']] },
+                  { label: 'Discover', pages: [['foryou', 'For you'], ['new', 'New releases']] },
+                  { label: 'Together', pages: [['buddy', 'Buddy reads', buddyInvites], ['clubs', 'Book clubs', clubInvites], ['groups', 'Challenges', groupInvites]] },
+                  { label: 'Notes', pages: [['notes', 'Quotes and notes']] },
+                  { label: 'Stats', pages: [['stats', 'Reading stats'], ['achievements', 'Achievements'], ['wrap', 'Year in books']] },
+                ]}
+              />
             </div>
             {readingTab === 'overview' && (
               <>

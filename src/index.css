@@ -1468,3 +1468,16 @@ a.rec-title:hover { text-decoration: underline; }
   .notif-menu { position: static; }
   .notif-pop { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); top: auto; width: auto; margin-top: 6px; }
 }
+
+/* ---------- grouped sub-pages ---------- */
+.seg-line { margin-top: -2px; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button { font: inherit; font-size: 0.85rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.seg button:hover { color: var(--ink); }
+.seg button.active { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+.seg .tab-badge { margin-left: 6px; }
+@media (max-width: 640px) {
+  .seg { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .seg button { flex: none; }
+}
+.menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }

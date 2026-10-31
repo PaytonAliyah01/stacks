@@ -168,7 +168,7 @@ export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, 
 /** One line about a record's Discogs price, for its panel. */
 export function marketLine(b: Book, currency: string): string {
   const v = valueOf({ ...b, myValue: undefined }, currency);
-  if (!b.market) return b.discogsId ? 'Press Update prices on Music → Value to get the Discogs price.' : 'Not linked to Discogs, so there is no market price.';
+  if (!b.market) return b.discogsId ? 'Press Update prices on Music → Stats → What it’s worth to get the Discogs price.' : 'Not linked to Discogs, so there is no market price.';
   const parts = [
     b.market.suggested !== undefined && `suggested ${formatMoney(b.market.suggested, b.market.currency)}`,
     b.market.lowest !== undefined && `lowest on sale ${formatMoney(b.market.lowest, b.market.currency)}`,

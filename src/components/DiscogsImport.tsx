@@ -95,7 +95,7 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Pr
           {how === 'user' ? (
             <div className="discogs-how">
               <p className="small">
-                Works when your collection is public (in Discogs: <b>Settings → Privacy</b>). For a private collection, add your Discogs token under <b>Backup → Lookup keys</b> first, or use the CSV file.
+                Works when your collection is public (in Discogs: <b>Settings → Privacy</b>). For a private collection, add your Discogs token under <b>More → Lookup keys</b> first, or use the CSV file.
               </p>
               <div className="discogs-user">
                 <input

@@ -102,7 +102,7 @@ export function PressingPanel({ draft, onChange }: Props) {
               <button type="button" className="btn ghost small-btn" disabled={busy || !draft.title} onClick={() => search('title')}>Search by artist and title</button>
             </div>
           ) : (
-            <p className="muted small">Add your Discogs token under Backup → Lookup keys to search Discogs from here, or paste the link of the release page:</p>
+            <p className="muted small">Add your Discogs token under More → Lookup keys to search Discogs from here, or paste the link of the release page:</p>
           )}
           <div className="pressing-link">
             <input

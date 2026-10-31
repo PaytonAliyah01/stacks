@@ -52,11 +52,11 @@ Lookups ask Open Library and Google Books. Without a key, Google shares one smal
 
 - **Search by title**: search both databases by title or author and pick the right book. It is saved with the ISBN you scanned, so scanning it again finds it.
 - **Retry**: try the lookup again later.
-- **Your own Google Books key** (Backup menu → Lookup keys): a free key from Google Cloud gives you your own limit of 1,000 lookups a day. It is stored only in your browser.
+- **Your own Google Books key** (More menu → Lookup keys): a free key from Google Cloud gives you your own limit of 1,000 lookups a day. It is stored only in your browser.
 
 ### Records and CDs
 
-Record and CD barcodes are looked up on MusicBrainz, Deezer and iTunes at the same time, plus Discogs if you add a free personal token (Backup menu → Lookup keys). MusicBrainz and Discogs know whether a barcode is vinyl or a CD. When only Deezer or iTunes find it, Stacks saves it as a CD and says so, so you can switch it.
+Record and CD barcodes are looked up on MusicBrainz, Deezer and iTunes at the same time, plus Discogs if you add a free personal token (More menu → Lookup keys). MusicBrainz and Discogs know whether a barcode is vinyl or a CD. When only Deezer or iTunes find it, Stacks saves it as a CD and says so, so you can switch it.
 
 ### Reading
 
@@ -72,7 +72,7 @@ Open any book and pick a status: Want to read, Reading, Read or Didn't finish. W
 
 **Series:** Stacks finds each book's series by itself, from Goodreads-style titles like "Leviathan Wakes (The Expanse, #1)" and from Open Library, and shows it under the book. Books → **Series** lists every series in order with what you own, have read and are missing. Click a **Missing** spot to search for that book and add it to your wishlist. Variants of one name ("The Expanse", "Expanse series", "Dune" and "Dune Chronicles" by the same author) are shown as one series, and publisher lines like "Penguin Classics" are ignored. If two series are really one, pick **Same series as…** on one of them to join it to the other. Books whose number isn't known are listed under **Which number is this?** so you can set it, and **+ Add one of your books to this series** adds a book by the same author. Set or fix a series by opening a book and using **+ Part of a series?** or **Edit**; Stacks never changes a series you set yourself. **Edit series** on a series lets you rename it and change every book's number to fix the order, or take a book out with **Not in series**.
 
-**Year in books:** Reading → **Year in books** sums up any year: books, pages, time read, your favorite and top-rated books, moods, books per month, your challenge, records, a quote you kept and more. **Save picture** downloads a 1080×1350 image to share, and **Copy picture** puts it on the clipboard to paste into a chat. In December and January, the Overview page points you to it.
+**Year in books:** Reading → Stats → **Year in books** sums up any year: books, pages, time read, your favorite and top-rated books, moods, books per month, your challenge, records, a quote you kept and more. **Save picture** downloads a 1080×1350 image to share, and **Copy picture** puts it on the clipboard to paste into a chat. In December and January, the Overview page points you to it.
 
 The Reading tab shows what you're reading now (with quick progress updates), your want-to-read list, and the books you finished each year. Reading history is included in backups.
 
@@ -82,7 +82,7 @@ On the Reading tab, press **New challenge** to set a goal in books or pages, for
 
 ### Importing from Goodreads or StoryGraph
 
-Backup menu → **Import from Goodreads or StoryGraph…**, then choose the .csv export (the dialog shows where to find it in each app). Shelves, read dates, re-reads, ratings, reviews and tags come across. Books already in Stacks are matched by ISBN or title and author. Books you've read but don't own are kept with your reading history but stay off your shelves and out of library counts (tick "Read but not owned" on the Books tab to see them, or tick "I own this" on a book). Importing the same file again skips reads that are already there.
+More menu → **Import from Goodreads or StoryGraph…**, then choose the .csv export (the dialog shows where to find it in each app). Shelves, read dates, re-reads, ratings, reviews and tags come across. Books already in Stacks are matched by ISBN or title and author. Books you've read but don't own are kept with your reading history but stay off your shelves and out of library counts (tick "Read but not owned" on the Books tab to see them, or tick "I own this" on a book). Importing the same file again skips reads that are already there.
 
 ### Wishlist
 
@@ -121,7 +121,7 @@ Where things live:
 
 **Import from Discogs:** Backup → **Import from Discogs…** (or the button on an empty Music page). Type your Discogs username to load a public collection (add your Discogs token under Lookup keys for a private one), or choose the .csv from Discogs' Collection → Export. Vinyl and CDs come in with label, catalog number, media and sleeve condition and your Discogs notes; cassettes and files are skipped; records you already have are linked, not added twice. Afterwards Stacks fetches each release's barcode, track count and cover in the background.
 
-**Collection value (Music → Value):** press **Update prices** and Stacks asks the Discogs marketplace what each linked record sells for (one every couple of seconds). Without a Discogs token it uses the lowest price on sale; with a token it uses Discogs' suggested price for the record's condition (Very Good Plus if none is set) and links scanned records to Discogs by barcode. You see the total value, what you paid, the gain or loss, and your most valuable records. Type your own estimate under **Worth** in a record's panel to override Discogs. Prices are checked again after 30 days.
+**Collection value (Music → Stats → What it’s worth):** press **Update prices** and Stacks asks the Discogs marketplace what each linked record sells for (one every couple of seconds). Without a Discogs token it uses the lowest price on sale; with a token it uses Discogs' suggested price for the record's condition (Very Good Plus if none is set) and links scanned records to Discogs by barcode. You see the total value, what you paid, the gain or loss, and your most valuable records. Type your own estimate under **Worth** in a record's panel to override Discogs. Prices are checked again after 30 days.
 
 **Pressing and condition:** a record's panel has a **Pressing and condition** section: vinyl color, edition (limited, 180 gram, RSD…), catalog number, country, matrix/runout, and Goldmine grades for the record and the sleeve (Mint to Poor, with a short explanation). Colored vinyl shows as a colored disc peeking out of the sleeve on its card, and the grades show as e.g. "VG+/NM". **Find my pressing** lets you pick the exact Discogs release (search by barcode or title with a Discogs token, or paste a release link without one) and fills everything in. Records linked to Discogs get these details filled in automatically. Search also finds catalog numbers, colors, editions and matrix text.
 
@@ -131,7 +131,7 @@ Where things live:
 
 **Stylus tracker (Music → Listening → Stylus):** tell Stacks which stylus is on your turntable, its tip shape (sets how many hours it lasts: conical ~500, elliptical ~800, fine line ~1000) and when you put it on. Every vinyl spin adds the record's length (from its track list, or a typical length for its size); CDs don't count. You see hours used, % worn and roughly how long it has left at your pace, with a warning from 85%. **I replaced it** starts a new one and keeps the old in a history. Styluses are saved in this browser and in backups.
 
-**Year in music (Music → Year in music):** your spins, hours of music, different records and days with music for the year, your most played records ("On repeat"), top artists, spins month by month, new records added and what you spent, your longest streak, and records you played for the first time. **Save picture** / **Copy picture** make a 1080×1350 image to share. In December and January the Listening page points you to it.
+**Year in music (Music → Stats → Year in music):** your spins, hours of music, different records and days with music for the year, your most played records ("On repeat"), top artists, spins month by month, new records added and what you spent, your longest streak, and records you played for the first time. **Save picture** / **Copy picture** make a 1080×1350 image to share. In December and January the Listening page points you to it.
 
 ## Phones, camera scanning and accounts
 
@@ -157,11 +157,11 @@ Stacks opens on Home (also the logo): a greeting, your totals, currently reading
 
 ## Buddy reads
 
-Reading → Buddy reads: start one from a book in your library and invite friends. Everyone's page shows side by side, updated automatically when you update the book in your own library (joining adds the book if you don't have it). Chat messages carry the page they're about and stay hidden behind a spoiler note for anyone who hasn't reached it. When everyone finishes, the finish line shows who finished when and their ratings. Uses `supabase/05-buddy-reads.sql`.
+Reading → Together → Buddy reads: start one from a book in your library and invite friends. Everyone's page shows side by side, updated automatically when you update the book in your own library (joining adds the book if you don't have it). Chat messages carry the page they're about and stay hidden behind a spoiler note for anyone who hasn't reached it. When everyone finishes, the finish line shows who finished when and their ratings. Uses `supabase/05-buddy-reads.sql`.
 
 ## Recommendations
 
-Reading → For you (and "Picked for you" on Home). Stacks works out your taste from the books you finished: the authors, genres and moods of the ones you rated 4 stars and up count most, and books you put down count against. It suggests unread books from your own shelves first (never book 3 of a series while book 2 waits), then new books from Open Library by the authors you love and like your favorite books, then books your friends rated 4 stars or more. Each pick says why it's there. "Want to read" puts it on your to-read list (a book you don't own also lands on your wishlist), "Wishlist" only adds it to the wishlist, and ✕ hides it on this device. New books are cached for three days or until your ratings change; "Find new ones" looks again. No new SQL needed.
+Reading → Discover → For you (and "Picked for you" on Home). Stacks works out your taste from the books you finished: the authors, genres and moods of the ones you rated 4 stars and up count most, and books you put down count against. It suggests unread books from your own shelves first (never book 3 of a series while book 2 waits), then new books from Open Library by the authors you love and like your favorite books, then books your friends rated 4 stars or more. Each pick says why it's there. "Want to read" puts it on your to-read list (a book you don't own also lands on your wishlist), "Wishlist" only adds it to the wishlist, and ✕ hides it on this device. New books are cached for three days or until your ratings change; "Find new ones" looks again. No new SQL needed.
 
 ## Lending
 
@@ -169,7 +169,7 @@ Friends → Lending. Switch on "Let friends browse my shelves and ask to borrow"
 
 ## Music recommendations
 
-Music → For you. "Pull these out of your crates" suggests records you own but haven't played in a while (never-played first), with a reason like "Last spun 8 months ago · like Rumours" and a ▶ Spin button. "More from artists you spin" lists albums you don't have by your three most-played artists (newest first; singles, live albums, deluxe editions and reissues of records you own are skipped). "Because you spin [artist]" suggests the best-loved album of similar artists, and "Your friends are spinning" shows records your friends put on. New picks come from Deezer and are cached for three days; "Add to wantlist" puts them on Music → Wantlist.
+Music → Discover → For you. "Pull these out of your crates" suggests records you own but haven't played in a while (never-played first), with a reason like "Last spun 8 months ago · like Rumours" and a ▶ Spin button. "More from artists you spin" lists albums you don't have by your three most-played artists (newest first; singles, live albums, deluxe editions and reissues of records you own are skipped). "Because you spin [artist]" suggests the best-loved album of similar artists, and "Your friends are spinning" shows records your friends put on. New picks come from Deezer and are cached for three days; "Add to wantlist" puts them on Music → Wantlist.
 
 ## Welcome page
 
@@ -177,7 +177,7 @@ Anyone who isn't signed in (including right after signing out) sees a welcome pa
 
 ## Challenges with friends
 
-Reading → Challenges with friends. Start one from a preset (this year's reading race, next month's pages, summer reading) or set your own name, goal in books or pages, and dates, then invite friends. Invited friends join or decline. Everyone's progress comes from their own reading (books finished between the dates, including ones already finished) and updates by itself; the leaderboard shows places, the last book each person finished, and a marker for the even pace to finish on time. When it ends, the winner gets a trophy. Running challenges show under "Reading goal" on Home with your place. Uses `supabase/07-group-challenges.sql`.
+Reading → Together → Challenges. Start one from a preset (this year's reading race, next month's pages, summer reading) or set your own name, goal in books or pages, and dates, then invite friends. Invited friends join or decline. Everyone's progress comes from their own reading (books finished between the dates, including ones already finished) and updates by itself; the leaderboard shows places, the last book each person finished, and a marker for the even pace to finish on time. When it ends, the winner gets a trophy. Running challenges show under "Reading goal" on Home with your place. Uses `supabase/07-group-challenges.sql`.
 
 ## Last.fm scrobbling
 
@@ -194,11 +194,11 @@ The shared secret and each person's Last.fm session key stay on the server; the 
 
 ## New releases
 
-Reading → New releases and Music → New releases. Stacks follows the authors you read and like most (books you rated 4★ or more, finished, or own two or more of; up to 12) and the artists you own and spin most (up to 12), and once a day looks for their books and albums from the last year and up to 18 months ahead. Upcoming ones are under "Coming soon" with their date. One tap puts a book on your wishlist or to-read list, or an album on your wantlist; ✕ hides one, and "Authors/Artists you follow" lets you stop following someone. Home shows a "New releases" card with how many you haven't seen. Book dates come from Google Books (Open Library when Google is busy), album dates from Deezer. No SQL needed.
+Reading → Discover → New releases and Music → Discover → New releases. Stacks follows the authors you read and like most (books you rated 4★ or more, finished, or own two or more of; up to 12) and the artists you own and spin most (up to 12), and once a day looks for their books and albums from the last year and up to 18 months ahead. Upcoming ones are under "Coming soon" with their date. One tap puts a book on your wishlist or to-read list, or an album on your wantlist; ✕ hides one, and "Authors/Artists you follow" lets you stop following someone. Home shows a "New releases" card with how many you haven't seen. Book dates come from Google Books (Open Library when Google is busy), album dates from Deezer. No SQL needed.
 
 ## Book clubs
 
-Reading → Book clubs. Start a club, give it a name and a line about it, and invite friends; any member who joined can invite their own friends too. The host picks the club's book (from their library, a suggestion, or any title typed in) with an optional meeting date and place or video link. Each club book is a buddy read for everyone in the club: each person joins when they start it, and then sees everyone's progress and a spoiler-free chat. Members suggest books for next time and vote on them; the host makes one the next book. Past books are listed with how many finished and the average rating. Clubs show on Home with the next meeting. Club books stay off the Buddy reads page. Uses `supabase/09-book-clubs.sql` (needs 05).
+Reading → Together → Book clubs. Start a club, give it a name and a line about it, and invite friends; any member who joined can invite their own friends too. The host picks the club's book (from their library, a suggestion, or any title typed in) with an optional meeting date and place or video link. Each club book is a buddy read for everyone in the club: each person joins when they start it, and then sees everyone's progress and a spoiler-free chat. Members suggest books for next time and vote on them; the host makes one the next book. Past books are listed with how many finished and the average rating. Clubs show on Home with the next meeting. Club books stay off the Buddy reads page. Uses `supabase/09-book-clubs.sql` (needs 05).
 
 ## Wishlist gifts
 
@@ -207,3 +207,13 @@ Friends → Gifts, and "Gift ideas" on a friend's profile. Friends see your book
 ## Notifications
 
 When you're signed in, the bell in the top bar collects everything waiting for you: friend requests, borrow asks and answers, books due back, buddy read, book club and challenge invites, a club's new book, club meetings today or tomorrow, and new releases from authors and artists you follow. Things that need you come first. Click one to go straight to it. "Mark all as read" clears the count; what you've read is remembered in this browser. No extra SQL is needed.
+
+## Finding your way around
+
+The top tabs are Home, Books, Music, Reading and Friends, plus the 🔔 bell (when signed in) and a **More** menu with Add by hand, backups, imports and lookup keys. Pages that belong together share one tab with a small switch underneath:
+
+- **Books:** Library, Shelves, Series, Wishlist, Stats.
+- **Music:** Collection, Wantlist, Listening, Discover (For you, New releases), Stats (What it's worth, Year in music).
+- **Reading:** Overview, Discover (For you, New releases), Together (Buddy reads, Book clubs, Challenges), Notes (your quotes and notes), Stats (Reading stats, Achievements, Year in books).
+
+Each group opens on the page you last used in it.
