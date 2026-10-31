@@ -1,7 +1,7 @@
 import type { Book, Reading } from '../types';
 import { isMusic } from '../types';
 import { currentReading, readingsOf } from './reading';
-import { matchKey } from './importHistory';
+import { matchKey, sameWork } from './importHistory';
 import { getJson } from './lookup';
 import type { FeedEntry } from './feed';
 
@@ -159,6 +159,12 @@ export function fromShelves(books: Book[], readings: Reading[], t: Taste, hidden
 
 export const recKey = (title: string, author?: string) => matchKey(title, author);
 
+/** You already have it, or read it, maybe as another edition with a different title. */
+export function alreadyHave(books: Book[], title: string, author?: string): boolean {
+  const k = recKey(title, author);
+  return books.some((b) => !isMusic(b) && (recKey(b.title, b.authors[0]) === k || sameWork(b.title, b.authors[0], title, author)));
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const FIELDS = 'key,title,author_name,cover_i,first_publish_year,number_of_pages_median,ratings_average,ratings_count,subject';
 // Things Open Library lists as books that aren't one to read next.
@@ -214,7 +220,7 @@ export async function fromOpenLibrary(books: Book[], t: Taste, hidden: Set<strin
   const have = new Set(books.map((b) => recKey(b.title, b.authors[0])));
   const seen = new Set<string>();
   const keep = (r: Rec | undefined, d: any): r is Rec => {
-    if (!r || have.has(r.key) || hidden.has(r.key) || seen.has(r.key)) return false;
+    if (!r || have.has(r.key) || hidden.has(r.key) || seen.has(r.key) || alreadyHave(books, r.title, r.authors[0])) return false;
     // Very obscure listings are usually odd editions or not really books.
     if ((d.ratings_count ?? 0) < 3 && !d.cover_i) return false;
     seen.add(r.key);
@@ -285,7 +291,7 @@ export function fromFriends(feed: FeedEntry[], books: Book[], uid: string, hidde
     const it = e.items[0];
     if (!it || it.kind !== 'book') continue;
     const key = recKey(it.title, it.by);
-    if (have.has(key) || hidden.has(key)) continue;
+    if (have.has(key) || hidden.has(key) || alreadyHave(books, it.title, it.by)) continue;
     const who = e.display_name || `@${e.username}`;
     const prev = out.get(key);
     if (prev) {

@@ -1423,6 +1423,16 @@ export default function App() {
     setToast(`Added “${r.title}” to your wantlist.`);
     reload();
   };
+  /** A suggestion you've read already: log the read so it stops being suggested. */
+  const readRec = async (r: Rec) => {
+    const b = await bookForRec(r);
+    const cur = currentReading(readings, b.id);
+    const now = new Date().toISOString();
+    if (cur && (cur.status === 'want' || cur.status === 'reading')) await saveReading({ ...cur, status: 'read', finishedOn: cur.status === 'reading' ? todayIsoDate() : cur.finishedOn, updatedAt: now });
+    else if (cur?.status !== 'read') await saveReading({ id: newId(), bookId: b.id, status: 'read', updates: [], createdAt: now, updatedAt: now });
+    setToast(`Marked “${r.title}” as read. Open it to add a rating, and your picks get better.`);
+    reload();
+  };
   const wishRec = async (r: Rec) => {
     await bookForRec(r, { wishlist: true });
     setToast(`Added “${r.title}” to your wishlist.`);
@@ -2105,6 +2115,7 @@ export default function App() {
                 onOpen={(b) => setOpen({ book: b })}
                 onWant={wantRec}
                 onWish={wishRec}
+                onRead={readRec}
                 onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
               />
             )}
@@ -2502,10 +2513,17 @@ export default function App() {
           onClose={() => setImportOpen(false)}
           onImport={async (plan: ImportPlan) => {
             await store.importMany([...plan.newBooks, ...plan.updatedBooks], [], plan.readings, [], plan.notes);
+            for (const id of plan.removedReadings) await store.removeReading(id);
+            // Fold earlier imported copies into the book you own under another edition's title.
+            for (const m of plan.merges) {
+              for (const r of readings) if (r.bookId === m.from && !plan.removedReadings.includes(r.id)) await store.putReading({ ...r, bookId: m.into, updatedAt: new Date().toISOString() });
+              for (const n of notes) if (n.bookId === m.from) await store.putNote({ ...n, bookId: m.into, updatedAt: new Date().toISOString() });
+              await store.remove(m.from);
+            }
             await reload();
             setImportOpen(false);
             setView('reading');
-            setToast(`Imported ${plan.readings.length} reads and ${plan.newBooks.length} new books.`);
+            setToast(`Imported ${plan.readings.length} reads and ${plan.newBooks.length} new books.${plan.removedReadings.length ? ` ${plan.removedReadings.length} book${plan.removedReadings.length === 1 ? '' : 's'} you'd marked “Want to read” now show as read.` : ''}${plan.merges.length ? ` Matched ${plan.merges.length} to copies you own under another title.` : ''}`);
           }}
         />
       )}

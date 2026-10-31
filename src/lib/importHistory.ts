@@ -1,4 +1,5 @@
 import type { Book, BookFormat, BookNote, ReadStatus, Reading } from '../types';
+import { isMusic } from '../types';
 import { isValidIsbn10, isValidIsbn13, isbn10to13, isbn13to10 } from './isbn';
 import { newId } from './storage';
 import { parseMoods, parsePace, parseWarnings, type Mood, type Pace } from './moods';
@@ -193,6 +194,28 @@ const norm = (s: string) =>
     .trim();
 export const matchKey = (title: string, author?: string) => `${norm(title)}|${norm(author ?? '').split(' ').pop() ?? ''}`;
 
+const plain = (s: string) => s.toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
+/** The whole title, and the part after a colon ("Percy Jackson and the Olympians: The Lightning Thief"). */
+const titleForms = (t: string) => {
+  const parts = t.split(':');
+  return [plain(t), parts.length > 1 ? plain(parts.slice(1).join(' ')) : ''].filter((x) => x.length >= 6);
+};
+/**
+ * The same book under a different edition's title, by the same author:
+ * "Percy Jackson and the Lightning Thief" and "The Lightning Thief (Percy Jackson and the Olympians, #1)".
+ */
+export function sameWork(aTitle: string, aAuthor: string | undefined, bTitle: string, bAuthor: string | undefined): boolean {
+  const last = (a?: string) => norm(a ?? '').split(' ').pop() ?? '';
+  if (!last(aAuthor) || last(aAuthor) !== last(bAuthor)) return false;
+  for (const x of titleForms(aTitle))
+    for (const y of titleForms(bTitle)) {
+      if (x === y) return true;
+      const [short, long] = x.length < y.length ? [x, y] : [y, x];
+      if (` ${long} `.includes(` ${short} `)) return true;
+    }
+  return false;
+}
+
 export interface ImportPlan {
   newBooks: Book[];
   /** Existing books that get marked as owned. */
@@ -202,6 +225,10 @@ export interface ImportPlan {
   notes: BookNote[];
   matched: number;
   skippedReads: number;
+  /** "Want to read" entries for books the import says you've read or started: they'd hide that read. */
+  removedReadings: string[];
+  /** Copies an earlier import added that are really a book you own under another edition's title. */
+  merges: { from: string; into: string }[];
 }
 
 /**
@@ -211,11 +238,21 @@ export interface ImportPlan {
 export function planImport(rows: ImportRow[], source: ImportSource, existing: Book[], existingReadings: Reading[], defaultFormat: BookFormat, existingNotes: BookNote[] = []): ImportPlan {
   const byIsbn = new Map(existing.filter((b) => b.isbn13).map((b) => [b.isbn13!, b]));
   const byTitle = new Map(existing.map((b) => [matchKey(b.title, b.authors[0]), b]));
-  const plan: ImportPlan = { newBooks: [], updatedBooks: [], readings: [], notes: [], matched: 0, skippedReads: 0 };
+  const plan: ImportPlan = { newBooks: [], updatedBooks: [], readings: [], notes: [], matched: 0, skippedReads: 0, removedReadings: [], merges: [] };
   const now = new Date().toISOString();
 
   for (const row of rows) {
     let book = (row.isbn13 && byIsbn.get(row.isbn13)) || byTitle.get(matchKey(row.title, row.authors[0]));
+    // A copy you own under another edition's title counts as the same book.
+    const owned = (b?: Book) => !!b && b.owned !== false && !b.wishlist && !isMusic(b);
+    if (!owned(book)) {
+      const twin = existing.find((b) => owned(b) && b.id !== book?.id && sameWork(b.title, b.authors[0], row.title, row.authors[0]));
+      if (twin) {
+        // An earlier import made a separate, not-owned copy: fold it into yours.
+        if (book && book.owned === false && !plan.merges.some((m) => m.from === book!.id)) plan.merges.push({ from: book.id, into: twin.id });
+        book = twin;
+      }
+    }
     if (book) {
       plan.matched++;
       // Fill in what we learn, without overwriting anything you set yourself.
@@ -263,7 +300,13 @@ export function planImport(rows: ImportRow[], source: ImportSource, existing: Bo
       plan.notes.push({ id: newId(), bookId: book.id, kind: 'note', text: row.privateNotes, createdAt: now, updatedAt: now });
     }
 
-    const logged = existingReadings.filter((r) => r.bookId === book!.id);
+    const merged = plan.merges.filter((m) => m.into === book!.id).map((m) => m.from);
+    const logged = existingReadings.filter((r) => r.bookId === book!.id || merged.includes(r.bookId));
+    // You marked it "Want to read" in Stacks, but Goodreads or StoryGraph says you read it (or are reading it):
+    // drop the want, or it stays the book's current status and the read never shows.
+    if (row.status !== 'want')
+      for (const r of logged)
+        if (r.status === 'want' && !r.updates?.length && !r.sessions?.length && !plan.removedReadings.includes(r.id)) plan.removedReadings.push(r.id);
     // Oldest first, open reads last, so the newest read gets the current status, rating and review.
     const reads = row.status === 'want' ? [{}] : [...row.reads].sort((a, b) => (a.finishedOn ?? '9999').localeCompare(b.finishedOn ?? '9999'));
     reads.forEach((read: { startedOn?: string; finishedOn?: string }, i) => {

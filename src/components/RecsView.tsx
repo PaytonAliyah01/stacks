@@ -9,6 +9,7 @@ import {
   fromFriends,
   fromOpenLibrary,
   fromShelves,
+  alreadyHave,
   hiddenRecs,
   hideRec,
   recKey,
@@ -59,8 +60,11 @@ export function useRecs(books: Book[], readings: Reading[], uid?: string, social
   const have = useMemo(() => new Set(books.map((b) => recKey(b.title, b.authors[0]))), [books]);
   const shelf = useMemo(() => fromShelves(books, readings, taste, hidden), [books, readings, taste, hidden]);
   const shelves = useMemo(
-    () => (remote ?? []).map((s) => ({ ...s, recs: s.recs.filter((r) => !have.has(r.key) && !hidden.has(r.key)) })).filter((s) => s.recs.length),
-    [remote, have, hidden],
+    () =>
+      (remote ?? [])
+        .map((s) => ({ ...s, recs: s.recs.filter((r) => !have.has(r.key) && !hidden.has(r.key) && !alreadyHave(books, r.title, r.authors[0])) }))
+        .filter((s) => s.recs.length),
+    [remote, have, hidden, books],
   );
   const friends = useMemo(() => (uid ? fromFriends(feed, books, uid, hidden) : []), [feed, books, uid, hidden]);
 
@@ -90,10 +94,12 @@ interface Actions {
   onWant: (r: Rec) => void;
   /** Add a new book to your wishlist, to buy. */
   onWish: (r: Rec) => void;
+  /** You read it already: log it, so it stops being suggested. */
+  onRead?: (r: Rec) => void;
   onHide: (r: Rec) => void;
 }
 
-function RecCard({ r, books, readings, onOpen, onWant, onWish, onHide }: { r: Rec; books: Book[]; readings: Reading[] } & Actions) {
+function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }: { r: Rec; books: Book[]; readings: Reading[] } & Actions) {
   const local = r.bookId ? books.find((b) => b.id === r.bookId) : undefined;
   const queued = local && currentReading(readings, local.id)?.status === 'want';
   const by = r.authors.slice(0, 2).join(', ');
@@ -125,6 +131,7 @@ function RecCard({ r, books, readings, onOpen, onWant, onWish, onHide }: { r: Re
               <button className="link small" onClick={() => onWish(r)}>Wishlist</button>
             </>
           )}
+          {onRead && <button className="link small" onClick={() => onRead(r)}>Already read</button>}
           <button className="icon-btn rec-hide" onClick={() => onHide(r)} aria-label={`Not for me: ${r.title}`} title="Not for me">✕</button>
         </span>
       </div>
@@ -143,7 +150,7 @@ interface Props extends Omit<Actions, 'onHide'> {
 export function RecsView(props: Props) {
   const { books, readings, uid, social } = props;
   const recs = useRecs(books, readings, uid, social);
-  const actions: Actions = { onOpen: props.onOpen, onWant: props.onWant, onWish: props.onWish, onHide: recs.hide };
+  const actions: Actions = { onOpen: props.onOpen, onWant: props.onWant, onWish: props.onWish, onRead: props.onRead, onHide: recs.hide };
   const row = (list: Rec[]) => (
     <ul className="recs">
       {list.map((r) => (

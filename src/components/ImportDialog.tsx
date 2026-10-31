@@ -86,6 +86,8 @@ export function ImportDialog({ books, readings, notes = [], defaultFormat, onImp
                 <li><b>{p.matched}</b> already in Stacks, so their history is added to them</li>
                 <li><b>{count('read')}</b> reads finished, <b>{count('reading')}</b> in progress, <b>{count('want')}</b> want to read, <b>{count('dnf')}</b> not finished</li>
                 {p.notes.length > 0 && <li><b>{p.notes.length}</b> private note{p.notes.length === 1 ? '' : 's'}, saved under Quotes and notes</li>}
+                {p.removedReadings.length > 0 && <li><b>{p.removedReadings.length}</b> book{p.removedReadings.length === 1 ? '' : 's'} you'd marked “Want to read” in Stacks will show as read (or reading)</li>}
+                {p.merges.length > 0 && <li><b>{p.merges.length}</b> book{p.merges.length === 1 ? '' : 's'} added by an earlier import will be joined with the copy you own under another edition's title</li>}
                 {p.skippedReads > 0 && <li>{p.skippedReads} reads skipped because they're already logged</li>}
               </ul>
             </div>
@@ -95,7 +97,7 @@ export function ImportDialog({ books, readings, notes = [], defaultFormat, onImp
             <button
               className="btn primary"
               type="button"
-              disabled={!p || busy || (p.newBooks.length + p.readings.length + p.updatedBooks.length + p.notes.length === 0)}
+              disabled={!p || busy || (p.newBooks.length + p.readings.length + p.updatedBooks.length + p.notes.length + p.removedReadings.length + p.merges.length === 0)}
               onClick={async () => {
                 if (!p) return;
                 setBusy(true);
