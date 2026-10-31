@@ -203,3 +203,7 @@ Reading → Book clubs. Start a club, give it a name and a line about it, and in
 ## Wishlist gifts
 
 Friends → Gifts, and "Gift ideas" on a friend's profile. Friends see your book wishlist and record wantlist (things you don't own that you marked Wishlist or Want to read) and can say "I'm getting this"; other friends then see it's taken, so nobody buys the same present twice. You never see who's getting what on your own list. The Gifts page lists the presents you're getting, by friend, and warns when someone took a thing off their list (they may have bought it). A switch at the top of Books → Wishlist and Music → Wantlist turns sharing off. Uses `supabase/10-gifts.sql`.
+
+## Notifications
+
+When you're signed in, the bell in the top bar collects everything waiting for you: friend requests, borrow asks and answers, books due back, buddy read, book club and challenge invites, a club's new book, club meetings today or tomorrow, and new releases from authors and artists you follow. Things that need you come first. Click one to go straight to it. "Mark all as read" clears the count; what you've read is remembered in this browser. No extra SQL is needed.

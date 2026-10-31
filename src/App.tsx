@@ -14,6 +14,8 @@ import { Welcome } from './components/Welcome';
 import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
+import { NotificationBell } from './components/NotificationBell';
+import { gatherNotifications, type NotifTarget } from './lib/notifications';
 import { FriendsView } from './components/FriendsView';
 import { listFriends, type Friend } from './lib/friends';
 import { itemOf, post, postAdded, postSpin, setFeedIdentity } from './lib/feed';
@@ -680,6 +682,15 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loaded, groups, readings, books]);
   const groupInvites = user ? groups.filter((g) => g.members.find((m) => m.user_id === user.id)?.status === 'invited').length : 0;
+  // Everything waiting for you, for the bell in the top bar.
+  const notifs = useMemo(() => {
+    if (!user) return [];
+    try {
+      return gatherNotifications({ uid: user.id, friends, loans, buddyReads, clubs, groups, releases: visibleReleases, seenReleases: releasesSeen });
+    } catch {
+      return [];
+    }
+  }, [user, friends, loans, buddyReads, clubs, groups, visibleReleases, releasesSeen]);
 
   /** Your reading of a book, set to "Reading" (made if needed). */
   const ensureReading = async (b: Book): Promise<Reading> => {
@@ -1678,6 +1689,7 @@ export default function App() {
           <div><dt>Pages</dt><dd>{totals.pages.toLocaleString()}</dd></div>
         </dl>
         <div className="topbar-actions">
+          {user && <NotificationBell notifs={notifs} onGo={(t: NotifTarget) => goHome(t === 'people' ? 'friends' : t)} />}
           <button className="btn ghost" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true })}>
             Add by hand
           </button>

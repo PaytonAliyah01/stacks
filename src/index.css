@@ -1445,3 +1445,26 @@ a.rec-title:hover { text-decoration: underline; }
 }
 .gift-friends .chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
 .gift-friends .chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* ---------- notifications ---------- */
+.notif-bell { position: relative; font-size: 1rem; }
+.notif-bell .tab-badge { position: absolute; top: -4px; right: -6px; margin: 0; }
+.notif-pop { width: min(380px, calc(100vw - 32px)); max-height: min(70vh, 560px); overflow-y: auto; padding: 0; }
+.notif-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 8px; position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line); }
+.notif-head .link-btn { padding: 2px 4px; color: var(--accent); font-size: 0.85rem; }
+.link-btn { border: 0; background: none; cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.notif-empty { margin: 0; padding: 18px 16px 20px; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+.notif-list { list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.menu-pop .notif { width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 10px; color: var(--ink); }
+.notif-icon { font-size: 1.15rem; line-height: 1.3; flex: none; }
+.notif-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.notif-text { line-height: 1.35; overflow-wrap: anywhere; }
+.notif.new .notif-text { font-weight: 600; }
+.notif-detail { color: var(--muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notif-meta { color: var(--muted); font-size: 0.78rem; display: flex; gap: 8px; align-items: center; }
+.notif-todo { color: var(--accent); font-weight: 600; }
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; margin-top: 7px; }
+@media (max-width: 640px) {
+  .notif-menu { position: static; }
+  .notif-pop { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); top: auto; width: auto; margin-top: 6px; }
+}
