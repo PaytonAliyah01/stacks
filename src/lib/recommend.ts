@@ -41,7 +41,7 @@ const NOISE =
   /^(fiction|general|novel|novels|literature|english|american|large type books|accessible book|protected daisy|in library|lending library|open library|overdrive|reading level|translations?( into .*)?|fiction in english|english fiction|american fiction|nyt:.*|new york times.*|award winners?|bestsellers?|readers?|textbooks?|juvenile works|long now manual for civilization|internet archive wishlist)$/;
 
 /** "Fiction, fantasy, general" → ["fantasy"]. Lowercase, without noise. */
-export function cleanSubjects(subjects: string[]): string[] {
+export function cleanSubjects(subjects: string[] = []): string[] {
   const out = new Set<string>();
   for (const s of subjects)
     for (const part of s.toLowerCase().split(/\s*(?:,|--|\/|;)\s*/)) {
@@ -52,7 +52,7 @@ export function cleanSubjects(subjects: string[]): string[] {
   return [...out];
 }
 
-const authorKey = (a: string) => a.toLowerCase().replace(/[^a-z]/g, '');
+export const authorKey = (a: string) => a.toLowerCase().replace(/[^a-z]/g, '');
 
 /** How much a read counts: loved books a lot, books you put down against. */
 function weightOf(r: Reading): number {

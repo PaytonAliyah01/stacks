@@ -19,9 +19,9 @@ export interface MusicTaste {
   favorites: Book[];
 }
 
-const artistKey = (a: string) => a.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '');
+export const artistKey = (a: string) => a.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '');
 /** "Rumours (Remastered 2004) [Deluxe]" → "rumours". */
-const albumKey = (t: string) => t.toLowerCase().replace(/[([].*?[)\]]/g, '').replace(/[^a-z0-9]/g, '');
+export const albumKey = (t: string) => t.toLowerCase().replace(/[([].*?[)\]]/g, '').replace(/[^a-z0-9]/g, '');
 
 export function musicTasteOf(records: Book[], spins: Spin[]): MusicTaste {
   const plays = playsByRecord(spins);
@@ -41,7 +41,7 @@ export function musicTasteOf(records: Book[], spins: Spin[]): MusicTaste {
       if (b.owned !== false) cur.owned++;
       artists.set(k, cur);
     }
-    for (const g of cleanSubjects(b.subjects)) genres.set(g, (genres.get(g) ?? 0) + w);
+    for (const g of cleanSubjects(b.subjects ?? [])) genres.set(g, (genres.get(g) ?? 0) + w);
   }
   const favorites = records
     .filter((b) => isMusic(b) && (plays.get(b.id)?.count ?? 0) > 0)
@@ -85,14 +85,14 @@ export function fromCrates(records: Book[], spins: Spin[], t: MusicTaste, hidden
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-async function deezerArtist(name: string): Promise<{ id: number; name: string } | undefined> {
+export async function deezerArtist(name: string): Promise<{ id: number; name: string } | undefined> {
   const r = await jsonp(`https://api.deezer.com/search/artist?q=${encodeURIComponent(name)}&limit=5&output=jsonp`);
   const list: any[] = r?.data ?? [];
   const hit = list.find((a) => artistKey(a.name) === artistKey(name)) ?? list[0];
   return hit ? { id: hit.id, name: hit.name } : undefined;
 }
 
-interface DzAlbum {
+export interface DzAlbum {
   title: string;
   cover?: string;
   date?: string;
@@ -100,7 +100,7 @@ interface DzAlbum {
   link?: string;
   type: string;
 }
-async function deezerAlbums(id: number): Promise<DzAlbum[]> {
+export async function deezerAlbums(id: number): Promise<DzAlbum[]> {
   const r = await jsonp(`https://api.deezer.com/artist/${id}/albums?limit=100&output=jsonp`);
   return ((r?.data ?? []) as any[]).map((a) => ({
     title: a.title,
@@ -114,7 +114,7 @@ async function deezerAlbums(id: number): Promise<DzAlbum[]> {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // Live albums, deluxe repeats and the like aren't a new record to want.
-const NOT_NEW = /\blive\b|deluxe|remaster|anniversary|edition|greatest hits|best of|collection|karaoke|instrumental|acoustic version|mixtape|\bremix/i;
+export const NOT_NEW = /\blive\b|deluxe|remaster|anniversary|edition|greatest hits|best of|collection|karaoke|instrumental|acoustic version|mixtape|\bremix/i;
 
 /** New albums by your top artists, and records by artists like them. Needs Deezer. */
 export async function fromDeezer(records: Book[], t: MusicTaste, hidden: Set<string>): Promise<Shelf[]> {

@@ -191,3 +191,7 @@ Setup (once):
 4. Run `supabase/08-lastfm.sql` in the SQL Editor.
 
 The shared secret and each person's Last.fm session key stay on the server; the browser only asks the function to link, unlink and scrobble.
+
+## New releases
+
+Reading → New releases and Music → New releases. Stacks follows the authors you read and like most (books you rated 4★ or more, finished, or own two or more of; up to 12) and the artists you own and spin most (up to 12), and once a day looks for their books and albums from the last year and up to 18 months ahead. Upcoming ones are under "Coming soon" with their date. One tap puts a book on your wishlist or to-read list, or an album on your wantlist; ✕ hides one, and "Authors/Artists you follow" lets you stop following someone. Home shows a "New releases" card with how many you haven't seen. Book dates come from Google Books (Open Library when Google is busy), album dates from Deezer. No SQL needed.

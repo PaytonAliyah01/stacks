@@ -32,6 +32,9 @@ import { NotesView } from './components/NotesView';
 import { SeriesView } from './components/SeriesView';
 import { ListeningView } from './components/ListeningView';
 import { LastfmPanel } from './components/LastfmPanel';
+import { NewReleasesView } from './components/NewReleasesView';
+import { cacheReleases, cachedReleases, dateLabel, findReleases, followId, followedArtists, followedAuthors, seenReleases, type Release, type ReleaseResult } from './lib/newreleases';
+import { hiddenRecs, hideRec } from './lib/recommend';
 import { dropSpin, enqueue, flush as flushScrobbles, linkLastfm, nowPlaying, plan as planScrobbles, scrobblingOn, setScrobblingOn, takeLastfmToken } from './lib/lastfm';
 import { MusicWrap } from './components/MusicWrap';
 import { DiscogsImport } from './components/DiscogsImport';
@@ -184,7 +187,7 @@ export default function App() {
   const [notes, setNotes] = useState<BookNote[]>([]);
   const [spins, setSpins] = useState<Spin[]>([]);
   const plays = useMemo(() => playsByRecord(spins), [spins]);
-  const [musicTab, setMusicTab] = useState<'collection' | 'foryou' | 'listening' | 'value' | 'wantlist' | 'wrap'>('collection');
+  const [musicTab, setMusicTab] = useState<'collection' | 'foryou' | 'new' | 'listening' | 'value' | 'wantlist' | 'wrap'>('collection');
   const [discogsWants, setDiscogsWants] = useState(false);
   const [styluses, setStylusList] = useState<Stylus[]>(loadStyluses);
   const setStyluses = (list: Stylus[]) => {
@@ -217,7 +220,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
-  const [readingTab, setReadingTab] = useState<'overview' | 'foryou' | 'buddy' | 'groups' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
+  const [readingTab, setReadingTab] = useState<'overview' | 'foryou' | 'new' | 'buddy' | 'groups' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
   const [highlightId, setHighlightId] = useState<string>();
   const [view, setView] = useState<View>('home');
   // Coming back to Books opens the page you were last on.
@@ -507,6 +510,14 @@ export default function App() {
       setMusicTab('collection');
       return goView('music');
     }
+    if (where === 'newbooks') {
+      setReadingTab('new');
+      return goView('reading');
+    }
+    if (where === 'newmusic') {
+      setMusicTab('new');
+      return goView('music');
+    }
     if (where === 'buddy' || where === 'foryou' || where === 'groups') {
       setReadingTab(where);
       return goView('reading');
@@ -517,6 +528,72 @@ export default function App() {
     }
     goView(where);
   };
+  // New releases from the authors and artists you follow, checked once a day.
+  const [followTick, setFollowTick] = useState(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const followKey = useMemo(() => {
+    if (!loaded) return '';
+    // A side feature: odd data must never take the whole app down.
+    try {
+      return followId(allBooks, readings, spins);
+    } catch {
+      return '';
+    }
+  }, [loaded, allBooks, readings, spins, followTick]);
+  const [releases, setReleases] = useState<(ReleaseResult & { at?: number }) | undefined>();
+  const [releasesBusy, setReleasesBusy] = useState(false);
+  const [releasesHidden, setReleasesHidden] = useState(hiddenRecs);
+  const [releasesSeen, setReleasesSeen] = useState(seenReleases);
+  const checkReleases = useCallback(
+    (force = false) => {
+      if (!followKey) return;
+      const c = !force && cachedReleases(followKey);
+      if (c) return setReleases(c);
+      setReleasesBusy(true);
+      findReleases(allBooks, readings, spins)
+        .then((r) => {
+          if (r.books.length || r.music.length || (!r.bookError && !r.musicError)) cacheReleases(followKey, r);
+          setReleases({ ...r, at: Date.now() });
+        })
+        .catch((e) => setReleases({ books: [], music: [], bookError: (e as Error).message }))
+        .finally(() => setReleasesBusy(false));
+    },
+    // Only look again when who you follow changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [followKey],
+  );
+  useEffect(() => checkReleases(), [checkReleases]);
+  const visibleReleases = useMemo(() => {
+    const keep = (l: Release[]) => l.filter((r) => !releasesHidden.has(r.key));
+    return { books: keep(releases?.books ?? []), music: keep(releases?.music ?? []) };
+  }, [releases, releasesHidden]);
+  const hideRelease = (r: Release) => {
+    hideRec(r.key);
+    setReleasesHidden(hiddenRecs());
+  };
+  const wishRelease = async (r: Release) => {
+    if (r.kind === 'music') return wantRecord(r);
+    await bookForRec(r, { wishlist: true, ...(r.isbn13 ? { isbn13: r.isbn13 } : {}), publishedDate: r.date });
+    setToast(`Added “${r.title}” to your wishlist${r.upcoming ? `. It comes out ${dateLabel(r.date).replace(/^Out /, '')}` : ''}.`);
+    reload();
+  };
+  const releasesView = (kind: 'book' | 'music') => (
+    <NewReleasesView
+      kind={kind}
+      releases={kind === 'music' ? visibleReleases.music : visibleReleases.books}
+      followed={kind === 'music' ? followedArtists(allBooks.filter(isMusic), spins) : followedAuthors(allBooks, readings)}
+      allBooks={allBooks}
+      loading={releasesBusy || (!!followKey && !releases)}
+      error={kind === 'music' ? releases?.musicError : releases?.bookError}
+      checkedAt={releases?.at}
+      onRefresh={() => checkReleases(true)}
+      onWant={kind === 'book' ? (r) => void wantRec(r) : undefined}
+      onWish={(r) => void wishRelease(r)}
+      onHide={hideRelease}
+      onFollowChange={() => setFollowTick((t) => t + 1)}
+      onSeen={() => setReleasesSeen(seenReleases())}
+    />
+  );
   const [buddyReads, setBuddyReads] = useState<BuddyRead[]>([]);
   const [buddyError, setBuddyError] = useState<string>();
   const refreshBuddy = useCallback(() => {
@@ -1479,6 +1556,7 @@ export default function App() {
           [
             ['collection', 'Collection'],
             ['foryou', 'For you'],
+            ['new', 'New releases'],
             ['listening', 'Listening'],
             ['value', 'Value'],
             ['wantlist', 'Wantlist'],
@@ -1895,6 +1973,7 @@ export default function App() {
             onGo={goHome}
             onOpenProfile={(n) => showProfile(n)}
             onSignIn={() => openAccount('signin')}
+            releases={{ ...visibleReleases, unseen: new Set([...visibleReleases.books, ...visibleReleases.music].map((r) => r.key).filter((k) => !releasesSeen.has(k))) }}
             groups={
               user
                 ? groups
@@ -1960,6 +2039,7 @@ export default function App() {
                   [
                     ['overview', 'Overview'],
                     ['foryou', 'For you'],
+                    ['new', 'New releases'],
                     ['buddy', 'Buddy reads'],
                     ['groups', 'Challenges with friends'],
                     ['stats', 'Reading stats'],
@@ -1990,6 +2070,7 @@ export default function App() {
                 <ReadingView books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} />
               </>
             )}
+            {readingTab === 'new' && releasesView('book')}
             {readingTab === 'foryou' && (
               <RecsView
                 books={allBooks}
@@ -2092,6 +2173,11 @@ export default function App() {
               onStylusChange={setStyluses}
               extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
             />
+          </section>
+        ) : view === 'music' && musicTab === 'new' ? (
+          <section className="library" aria-label="New releases">
+            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+            {releasesView('music')}
           </section>
         ) : view === 'music' && musicTab === 'foryou' ? (
           <section className="library" aria-label="Music for you">

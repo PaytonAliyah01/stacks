@@ -11,8 +11,9 @@ import { currentReading, queueKey, todayIso } from '../lib/reading';
 import { readingStreak, type ActiveSession } from '../lib/sessions';
 import { agoLabel, nowSpinning, periodStarts, pickRecord, playsByRecord, spinStreak, spinsSince } from '../lib/spins';
 import type { Profile } from '../lib/profile';
+import { dateLabel, type Release } from '../lib/newreleases';
 
-export type HomeTarget = 'buddy' | 'foryou' | 'lending' | 'groups' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends';
+export type HomeTarget = 'buddy' | 'foryou' | 'lending' | 'groups' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends' | 'newbooks' | 'newmusic';
 
 interface Props {
   allBooks: Book[];
@@ -35,6 +36,8 @@ interface Props {
   lending?: { asks: number; items: { title: string; line: string; due: string | null }[] };
   /** Running challenges with friends: your progress and place. */
   groups?: { name: string; goal: number; measure: string; mine: number; invite: boolean; place: number; of: number }[];
+  /** New and upcoming books and albums from who you follow, and how many you haven't seen. */
+  releases?: { books: Release[]; music: Release[]; unseen: Set<string> };
 }
 
 function greeting(d = new Date()) {
@@ -288,6 +291,36 @@ export function HomeView(props: Props) {
               </p>
             )}
           </section>
+
+          {!!props.releases && props.releases.books.length + props.releases.music.length > 0 && (() => {
+            const { books: nb, music: nm, unseen } = props.releases;
+            // Unseen first, then what's out soonest or most recently.
+            const order = (l: Release[]) => [...l].sort((a, b) => Number(unseen.has(b.key)) - Number(unseen.has(a.key)) || Number(b.upcoming) - Number(a.upcoming));
+            const list = [...order(nb).slice(0, 3), ...order(nm).slice(0, 3)].sort((a, b) => Number(unseen.has(b.key)) - Number(unseen.has(a.key))).slice(0, 4);
+            const fresh = [...nb, ...nm].filter((r) => unseen.has(r.key)).length;
+            return (
+              <section className="panel">
+                <div className="home-head">
+                  <h3>New releases{fresh > 0 && <span className="tab-badge">{fresh} new</span>}</h3>
+                  <span className="home-head-links">
+                    {nb.length > 0 && <button className="link small" onClick={() => onGo('newbooks')}>Books</button>}
+                    {nm.length > 0 && <button className="link small" onClick={() => onGo('newmusic')}>Music</button>}
+                  </span>
+                </div>
+                <ul className="home-buddy home-releases">
+                  {list.map((r) => (
+                    <li key={r.key}>
+                      <Cover url={r.cover} title={r.title} author={r.authors[0]} size="sm" square={r.kind === 'music'} />
+                      <span>
+                        <button className="link-plain" onClick={() => onGo(r.kind === 'music' ? 'newmusic' : 'newbooks')}>{r.title}</button>
+                        <span className="muted small">{r.authors[0]} · {dateLabel(r.date)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })()}
 
           <section className="panel">
             <div className="home-head">

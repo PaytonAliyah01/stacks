@@ -1376,3 +1376,14 @@ a.rec-title:hover { text-decoration: underline; }
 .lastfm-panel a:not(.btn) { color: var(--accent); font-weight: 600; }
 .lastfm-panel a.btn { text-decoration: none; }
 @media (max-width: 560px) { .lastfm-mark { display: none; } }
+
+/* New releases */
+.home-head-links { display: flex; gap: 12px; }
+.home-head h3 .tab-badge { margin-left: 8px; vertical-align: middle; }
+.home-releases li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: center; }
+.home-releases li > :first-child { width: 40px; max-width: 40px; }
+.home-releases li > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.release-date { font-weight: 600; }
+.release-date.soon { color: var(--accent); }
+.follow-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.follow-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
