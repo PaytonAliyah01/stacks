@@ -217,3 +217,7 @@ The top tabs are Home, Books, Music, Reading and Friends, plus the 🔔 bell (wh
 - **Reading:** Overview, Discover (For you, New releases), Together (Buddy reads, Book clubs, Challenges), Notes (your quotes and notes), Stats (Reading stats, Achievements, Year in books).
 
 Each group opens on the page you last used in it.
+
+## Shareable shelf link
+
+More → **Share my shelves…** makes a secret link anyone can open, even without a Stacks account. Pick what it shows: books, records and CDs, your bookcases (drawn read-only with everything in its spot), your wishlist, and your star ratings. Visitors can search, switch between "On the bookcases" and "Covers", and tap an item for its details. Prices, notes, loans, locations, tags and reviews never leave the database. **Turn the link off** stops it working at once; **Make a new link** replaces it so the old one stops working. Uses `supabase/11-share-links.sql`.

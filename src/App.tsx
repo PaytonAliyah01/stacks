@@ -15,6 +15,9 @@ import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
 import { GroupedTabs } from './components/GroupedTabs';
+import { ShareDialog } from './components/ShareDialog';
+import { SharedShelf } from './components/SharedShelf';
+import { tokenFromHash } from './lib/share';
 import { NotificationBell } from './components/NotificationBell';
 import { gatherNotifications, type NotifTarget } from './lib/notifications';
 import { FriendsView } from './components/FriendsView';
@@ -184,7 +187,18 @@ const blankMeta = (ids: { isbn13?: string; isbn10?: string; barcode?: string } =
 const surname = (b: Book) => (b.authors[0] ?? '').split(' ').pop()?.toLowerCase() ?? '';
 const year = (b: Book) => b.publishedDate?.match(/\d{4}/)?.[0] ?? '';
 
+/** A shared shelf link (#shelf/…) opens just that page; everything else is the app. */
 export default function App() {
+  const [token, setToken] = useState(() => tokenFromHash());
+  useEffect(() => {
+    const on = () => setToken(tokenFromHash());
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
+  return token ? <SharedShelf key={token} token={token} /> : <StacksApp />;
+}
+
+function StacksApp() {
   const [allBooks, setBooks] = useState<Book[]>([]);
   // The library is what you own; books you've only read (e.g. imported) live in Reading.
   const books = useMemo(() => allBooks.filter((b) => b.owned !== false), [allBooks]);
@@ -225,6 +239,7 @@ export default function App() {
   const [editingCase, setEditingCase] = useState<{ bc: Bookcase; isNew: boolean } | null>(null);
   const [searchFor, setSearchFor] = useState<ScanItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
   const [readingTab, setReadingTab] = useState<'overview' | 'foryou' | 'new' | 'buddy' | 'clubs' | 'groups' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
@@ -1070,7 +1085,7 @@ export default function App() {
     [defaultFormat, scanTarget, scanSpot?.bookcaseId, scanSpot?.shelf, scanSpot?.section, reload],
   );
 
-  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !profileName && !profileEditing && !cameraOpen && !accountOpen && !open && !editingCase && !searchFor && !settingsOpen && !importOpen && wishSearch === false);
+  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !profileName && !profileEditing && !cameraOpen && !accountOpen && !open && !editingCase && !searchFor && !settingsOpen && !shareOpen && !importOpen && wishSearch === false);
 
   // Keep the scan box ready: focus it on start and whenever a panel closes.
   useEffect(() => {
@@ -1714,6 +1729,9 @@ export default function App() {
             <div className="menu-pop">
               <button onClick={async () => { closeMenu(); setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true }); }}>
                 Add {view === 'music' ? 'a record or CD' : 'a book'} by hand…
+              </button>
+              <button onClick={() => { closeMenu(); if (user) setShareOpen(true); else openAccount('signin'); }}>
+                Share my shelves…
               </button>
               <hr className="menu-sep" />
               <button onClick={() => { closeMenu(); downloadBackup(); }}>
@@ -2588,6 +2606,10 @@ export default function App() {
             setToast('Profile saved.');
           }}
         />
+      )}
+
+      {shareOpen && user && (
+        <ShareDialog uid={user.id} defaultTitle={profile?.display_name || profile?.username || 'My'} onClose={() => setShareOpen(false)} onToast={setToast} />
       )}
 
       {settingsOpen && (

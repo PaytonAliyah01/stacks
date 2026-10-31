@@ -1502,3 +1502,37 @@ a.rec-title:hover { text-decoration: underline; }
 @media (max-width: 640px) {
   .wrap-hero > .wrap-spines { width: 72px; top: 14px; right: 14px; opacity: 0.5; }
 }
+
+/* ---------- shared shelf link ---------- */
+.shared-page { min-height: 100vh; background: var(--paper); }
+.shared-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--line); background: var(--surface); }
+.shared-top .brand { text-decoration: none; color: inherit; }
+.shared-main { max-width: 1240px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 18px; }
+.shared-hero { display: flex; align-items: center; gap: 16px; }
+.shared-hero h1 { margin: 0; font-family: var(--font-display); font-size: clamp(1.6rem, 4vw, 2.3rem); text-wrap: balance; }
+.shared-hero p { margin: 4px 0 0; }
+.shared-tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.shared-tools .search { flex: 1 1 240px; max-width: 420px; }
+.shared-msg { padding: 40px 0; }
+.shared-msg h2 { font-family: var(--font-display); margin: 0 0 6px; }
+.shared-more { align-self: center; }
+.shared-overlay { position: fixed; inset: 0; z-index: 50; background: rgb(0 0 0 / 0.45); display: grid; place-items: center; padding: 16px; }
+.shared-card { background: var(--surface); color: var(--ink); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; display: flex; gap: 18px; max-width: 520px; width: 100%; max-height: 90vh; overflow: auto; }
+.shared-card .cover { flex: none; width: 130px; }
+.shared-card-body { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 0; }
+.shared-card-body h2 { margin: 0; font-family: var(--font-display); font-size: 1.35rem; overflow-wrap: anywhere; }
+.shared-card-body p { margin: 0; }
+@media (max-width: 640px) {
+  .shared-card { flex-direction: column; align-items: center; text-align: center; }
+  .shared-card-body { align-items: center; }
+  .shared-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 20px 12px; }
+}
+.share-options { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.share-option { align-items: flex-start; white-space: normal; }
+.share-option input { margin-top: 4px; }
+.share-option > span { display: flex; flex-direction: column; gap: 1px; }
+.share-danger { border-top: 1px solid var(--line); padding-top: 12px; }
+.share-danger .row-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+.shared-top a.btn { text-decoration: none; color: inherit; }
+.share-hint { margin: 4px 0 0; text-transform: none; letter-spacing: normal; font-size: 0.85rem; color: var(--muted); }
+.share-hint a { color: var(--accent); }

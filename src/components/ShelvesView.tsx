@@ -29,9 +29,11 @@ interface Props {
   bookcases: Bookcase[];
   highlightId?: string;
   onOpenBook: (b: Book) => void;
-  onMove: (bookId: string, spot: Spot | null, index?: number) => void;
-  onAddBookcase: () => void;
-  onEditBookcase: (bc: Bookcase) => void;
+  onMove?: (bookId: string, spot: Spot | null, index?: number) => void;
+  onAddBookcase?: () => void;
+  onEditBookcase?: (bc: Bookcase) => void;
+  /** Look only: no dragging, no adding or editing bookcases (a shared shelf link). */
+  readOnly?: boolean;
 }
 
 interface DropTarget {
@@ -41,7 +43,7 @@ interface DropTarget {
 
 const keyOf = (s: Spot) => `${s.bookcaseId}:${s.shelf}:${s.section}`;
 
-function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM }: { book: Book; highlight: boolean; onOpen: () => void; maxCm?: number; scale?: number }) {
+function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed = false }: { book: Book; highlight: boolean; onOpen: () => void; maxCm?: number; scale?: number; fixed?: boolean }) {
   const h = hash(book.title);
   const kind = kindOf(book);
   // At least wide enough to read the title and author; records are thin, so a bit less.
@@ -83,9 +85,10 @@ function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM }: { boo
       type="button"
       className={`spine spine-${lookKind} item-${kind} ${highlight ? 'highlight' : ''} ${kind === 'book' && book.format === 'hardcover' ? 'hard' : ''}`}
       style={{ width, height, ...look }}
-      draggable
+      draggable={!fixed}
       data-spine=""
       onDragStart={(e) => {
+        if (fixed) return;
         e.dataTransfer.setData('text/plain', book.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
@@ -103,7 +106,7 @@ function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM }: { boo
   );
 }
 
-export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove, onAddBookcase, onEditBookcase }: Props) {
+export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove, onAddBookcase, onEditBookcase, readOnly = false }: Props) {
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const hlRef = useRef<HTMLDivElement>(null);
   const casesRef = useRef<HTMLDivElement>(null);
@@ -201,7 +204,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
       const id = e.dataTransfer.getData('text/plain');
       const n = nearestSpot(bc, e.clientX, e.clientY);
       setDrop(null);
-      if (id && n) onMove(id, n.spot, indexFromPointer(n.el, e.clientX));
+      if (id && n) onMove?.(id, n.spot, indexFromPointer(n.el, e.clientX));
     },
   });
 
@@ -218,7 +221,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
       e.preventDefault();
       const id = e.dataTransfer.getData('text/plain');
       setDrop(null);
-      if (id) onMove(id, null);
+      if (id) onMove?.(id, null);
     },
   };
 
@@ -230,7 +233,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
         {here.map((b, i) => (
           <span key={b.id} className="spine-cell">
             {target === i && <i className="drop-marker" />}
-            <Spine book={b} highlight={b.id === highlightId} onOpen={() => onOpenBook(b)} maxCm={maxCm} scale={scale} />
+            <Spine book={b} highlight={b.id === highlightId} onOpen={() => onOpenBook(b)} maxCm={maxCm} scale={scale} fixed={readOnly} />
           </span>
         ))}
         {target === here.length && <i className="drop-marker" />}
@@ -244,7 +247,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
         <div className="empty-shelf" aria-hidden="true"><i /><i /><i /><i /><i /></div>
         <h3>Set up your first bookcase</h3>
         <p>Pick the kind of bookcase you have, like an IKEA Billy or Kallax, and Stacks draws it with your books on it. Then drag books onto shelves, or choose a shelf before you scan and each new book goes straight there, in order.</p>
-        <button className="btn primary" onClick={onAddBookcase}>Add a bookcase</button>
+        {!readOnly && <button className="btn primary" onClick={onAddBookcase}>Add a bookcase</button>}
       </div>
     );
   }
@@ -274,7 +277,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
           const pct = Math.round((usedCm(onCase) / capacity) * 100);
           const width = bc.sectionWidthCm * scale;
           return (
-            <section key={bc.id} className="bookcase-wrap" {...caseDrop(bc)}>
+            <section key={bc.id} className="bookcase-wrap" {...(readOnly ? {} : caseDrop(bc))}>
               <header className="bookcase-head">
                 <div>
                   <h3>{bc.name}</h3>
@@ -282,7 +285,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
                     {BOOKCASE_PRESETS[bc.type].label} · {onCase.length} {onCase.length === 1 ? 'book' : 'books'} · {pct}% full
                   </p>
                 </div>
-                <button className="btn ghost small-btn" onClick={() => onEditBookcase(bc)}>Edit</button>
+                {!readOnly && <button className="btn ghost small-btn" onClick={() => onEditBookcase?.(bc)}>Edit</button>}
               </header>
               <div className="bookcase-scroll">
                 {(() => {
@@ -331,28 +334,32 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
             </section>
           );
         })}
-        <button className="add-bookcase" onClick={onAddBookcase}>
-          <span aria-hidden="true">+</span> Add a bookcase
-        </button>
+        {!readOnly && (
+          <button className="add-bookcase" onClick={onAddBookcase}>
+            <span aria-hidden="true">+</span> Add a bookcase
+          </button>
+        )}
       </div>
 
-      <section className={`tray ${drop?.key === 'tray' ? 'drop-on' : ''}`} {...trayDrop} aria-label="Not on a bookcase">
+      {!(readOnly && unshelved.length === 0) && <section className={`tray ${drop?.key === 'tray' ? 'drop-on' : ''}`} {...(readOnly ? {} : trayDrop)} aria-label="Not on a bookcase">
         <div className="tray-head">
           <h3>Not on a bookcase</h3>
           <span className="muted small">
             {unshelved.length === 0
               ? 'Every book has a spot.'
-              : `${unshelved.length} ${unshelved.length === 1 ? 'book' : 'books'}. Drag them onto a shelf, or drag a book here to take it off.`}
+              : readOnly
+                ? `${unshelved.length} ${unshelved.length === 1 ? 'item' : 'items'}`
+                : `${unshelved.length} ${unshelved.length === 1 ? 'book' : 'books'}. Drag them onto a shelf, or drag a book here to take it off.`}
           </span>
         </div>
         {unshelved.length > 0 && (
           <div className="tray-pile">
             {unshelved.slice(0, 300).map((b) => (
-              <Spine key={b.id} book={b} highlight={b.id === highlightId} onOpen={() => onOpenBook(b)} scale={scale} />
+              <Spine key={b.id} book={b} highlight={b.id === highlightId} onOpen={() => onOpenBook(b)} scale={scale} fixed={readOnly} />
             ))}
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
 }
