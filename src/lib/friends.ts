@@ -50,3 +50,29 @@ export async function removeFriend(me: string, them: string) {
     .or(`and(requester.eq.${me},addressee.eq.${them}),and(requester.eq.${them},addressee.eq.${me})`);
   if (error) throw error;
 }
+
+const missing = (e: { code?: string; message?: string }) => e.code === 'PGRST202' || /does not exist|schema cache/i.test(e.message ?? '');
+
+/**
+ * People whose username or name contains what you typed. Falls back to an
+ * exact username match until supabase/12-find-people.sql has been run.
+ */
+export async function searchPeople(q: string): Promise<Found[]> {
+  const { data, error } = await supabase.rpc('search_people', { q });
+  if (error) {
+    if (!missing(error)) throw error;
+    const one = await findUser(q);
+    return one ? [one] : [];
+  }
+  return (data as Found[]) ?? [];
+}
+
+/** Friends of your friends you aren't connected to yet; empty until SQL 12 is run. */
+export async function peopleYouMayKnow(): Promise<(Found & { mutual: number })[]> {
+  const { data, error } = await supabase.rpc('people_you_may_know');
+  if (error) {
+    if (missing(error)) return [];
+    throw error;
+  }
+  return (data as (Found & { mutual: number })[]) ?? [];
+}

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar } from './ProfileEditor';
 import { FeedView } from './FeedView';
-import { acceptRequest, findUser, removeFriend, sendRequest, type Found, type Friend } from '../lib/friends';
+import { acceptRequest, peopleYouMayKnow, removeFriend, searchPeople, sendRequest, type Found, type Friend } from '../lib/friends';
 import { cleanUsername, profileLink, type Profile } from '../lib/profile';
 
 interface Props {
@@ -80,7 +80,8 @@ function Person({ f, onOpen, children }: { f: Found; onOpen?: () => void; childr
 
 export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProfile, onEditProfile, onBack, lending, lendingBadge = 0, gifts, initialTab }: Props) {
   const [q, setQ] = useState('');
-  const [found, setFound] = useState<Found | null | undefined>();
+  const [found, setFound] = useState<Found[] | undefined>();
+  const [suggested, setSuggested] = useState<(Found & { mutual: number })[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>();
   const [removing, setRemoving] = useState<string>();
@@ -93,17 +94,31 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
 
   const search = async (e: React.FormEvent) => {
     e.preventDefault();
-    const name = cleanUsername(q);
-    if (!name) return;
+    const name = q.trim().replace(/^@/, '');
+    if (name.length < 2) return;
     setSearching(true);
     setSearchError(undefined);
     try {
-      setFound(await findUser(name));
+      setFound(await searchPeople(name));
     } catch (err) {
       setSearchError((err as Error).message);
     } finally {
       setSearching(false);
     }
+  };
+
+  useEffect(() => {
+    if (!me) return;
+    let live = true;
+    peopleYouMayKnow().then((l) => live && setSuggested(l), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [me, friends.length]);
+
+  const findPeople = () => {
+    setTab('people');
+    setTimeout(() => document.getElementById('friend-search')?.focus(), 50);
   };
 
   const copy = async () => {
@@ -126,7 +141,10 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
   return (
     <div className="profile-page friends-page">
       <button className="link small profile-back" onClick={onBack}>← Back to my library</button>
-      <h2 className="page-title">Friends</h2>
+      <div className="friends-head">
+        <h2 className="page-title">Friends</h2>
+        {me && <button className="btn primary" onClick={findPeople}>+ Find people</button>}
+      </div>
       {me && (
         <nav className="subtabs" aria-label="Friends pages">
           <button className={tab === 'feed' ? 'active' : ''} onClick={() => setTab('feed')}>Feed</button>
@@ -152,25 +170,28 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
       ) : tab === 'gifts' && gifts ? (
         gifts
       ) : tab === 'feed' ? (
-        <FeedView uid={uid} onOpenProfile={onOpenProfile} hasFriends={accepted.length > 0} onFindFriends={() => setTab('people')} />
+        <FeedView uid={uid} onOpenProfile={onOpenProfile} hasFriends={accepted.length > 0} onFindFriends={findPeople} />
       ) : (
         <>
           <section className="panel">
-            <h3>Add a friend</h3>
+            <h3>Find people</h3>
             <form className="search-row" onSubmit={search}>
-              <div className="username-input">
-                <span aria-hidden="true">@</span>
-                <input id="friend-search" value={q} onChange={(e) => { setQ(e.target.value); setFound(undefined); }} placeholder="their username" autoCapitalize="none" spellCheck={false} autoComplete="off" />
-              </div>
-              <button className="btn" disabled={searching || !cleanUsername(q)}>{searching ? 'Looking…' : 'Find'}</button>
+              <input id="friend-search" type="search" value={q} onChange={(e) => { setQ(e.target.value); setFound(undefined); }} placeholder="Name or @username" autoCapitalize="none" spellCheck={false} autoComplete="off" />
+              <button className="btn primary" disabled={searching || q.trim().replace(/^@/, '').length < 2}>{searching ? 'Looking…' : 'Search'}</button>
             </form>
-            {found === null && <p className="muted small">Nobody has the username @{cleanUsername(q)}. Check the spelling with your friend.</p>}
+            {found?.length === 0 && (
+              <p className="muted small">
+                Nobody found for “{q.trim()}”. People with a private profile only show up when you type their exact username, like @{cleanUsername(q) || 'maya'}.
+              </p>
+            )}
             {searchError && <p className="account-error small">{searchError}</p>}
-            {found && (
+            {found && found.length > 0 && (
               <ul className="people">
-                <Person f={found} onOpen={() => onOpenProfile(found.username)}>
-                  {found.id === uid ? <span className="muted small">That's you</span> : <FriendButton uid={uid} them={found} friends={friends} onChanged={onChanged} />}
-                </Person>
+                {found.map((f) => (
+                  <Person key={f.id} f={f} onOpen={() => onOpenProfile(f.username)}>
+                    {f.id === uid ? <span className="muted small">That's you</span> : <FriendButton uid={uid} them={f} friends={friends} onChanged={onChanged} />}
+                  </Person>
+                ))}
               </ul>
             )}
             <p className="muted small">
@@ -178,6 +199,20 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
               <button className="link small" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
             </p>
           </section>
+
+          {suggested.length > 0 && (
+            <section className="panel">
+              <h3>People you may know</h3>
+              <ul className="people">
+                {suggested.map((f) => (
+                  <Person key={f.id} f={f} onOpen={() => onOpenProfile(f.username)}>
+                    <span className="muted small mutual">{f.mutual} mutual {f.mutual === 1 ? 'friend' : 'friends'}</span>
+                    <FriendButton uid={uid} them={f} friends={friends} onChanged={onChanged} />
+                  </Person>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {loadError && <p className="account-error">{loadError}</p>}
 
@@ -212,7 +247,7 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
                 ))}
               </ul>
             ) : (
-              <p className="muted">No friends yet. Find someone by their username above, or send them your link.</p>
+              <p className="muted">No friends yet. Search for someone above, or send them your link.</p>
             )}
           </section>
 

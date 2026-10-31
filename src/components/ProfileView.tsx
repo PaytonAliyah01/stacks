@@ -5,7 +5,7 @@ import { FriendButton } from './FriendsView';
 import { FriendShelf } from './FriendShelf';
 import { FriendWishlist } from './FriendWishlist';
 import type { Loan } from '../lib/lending';
-import type { Friend } from '../lib/friends';
+import { findUser, type Found, type Friend } from '../lib/friends';
 import { loadProfileByUsername, profileLink, type Profile, type ShowcaseItem } from '../lib/profile';
 
 interface Props {
@@ -51,6 +51,8 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
   const [p, setP] = useState<Profile | null | undefined>(own ? mine : undefined);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
+  // A private profile still shows its name and picture, so you can add them as a friend.
+  const [card, setCard] = useState<Found | null>();
 
   useEffect(() => {
     if (own) {
@@ -60,14 +62,19 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
     let live = true;
     setP(undefined);
     setFailed(false);
+    setCard(undefined);
     loadProfileByUsername(username).then(
-      (x) => live && setP(x),
+      (x) => {
+        if (!live) return;
+        setP(x);
+        if (!x && signedIn) findUser(username).then((c) => live && setCard(c), () => live && setCard(null));
+      },
       () => live && setFailed(true),
     );
     return () => {
       live = false;
     };
-  }, [username, own, mine]);
+  }, [username, own, mine, signedIn]);
 
   const copy = async () => {
     try {
@@ -86,14 +93,45 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
   );
 
   if (p === undefined && !failed) return <div className="profile-page">{back}<p className="muted">Loading @{username}…</p></div>;
+  // What lets you become friends with someone, whatever state you're in.
+  const addFriend = (them: Found) =>
+    !signedIn ? (
+      <button className="btn primary" onClick={onSignIn}>Sign in to add as a friend</button>
+    ) : !mine ? (
+      <button className="btn primary" onClick={onEdit}>Make your profile to add friends</button>
+    ) : uid && friends && onFriendsChanged ? (
+      <FriendButton uid={uid} them={them} friends={friends} onChanged={onFriendsChanged} />
+    ) : null;
+
+  if (!p && card && !own)
+    return (
+      <div className="profile-page">
+        {back}
+        <div className="profile-missing profile-private">
+          <Avatar p={card} size={72} />
+          <h2>{card.display_name || `@${card.username}`}</h2>
+          {card.display_name && <span className="muted">@{card.username}</span>}
+          <p>{friends?.some((f) => f.id === card.id && f.status === 'accepted') ? 'Their profile is private.' : 'Their profile is private. Add them as a friend, and once they accept you can see their shelves, reading and wishlist.'}</p>
+          {addFriend(card)}
+        </div>
+      </div>
+    );
   if (!p)
     return (
       <div className="profile-page">
         {back}
         <div className="profile-missing">
           <h2>@{username}</h2>
-          <p>{failed ? 'Stacks couldn’t load this profile. Check your connection and try again.' : 'This profile is private, or there’s nobody with that username.'}</p>
-          {!signedIn && !failed && <button className="btn" onClick={onSignIn}>Sign in</button>}
+          <p>
+            {failed
+              ? 'Stacks couldn’t load this profile. Check your connection and try again.'
+              : signedIn
+                ? card === undefined
+                  ? 'Looking…'
+                  : 'There’s nobody with that username. Check the spelling with your friend.'
+                : 'Sign in to see this profile and add them as a friend.'}
+          </p>
+          {!signedIn && !failed && <button className="btn primary" onClick={onSignIn}>Sign in</button>}
         </div>
       </div>
     );
@@ -113,13 +151,13 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
           </div>
           <div className="profile-actions">
             {own && <button className="btn" onClick={onEdit}>Edit profile</button>}
-            {!own && uid && mine && friends && onFriendsChanged && <FriendButton uid={uid} them={p} friends={friends} onChanged={onFriendsChanged} />}
+            {!own && addFriend(p)}
             <button className="btn ghost" onClick={copy}>{copied ? 'Link copied' : 'Copy link'}</button>
           </div>
         </div>
         {p.bio && <p className="profile-bio">{p.bio}</p>}
         {own && p.visibility !== 'public' && (
-          <p className="muted small">Only you can see this right now. Set “Who can see your profile” to “Anyone with the link” to share it.</p>
+          <p className="muted small">Your profile is {p.visibility === 'private' ? 'private' : 'only visible to friends'}. People with your link still see your name and an Add friend button; set “Who can see your profile” to “Anyone with the link” to show them everything.</p>
         )}
       </header>
 

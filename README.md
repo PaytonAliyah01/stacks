@@ -221,3 +221,7 @@ Each group opens on the page you last used in it.
 ## Shareable shelf link
 
 More → **Share my shelves…** makes a secret link anyone can open, even without a Stacks account. Pick what it shows: books, records and CDs, your bookcases (drawn read-only with everything in its spot), your wishlist, and your star ratings. Visitors can search, switch between "On the bookcases" and "Covers", and tap an item for its details. Prices, notes, loans, locations, tags and reviews never leave the database. **Turn the link off** stops it working at once; **Make a new link** replaces it so the old one stops working. Uses `supabase/11-share-links.sql`.
+
+## Finding people
+
+Friends → **+ Find people** (on every Friends page) searches by part of a name or username. People whose profile is visible to friends or everyone show up as you'd expect; a private profile only shows up when you type its exact username. "People you may know" lists friends of your friends with how many friends you share. Opening someone's profile link always shows their name and an **Add friend** button, even when their profile is private (signed-out visitors are asked to sign in first). Uses `supabase/12-find-people.sql`; until it's run, search falls back to exact usernames.
