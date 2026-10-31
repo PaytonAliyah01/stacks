@@ -34,6 +34,10 @@ export interface BuddyRead {
   finish_by: string | null;
   created_at: string;
   members: BuddyMember[];
+  /** Set when it's a book club's book. */
+  club_id?: string | null;
+  meet_at?: string | null;
+  meet_where?: string | null;
 }
 
 export interface ChatMessage {

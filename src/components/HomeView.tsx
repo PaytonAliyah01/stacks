@@ -13,7 +13,7 @@ import { agoLabel, nowSpinning, periodStarts, pickRecord, playsByRecord, spinStr
 import type { Profile } from '../lib/profile';
 import { dateLabel, type Release } from '../lib/newreleases';
 
-export type HomeTarget = 'buddy' | 'foryou' | 'lending' | 'groups' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends' | 'newbooks' | 'newmusic';
+export type HomeTarget = 'buddy' | 'foryou' | 'lending' | 'groups' | 'library' | 'shelves' | 'wishlist' | 'music' | 'listening' | 'reading' | 'challenges' | 'friends' | 'newbooks' | 'newmusic' | 'clubs';
 
 interface Props {
   allBooks: Book[];
@@ -38,6 +38,8 @@ interface Props {
   groups?: { name: string; goal: number; measure: string; mine: number; invite: boolean; place: number; of: number }[];
   /** New and upcoming books and albums from who you follow, and how many you haven't seen. */
   releases?: { books: Release[]; music: Release[]; unseen: Set<string> };
+  /** Your book clubs: what they're reading and when they meet next. */
+  clubs?: { name: string; book?: string; meet?: string; invite: boolean }[];
 }
 
 function greeting(d = new Date()) {
@@ -135,6 +137,25 @@ export function HomeView(props: Props) {
             active={props.active}
             onStartTimer={props.onStartTimer}
           />
+
+          {!!props.clubs?.length && (
+            <section className="panel">
+              <div className="home-head">
+                <h3>Book clubs</h3>
+                <button className="link small" onClick={() => onGo('clubs')}>Open</button>
+              </div>
+              <ul className="home-buddy">
+                {props.clubs.slice(0, 3).map((c, i) => (
+                  <li key={i}>
+                    <button className="link-plain" onClick={() => onGo('clubs')}>{c.name}</button>
+                    <span className="muted small">
+                      {c.invite ? 'You’re invited' : [c.book ? `Reading ${c.book}` : 'No book yet', c.meet && `meets ${c.meet}`].filter(Boolean).join(' · ')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {!!props.buddy?.length && (
             <section className="panel">

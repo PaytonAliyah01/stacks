@@ -209,7 +209,8 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: { read: BuddyRead;
   );
 }
 
-function ReadCard(props: Props & { read: BuddyRead }) {
+/** One buddy read. In a book club, `club` is the club's name. */
+export function ReadCard(props: Props & { read: BuddyRead; club?: string }) {
   const { read, uid, books, readings, friends, onOpen, onRefresh, onJoin, onOpenProfile } = props;
   const me = read.members.find((m) => m.user_id === uid);
   const [busy, setBusy] = useState(false);
@@ -256,12 +257,18 @@ function ReadCard(props: Props & { read: BuddyRead }) {
       {me?.status === 'invited' ? (
         <div className="buddy-invite">
           <p>
-            <strong>{memberName(read.members.find((m) => m.user_id === read.owner) ?? read.members[0])}</strong> wants to read this with you.
+            {props.club ? (
+              <><strong>{props.club}</strong> is reading this. Join when you start it, to see everyone’s progress and the chat.</>
+            ) : (
+              <>
+                <strong>{memberName(read.members.find((m) => m.user_id === read.owner) ?? read.members[0])}</strong> wants to read this with you.
+              </>
+            )}
             {!local && ' It isn’t in your library yet; joining adds it as a book you’re reading.'}
           </p>
           <div className="account-actions">
             <button className="btn primary" disabled={busy} onClick={() => act(() => onJoin(read))}>Join</button>
-            <button className="btn ghost" disabled={busy} onClick={() => act(() => leaveBuddyRead(read.id, uid))}>No thanks</button>
+            {!props.club && <button className="btn ghost" disabled={busy} onClick={() => act(() => leaveBuddyRead(read.id, uid))}>No thanks</button>}
           </div>
         </div>
       ) : (
@@ -317,7 +324,7 @@ function ReadCard(props: Props & { read: BuddyRead }) {
 
           <div className="buddy-actions">
             <button className={`btn small-btn ${chat ? '' : 'primary'}`} onClick={() => setChat(!chat)}>{chat ? 'Hide chat' : 'Chat'}</button>
-            {owner && notIn.length > 0 && !inviting && <button className="btn ghost small-btn" onClick={() => setInviting(true)}>Invite more</button>}
+            {owner && !props.club && notIn.length > 0 && !inviting && <button className="btn ghost small-btn" onClick={() => setInviting(true)}>Invite more</button>}
             {confirm ? (
               <>
                 <button className="btn danger small-btn" disabled={busy} onClick={() => act(() => (confirm === 'delete' ? deleteBuddyRead(read.id) : leaveBuddyRead(read.id, uid)))}>
@@ -348,7 +355,9 @@ function ReadCard(props: Props & { read: BuddyRead }) {
 
 export function BuddyView(props: Props) {
   const [starting, setStarting] = useState(false);
-  const { reads, friends } = props;
+  const { friends } = props;
+  // Book club books live on the Book clubs page.
+  const reads = props.reads.filter((r) => !r.club_id);
   const invites = reads.filter((r) => r.members.find((m) => m.user_id === props.uid)?.status === 'invited');
   const mine = reads.filter((r) => !invites.includes(r));
   const hasFriends = friends.some((f) => f.status === 'accepted');
@@ -378,11 +387,11 @@ export function BuddyView(props: Props) {
       {invites.length > 0 && (
         <>
           <h3 className="section-label">Invites</h3>
-          <ul className="buddy-list">{invites.map((r) => <ReadCard key={r.id} {...props} read={r} />)}</ul>
+          <ul className="buddy-list">{invites.map((r) => <ReadCard key={r.id} {...props} reads={reads} read={r} />)}</ul>
         </>
       )}
       {mine.length > 0 ? (
-        <ul className="buddy-list">{mine.map((r) => <ReadCard key={r.id} {...props} read={r} />)}</ul>
+        <ul className="buddy-list">{mine.map((r) => <ReadCard key={r.id} {...props} reads={reads} read={r} />)}</ul>
       ) : (
         !starting && !invites.length && <p className="muted">No buddy reads yet.</p>
       )}

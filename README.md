@@ -195,3 +195,7 @@ The shared secret and each person's Last.fm session key stay on the server; the 
 ## New releases
 
 Reading → New releases and Music → New releases. Stacks follows the authors you read and like most (books you rated 4★ or more, finished, or own two or more of; up to 12) and the artists you own and spin most (up to 12), and once a day looks for their books and albums from the last year and up to 18 months ahead. Upcoming ones are under "Coming soon" with their date. One tap puts a book on your wishlist or to-read list, or an album on your wantlist; ✕ hides one, and "Authors/Artists you follow" lets you stop following someone. Home shows a "New releases" card with how many you haven't seen. Book dates come from Google Books (Open Library when Google is busy), album dates from Deezer. No SQL needed.
+
+## Book clubs
+
+Reading → Book clubs. Start a club, give it a name and a line about it, and invite friends; any member who joined can invite their own friends too. The host picks the club's book (from their library, a suggestion, or any title typed in) with an optional meeting date and place or video link. Each club book is a buddy read for everyone in the club: each person joins when they start it, and then sees everyone's progress and a spoiler-free chat. Members suggest books for next time and vote on them; the host makes one the next book. Past books are listed with how many finished and the average rating. Clubs show on Home with the next meeting. Club books stay off the Buddy reads page. Uses `supabase/09-book-clubs.sql` (needs 05).
