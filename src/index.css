@@ -1365,3 +1365,14 @@ a.rec-title:hover { text-decoration: underline; }
 .group-legend { display: flex; align-items: center; gap: 6px; margin: 0; }
 .group-pace-key { display: inline-block; width: 2px; height: 12px; background: var(--ink); opacity: 0.45; }
 @media (max-width: 640px) { .group-form { grid-template-columns: minmax(0, 1fr); } }
+
+/* Last.fm */
+.lastfm-panel { display: grid; gap: 10px; }
+.lastfm-linked { display: grid; gap: 8px; }
+.lastfm-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin: 0; }
+.lastfm-row > span { min-width: 0; }
+.lastfm-mark { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #d51007; color: #fff; font-weight: 800; font-size: 13px; letter-spacing: -0.02em; }
+.lastfm-panel .check > span { white-space: normal; }
+.lastfm-panel a:not(.btn) { color: var(--accent); font-weight: 600; }
+.lastfm-panel a.btn { text-decoration: none; }
+@media (max-width: 560px) { .lastfm-mark { display: none; } }

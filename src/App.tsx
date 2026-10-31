@@ -31,6 +31,8 @@ import { VibeSelect } from './components/VibeSelect';
 import { NotesView } from './components/NotesView';
 import { SeriesView } from './components/SeriesView';
 import { ListeningView } from './components/ListeningView';
+import { LastfmPanel } from './components/LastfmPanel';
+import { dropSpin, enqueue, flush as flushScrobbles, linkLastfm, nowPlaying, plan as planScrobbles, scrobblingOn, setScrobblingOn, takeLastfmToken } from './lib/lastfm';
 import { MusicWrap } from './components/MusicWrap';
 import { DiscogsImport } from './components/DiscogsImport';
 import { ValueView, type PriceRun } from './components/ValueView';
@@ -247,6 +249,9 @@ export default function App() {
     };
   }, []);
   const [toast, setToast] = useState('');
+  // Last.fm: the token Last.fm sends you back with, and a counter that refreshes the queue count.
+  const lastfmToken = useRef(takeLastfmToken());
+  const [scrobbleTick, setScrobbleTick] = useState(0);
   const importRef = useRef<HTMLInputElement>(null);
   const scanFieldRef = useRef<HTMLInputElement>(null);
   // Invisible box that catches scanner input, so scans save without the digits showing.
@@ -319,6 +324,43 @@ export default function App() {
       data.subscription.unsubscribe();
     };
   }, [reload]);
+
+  // Last.fm: finish connecting after Last.fm sends you back, then send tracks as they finish playing.
+  useEffect(() => {
+    if (!user) return;
+    const token = lastfmToken.current;
+    if (token) {
+      lastfmToken.current = undefined;
+      setView('music');
+      setMusicTab('listening');
+      linkLastfm(token)
+        .then(({ username }) => {
+          setScrobblingOn(true);
+          setToast(`Connected to Last.fm as ${username}. Every record you spin will be scrobbled.`);
+        })
+        .catch((e) => setToast(`Couldn't connect Last.fm: ${(e as Error).message}`))
+        .finally(() => setScrobbleTick((t) => t + 1));
+    }
+    const send = async () => {
+      if (!scrobblingOn()) return;
+      const r = await flushScrobbles();
+      if (r.sent) setScrobbleTick((t) => t + 1);
+      if (r.error && /connect last\.fm first/i.test(r.error)) {
+        setScrobblingOn(false);
+        setScrobbleTick((t) => t + 1);
+      }
+    };
+    void send();
+    const every = setInterval(() => void send(), 60_000);
+    const onFocus = () => void send();
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onFocus);
+    return () => {
+      clearInterval(every);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onFocus);
+    };
+  }, [user]);
 
   // Profiles: yours loads when you sign in; #@name in the address opens someone's profile.
   useEffect(() => {
@@ -1177,10 +1219,38 @@ export default function App() {
     if (!at) postSpin(b);
     const n = (plays.get(b.id)?.count ?? 0) + 1;
     setToast(at ? `Added a play of “${b.title}”.` : `Now spinning: “${b.title}”. That's play ${n}.`);
+    if (!at && user && scrobblingOn()) void scrobbleSpin(x, b);
+  };
+  /** Queue every track of a spin for Last.fm. */
+  const scrobbleSpin = async (x: Spin, b: Book) => {
+    let tracks = b.tracks;
+    if (!tracks?.length) {
+      try {
+        tracks = await fetchTrackList(b);
+      } catch {
+        tracks = undefined;
+      }
+      if (tracks?.length) {
+        const latest = (await store.get(b.id)) ?? b;
+        const next: Book = { ...latest, tracks, tracksChecked: true, trackCount: latest.trackCount ?? tracks.length, updatedAt: new Date().toISOString() };
+        await store.put(next);
+        setBooks((l) => l.map((y) => (y.id === b.id ? next : y)));
+      }
+    }
+    if (!tracks?.length) {
+      setToast(`Couldn't find the track list for “${b.title}”, so it wasn't sent to Last.fm. Add the tracks in the record's details.`);
+      return;
+    }
+    const items = planScrobbles(x, b, tracks);
+    enqueue(items);
+    setScrobbleTick((t) => t + 1);
+    if (items[0]) void nowPlaying(items[0]);
   };
   const removeSpin = async (id: string) => {
     setSpins((l) => l.filter((x) => x.id !== id));
     await store.removeSpin(id);
+    dropSpin(id);
+    setScrobbleTick((t) => t + 1);
   };
   const removeNote = async (id: string) => {
     setNotes((l) => l.filter((x) => x.id !== id));
@@ -2020,6 +2090,7 @@ export default function App() {
               allRecords={allBooks.filter(isMusic)}
               styluses={styluses}
               onStylusChange={setStyluses}
+              extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
             />
           </section>
         ) : view === 'music' && musicTab === 'foryou' ? (

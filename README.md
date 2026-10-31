@@ -178,3 +178,16 @@ Anyone who isn't signed in (including right after signing out) sees a welcome pa
 ## Challenges with friends
 
 Reading → Challenges with friends. Start one from a preset (this year's reading race, next month's pages, summer reading) or set your own name, goal in books or pages, and dates, then invite friends. Invited friends join or decline. Everyone's progress comes from their own reading (books finished between the dates, including ones already finished) and updates by itself; the leaderboard shows places, the last book each person finished, and a marker for the even pace to finish on time. When it ends, the winner gets a trophy. Running challenges show under "Reading goal" on Home with your place. Uses `supabase/07-group-challenges.sql`.
+
+## Last.fm scrobbling
+
+Music → Listening → Last.fm. Connect once (Last.fm asks you to allow Stacks and sends you back), and every record you spin with "Spin it now" goes to your Last.fm track by track, timed from when you put it on: each track starts when the one before ends, flipping sides adds a short pause, and tracks under 30 seconds are skipped. A track is sent once it would have played half its length (or four minutes), so the queue lives on the device you spun on; it catches up when you come back online or reopen Stacks, for up to 13 days. Undoing a spin cancels its tracks that haven't gone out. Plays you log for an earlier day aren't scrobbled. The switch is per device.
+
+Setup (once):
+
+1. Make a Last.fm API account at https://www.last.fm/api/account/create. Callback URL: `https://paytonaliyah01.github.io/stacks/`.
+2. In Supabase → Edge Functions → Secrets, add `LASTFM_API_KEY` and `LASTFM_SECRET` with the values Last.fm shows.
+3. In Supabase → Edge Functions, create a function named `lastfm` and paste `supabase/functions/lastfm/index.ts` (or `supabase functions deploy lastfm`).
+4. Run `supabase/08-lastfm.sql` in the SQL Editor.
+
+The shared secret and each person's Last.fm session key stay on the server; the browser only asks the function to link, unlink and scrobble.

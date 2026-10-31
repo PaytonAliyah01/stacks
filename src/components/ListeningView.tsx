@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { Book, Spin } from '../types';
 import { KIND_LABELS, kindOf } from '../types';
 import { Cover } from './Cover';
@@ -32,6 +32,8 @@ interface Props {
   allRecords?: Book[];
   styluses?: Stylus[];
   onStylusChange?: (list: Stylus[]) => void;
+  /** Shown above the stylus panel (Last.fm). */
+  extra?: ReactNode;
 }
 
 const sub = (b: Book) => [b.authors[0], KIND_LABELS[kindOf(b)].one, b.publishedDate?.slice(0, 4)].filter(Boolean).join(' · ');
@@ -64,7 +66,7 @@ function RecordList({ items, empty, onOpen, onSpin, note }: { items: Book[]; emp
   );
 }
 
-export function ListeningView({ records, spins, onSpin, onOpen, onRemoveSpin, allRecords, styluses, onStylusChange }: Props) {
+export function ListeningView({ records, spins, onSpin, onOpen, onRemoveSpin, allRecords, styluses, onStylusChange, extra }: Props) {
   const byId = useMemo(() => new Map(records.map((b) => [b.id, b])), [records]);
   const mine = useMemo(() => spins.filter((s) => byId.has(s.bookId)), [spins, byId]);
   const plays = useMemo(() => playsByRecord(mine), [mine]);
@@ -169,6 +171,8 @@ export function ListeningView({ records, spins, onSpin, onOpen, onRemoveSpin, al
           <span className="muted">{plays.size} of {records.length} at least once</span>
         </div>
       </div>
+
+      {extra}
 
       {styluses && onStylusChange && <StylusPanel records={allRecords ?? records} spins={spins} styluses={styluses} onChange={onStylusChange} />}
 
