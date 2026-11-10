@@ -63,7 +63,7 @@ export function gatherNotifications(x: NotifInput): Notif[] {
         out.push({
           id: `due:${l.id}:${l.due_on}:${left < 0 ? 'late' : 'soon'}`,
           icon: '⏰',
-          text: left < 0 ? `“${l.item.title}” was due back to ${who}` : left === 0 ? `“${l.item.title}” is due back to ${who} today` : `“${l.item.title}” is due back to ${who} in ${left} day${left === 1 ? '' : 's'}`,
+          text: dueText(l.item.title, who, left),
           at: nowIso,
           target: 'lending',
         });
@@ -150,5 +150,13 @@ export function ago(iso: string, now = Date.now()): string {
   if (ms < 3_600_000) return `${Math.floor(ms / 60_000)} min ago`;
   if (ms < DAY) return `${Math.floor(ms / 3_600_000)} h ago`;
   const d = Math.floor(ms / DAY);
-  return d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  if (d === 1) return 'yesterday';
+  if (d < 30) return `${d} days ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+function dueText(title: string, who: string, left: number): string {
+  if (left < 0) return `“${title}” was due back to ${who}`;
+  if (left === 0) return `“${title}” is due back to ${who} today`;
+  return `“${title}” is due back to ${who} in ${left} day${left === 1 ? '' : 's'}`;
 }

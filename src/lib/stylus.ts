@@ -77,7 +77,7 @@ export const newStylus = (name: string, shape: StylusShape, installedOn: string,
 export function playHours(b: Book): number {
   const s = totalSeconds(b.tracks ?? []);
   if (s > 0) return s / 3600;
-  const perDisc = b.vinylSize === 7 ? 8 : b.vinylSize === 10 ? 25 : 42;
+  const perDisc = ({ 7: 8, 10: 25 } as Record<number, number>)[b.vinylSize ?? 12] ?? 42;
   return (perDisc * Math.max(1, b.discCount ?? 1)) / 60;
 }
 

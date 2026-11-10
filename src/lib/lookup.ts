@@ -268,15 +268,14 @@ export async function searchBooks(query: string): Promise<{ hits: SearchHit[]; p
       });
     }
   }
-  const problem =
-    gb.status === 'rejected' && ol.status === 'rejected'
-      ? "Couldn't reach Google Books or Open Library. Check your internet connection."
-      : gb.status === 'rejected'
-        ? `Google Books didn't answer (${describe(gb.reason)}), so these results are from Open Library only.`
-        : undefined;
-  const problemKind =
-    gb.status !== 'rejected' ? undefined : ['HTTP 429', 'HTTP 403'].includes((gb.reason as Error)?.message) ? 'quota' : isServerError(gb.reason) ? 'server' : 'other';
-  return { hits, problem, problemKind };
+  if (gb.status !== 'rejected') return { hits };
+  if (ol.status === 'rejected') return { hits, problem: "Couldn't reach Google Books or Open Library. Check your internet connection.", problemKind: googleProblemKind(gb.reason) };
+  return { hits, problem: `Google Books didn't answer (${describe(gb.reason)}), so these results are from Open Library only.`, problemKind: googleProblemKind(gb.reason) };
+}
+
+function googleProblemKind(reason: unknown): 'quota' | 'server' | 'other' {
+  if (['HTTP 429', 'HTTP 403'].includes((reason as Error)?.message)) return 'quota';
+  return isServerError(reason) ? 'server' : 'other';
 }
 
 function describe(reason: unknown): string {
@@ -311,7 +310,10 @@ export async function lookupIsbn(isbn13: string, isbn10?: string): Promise<Looku
   if (!a && !b) {
     if (ol.status === 'rejected' && gb.status === 'rejected') {
       const why = (r: PromiseRejectedResult) =>
-        r.reason instanceof Error ? (r.reason.name === 'AbortError' ? 'timed out' : r.reason.message) : String(r.reason);
+        {
+          if (!(r.reason instanceof Error)) return String(r.reason);
+          return r.reason.name === 'AbortError' ? 'timed out' : r.reason.message;
+        };
       const message = !navigator.onLine
         ? 'This computer is offline. Connect to the internet and press Retry.'
         : `Couldn't reach the book databases (Open Library: ${why(ol)}; Google Books: ${why(gb)}). ` +
@@ -374,7 +376,7 @@ const barcodeVariants = (code: string) => [...new Set([code, code.length === 13 
 export const vinylSizeOf = (text: string) => {
   const m = /(\d{1,2})"/.exec(text);
   const size = m ? Number(m[1]) : 12;
-  return size === 7 ? 7 : size === 10 ? 10 : 12;
+  return size === 7 || size === 10 ? size : 12;
 };
 
 async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | null> {
@@ -614,6 +616,17 @@ export async function fetchSeries(isbn13: string): Promise<string[]> {
 
 const FORMAT_WORDS = /^(lp|album|ep|single|compilation|reissue|repress|remastered|stereo|mono|vinyl|cd|12"|10"|7"|33 ⅓ rpm|45 rpm|78 rpm|gatefold|mini-album|maxi-single)$/i;
 
+function formatKind(vinyl: boolean, cd: boolean): 'vinyl' | 'cd' | undefined {
+  if (vinyl) return 'vinyl';
+  return cd ? 'cd' : undefined;
+}
+
+/** Discogs' release date ("1977-02-04", "1977-00-00" or "0"), else its year. */
+function releasedOn(rel: { released?: string; year?: number }): string | undefined {
+  if (rel.released && rel.released !== '0') return rel.released.replace(/-00/g, '');
+  return rel.year ? String(rel.year) : undefined;
+}
+
 /** Color, edition and the rest of a Discogs release's pressing details. */
 export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: string; edition?: string; pressingCountry?: string; matrix?: string; catalogNumber?: string } {
   const formats: any[] = rel.formats ?? [];
@@ -625,7 +638,7 @@ export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: s
   const matrix = (rel.identifiers ?? []).filter((x: any) => /matrix|runout/i.test(x.type)).map((x: any) => x.value).slice(0, 2).join(' / ');
   const qty = formats.reduce((n, f) => n + (Number(f.qty) || 0), 0);
   return {
-    kind: vinyl ? 'vinyl' : cd ? 'cd' : undefined,
+    kind: formatKind(vinyl, cd),
     vinylSize: vinyl ? vinylSizeOf(descriptions.join(' ')) : undefined,
     discCount: qty || undefined,
     vinylColor: vinyl && color ? color : undefined,
@@ -652,7 +665,7 @@ export async function fetchDiscogsRelease(id: number): Promise<ReturnType<typeof
     barcode: barcode && barcode.length >= 8 ? barcode : undefined,
     subjects: [...(rel.genres ?? []), ...(rel.styles ?? [])].slice(0, 8),
     coverUrl: img?.uri && !/spacer\.gif/.test(img.uri) ? img.uri : rel.thumb || undefined,
-    publishedDate: rel.released && rel.released !== '0' ? rel.released.replace(/-00/g, '') : rel.year ? String(rel.year) : undefined,
+    publishedDate: releasedOn(rel),
     discogsId: id,
   };
 }

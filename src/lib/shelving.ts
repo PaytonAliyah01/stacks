@@ -33,7 +33,7 @@ export function placeLabel(book: Book, bookcases: Bookcase[]): string {
   if (!p) return '';
   const bc = bookcases.find((c) => c.id === p.bookcaseId);
   if (!bc) return '';
-  const noun = book.kind === 'vinyl' ? 'Record' : book.kind === 'cd' ? 'CD' : 'Book';
+  const noun = ({ vinyl: 'Record', cd: 'CD', book: 'Book' } as const)[book.kind ?? 'book'];
   return `${bc.name} · ${spotName(bc, p)} · ${noun} ${p.position}`;
 }
 
@@ -80,7 +80,7 @@ export function newBookcase(type: BookcaseType, order: number, name?: string): B
   const now = new Date().toISOString();
   return {
     id: newId(),
-    name: name ?? (type.startsWith('billy') ? 'Billy' : type.startsWith('kallax') ? 'Kallax' : 'Bookcase'),
+    name: name ?? caseName(type),
     type,
     shelves: p.shelves,
     sections: p.sections,
@@ -105,4 +105,9 @@ export function spotsOf(bc: Bookcase): Spot[] {
   for (let shelf = 1; shelf <= bc.shelves; shelf++)
     for (let section = 1; section <= bc.sections; section++) out.push({ bookcaseId: bc.id, shelf, section });
   return out;
+}
+
+function caseName(type: string): string {
+  if (type.startsWith('billy')) return 'Billy';
+  return type.startsWith('kallax') ? 'Kallax' : 'Bookcase';
 }

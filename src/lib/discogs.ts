@@ -118,7 +118,10 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
     for (const r of (list === 'wants' ? data.wants : data.releases) ?? []) {
       const b = r.basic_information ?? {};
       const formats: any[] = b.formats ?? [];
-      const note = (id: number) => (Array.isArray(r.notes) ? r.notes.find((n: any) => n.field_id === id)?.value : id === 3 ? r.notes : undefined) || undefined;
+      const note = (id: number) => {
+        if (Array.isArray(r.notes)) return r.notes.find((n: any) => n.field_id === id)?.value || undefined;
+        return (id === 3 && r.notes) || undefined;
+      };
       items.push({
         releaseId: b.id ?? r.id,
         artists: (b.artists ?? []).map((a: any) => cleanArtist(a.name)).filter((a: string) => a && a !== 'Various').slice(0, 3),

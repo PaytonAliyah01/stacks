@@ -22,7 +22,8 @@ export function groupTracks(tracks: Track[]): TrackGroup[] {
     const pos = t.position?.trim() ?? '';
     const side = /^([A-Za-z])\d*/.exec(pos)?.[1]?.toUpperCase();
     const disc = /^(\d+)[-.](\d+)$/.exec(pos)?.[1];
-    const label = side ? `Side ${side}` : disc ? `Disc ${disc}` : '';
+    let label = disc ? `Disc ${disc}` : '';
+    if (side) label = `Side ${side}`;
     let g = groups[groups.length - 1];
     if (g?.label !== label) {
       g = { label, tracks: [], seconds: 0 };

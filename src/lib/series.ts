@@ -47,7 +47,7 @@ export function parseSeries(raw: string): BookSeries | undefined {
   const lead = s.match(LEADING_NUMBER);
   const name = cleanSeriesName(m ? m[1] : s);
   if (!name || /^\d+$/.test(name) || name.length < 2) return;
-  return { name, number: m ? num(m[2]) : lead ? num(lead[1]) : undefined };
+  return { name, number: num(m ? m[2] : lead?.[1]) };
 }
 
 /** Goodreads-style titles: "Leviathan Wakes (The Expanse, #1)", "(Mistborn Book 2)", "(Dune #1)". */

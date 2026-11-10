@@ -146,7 +146,7 @@ export function fromShelves(books: Book[], readings: Reading[], t: Taste, hidden
         cover: b.coverUrl,
         pages: b.pageCount,
         bookId: b.id,
-        reason: f.reason ?? (queued ? 'Already on your to-read list' : waited > 0.5 ? 'Has been on your shelf a while' : 'On your shelf, not read yet'),
+        reason: f.reason ?? shelfReason(queued, waited),
       },
     });
   }
@@ -352,4 +352,9 @@ export function cacheShelves(id: string, shelves: Shelf[], key = CACHE) {
   } catch {
     /* full or blocked */
   }
+}
+
+function shelfReason(queued: boolean, waited: number): string {
+  if (queued) return 'Already on your to-read list';
+  return waited > 0.5 ? 'Has been on your shelf a while' : 'On your shelf, not read yet';
 }

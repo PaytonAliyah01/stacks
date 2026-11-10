@@ -68,7 +68,13 @@ export function fromCrates(records: Book[], spins: Spin[], t: MusicTaste, hidden
     const score = dust * 2 + Math.log2(1 + fit) + Math.log2(1 + Math.max(0, artistPlays));
     // The favorite it has most in common with, for the reason.
     const like = t.favorites.find((f) => f.id !== b.id && cleanSubjects(f.subjects).filter((g) => gs.includes(g)).length >= 2);
-    const when = !p?.last ? (daysSince(b.addedAt) > 30 ? 'Never played since you got it' : 'Not played yet') : `Last spun ${agoLabel(p.last)}`;
+    let when: string;
+    if (p?.last) when = `Last spun ${agoLabel(p.last)}`;
+    else if (daysSince(b.addedAt) > 30) when = 'Never played since you got it';
+    else when = 'Not played yet';
+    let reason = when;
+    if (like) reason = `${when} · like ${like.title}`;
+    else if (artistPlays > 2) reason = `${when} · you play ${b.authors[0]} a lot`;
     out.push({
       score,
       rec: {
@@ -77,7 +83,7 @@ export function fromCrates(records: Book[], spins: Spin[], t: MusicTaste, hidden
         authors: b.authors,
         cover: b.coverUrl,
         bookId: b.id,
-        reason: like ? `${when} · like ${like.title}` : artistPlays > 2 ? `${when} · you play ${b.authors[0]} a lot` : when,
+        reason,
       },
     });
   }

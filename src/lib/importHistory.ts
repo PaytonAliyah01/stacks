@@ -98,6 +98,12 @@ const SHELF_STATUS: Record<string, ReadStatus> = {
   abandoned: 'dnf',
 };
 
+function readsFor(status: string, finished?: string): ImportRow['reads'] {
+  if (status === 'read' || status === 'dnf') return [{ finishedOn: finished }];
+  if (status === 'reading') return [{}];
+  return [];
+}
+
 function fromGoodreads(get: (row: string[], col: string) => string, rows: string[][]): ImportRow[] {
   return rows.map((r) => {
     const shelf = get(r, 'Exclusive Shelf').trim().toLowerCase();
@@ -115,7 +121,7 @@ function fromGoodreads(get: (row: string[], col: string) => string, rows: string
       publishedDate: year || undefined,
       format: formatOf(get(r, 'Binding')),
       status,
-      reads: status === 'read' || status === 'dnf' ? [{ finishedOn: finished }] : status === 'reading' ? [{}] : [],
+      reads: readsFor(status, finished),
       rating,
       review: get(r, 'My Review').replace(/<br\s*\/?>/gi, '\n').trim() || undefined,
       tags: get(r, 'Bookshelves')

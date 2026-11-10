@@ -250,7 +250,11 @@ export interface Bookcase {
 export function spineCm(b: Pick<Book, 'pageCount' | 'format' | 'kind' | 'discCount'>): number {
   const discs = Math.max(1, b.discCount ?? 1);
   if (b.kind === 'vinyl') return 0.35 + discs * 0.2; // sleeve plus records
-  if (b.kind === 'cd') return discs === 1 ? 1 : discs === 2 ? 2.2 : 1 + discs * 0.6; // jewel cases / box
+  if (b.kind === 'cd') {
+    // jewel cases / box
+    if (discs === 1) return 1;
+    return discs === 2 ? 2.2 : 1 + discs * 0.6;
+  }
   const pages = b.pageCount ?? 320;
   const paper = b.format === 'mass-market' ? 0.0055 : 0.0065;
   const boards = b.format === 'hardcover' ? 0.5 : 0.1;
@@ -280,9 +284,10 @@ export function formatMoney(amount: number, currency = 'USD'): string {
 
 /** Standing height in cm. */
 export function itemHeightCm(b: Pick<Book, 'kind' | 'format' | 'vinylSize'>): number {
-  if (b.kind === 'vinyl') return b.vinylSize === 7 ? 18 : b.vinylSize === 10 ? 26 : 31.5;
+  if (b.kind === 'vinyl') return ({ 7: 18, 10: 26 } as Record<number, number>)[b.vinylSize ?? 12] ?? 31.5;
   if (b.kind === 'cd') return 14.2;
-  return b.format === 'mass-market' ? 17.5 : b.format === 'hardcover' ? 24 : 21.5;
+  if (b.format === 'mass-market') return 17.5;
+  return b.format === 'hardcover' ? 24 : 21.5;
 }
 
 /** A quote you saved from a book, or your own note about it. */

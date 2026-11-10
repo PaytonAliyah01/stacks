@@ -123,6 +123,12 @@ export function guessVibe(subjects: string[]): VibeGuess {
     for (const [re, w] of WARNING_RULES) if (re.test(s)) warnings.add(w);
   }
   const moods = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m]) => m);
-  const pace: Pace | undefined = fast > slow ? 'fast' : slow > fast ? 'slow' : fast > 0 ? 'medium' : undefined;
+  const pace = paceOf(fast, slow);
   return { moods, pace, contentWarnings: [...warnings] };
+}
+
+function paceOf(fast: number, slow: number): Pace | undefined {
+  if (fast > slow) return 'fast';
+  if (slow > fast) return 'slow';
+  return fast > 0 ? 'medium' : undefined;
 }

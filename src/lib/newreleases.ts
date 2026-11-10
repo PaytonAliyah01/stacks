@@ -80,11 +80,9 @@ export function dateMs(d: string): number {
 export function dateLabel(d: string, now = Date.now()): string {
   const ms = dateMs(d);
   if (!Number.isFinite(ms)) return d;
-  const opts: Intl.DateTimeFormatOptions = /^\d{4}$/.test(d)
-    ? { year: 'numeric' }
-    : /^\d{4}-\d{2}$/.test(d)
-      ? { month: 'long', year: 'numeric' }
-      : { day: 'numeric', month: 'long', ...(new Date(ms).getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}) };
+  let opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', ...(new Date(ms).getFullYear() === new Date(now).getFullYear() ? {} : { year: 'numeric' }) };
+  if (/^\d{4}$/.test(d)) opts = { year: 'numeric' };
+  else if (/^\d{4}-\d{2}$/.test(d)) opts = { month: 'long', year: 'numeric' };
   const s = new Date(ms).toLocaleDateString(undefined, opts);
   return ms > now ? `Out ${s}` : `Came out ${s}`;
 }
@@ -126,8 +124,16 @@ export function followedAuthors(books: Book[], readings: Reading[]): Followed[] 
     .map((a) => ({
       name: a.name,
       weight: a.weight,
-      why: a.loved ? `You loved ${a.loved === 1 ? 'a book' : `${a.loved} books`} by ${a.name}` : a.read ? `You've read ${a.read === 1 ? 'a book' : `${a.read} books`} by ${a.name}` : `You have ${a.owned} books by ${a.name}`,
+      why: whyFollow(a),
     }));
+}
+
+const booksPhrase = (n: number) => (n === 1 ? 'a book' : `${n} books`);
+
+function whyFollow(a: { name: string; loved: number; read: number; owned: number }): string {
+  if (a.loved) return `You loved ${booksPhrase(a.loved)} by ${a.name}`;
+  if (a.read) return `You've read ${booksPhrase(a.read)} by ${a.name}`;
+  return `You have ${a.owned} books by ${a.name}`;
 }
 
 /** The artists you own and play most. */
