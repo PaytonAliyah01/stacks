@@ -25,7 +25,7 @@ const TRAILING_NUMBER = new RegExp(String.raw`^(.*?)(?:\s*(?:[;,:]|--|-|–)\s*|
 /** Takes publisher notes and the word "series" off a series name: "Harry Potter (Bloomsbury) series" → "Harry Potter". */
 // "Book One of A Song of Ice and Fire", "Volume 2 of the Expanse", "#3 in Discworld"
 // Needs the "book"/"volume" word, so "One of Us Is Lying" stays as it is.
-const LEADING_NUMBER = new RegExp(String.raw`^\s*(?:#|no\.?\s*|vol(?:ume)?\.?\s*|bk\.?\s*|book\s+|part\s+|tome\s+)(\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:of|in)\s+(?:the\s+)?(?=\S)`, 'i');
+const LEADING_NUMBER = /^\s*(?:#|no\.?\s*|vol(?:ume)?\.?\s*|bk\.?\s*|book\s+|part\s+|tome\s+)(\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:of|in)\s+(?:the\s+)?(?=\S)/i;
 
 const dropSeriesWord = (s: string) => s.replace(/\b(series|saga|sequence|novels?)\s*$/i, '');
 

@@ -92,8 +92,8 @@ export function TracksPanel({ draft, onSave }: Readonly<Props>) {
           </div>
         </div>
       ) : (
-        groups.map((g, gi) => (
-          <div key={gi} className="track-group">
+        groups.map((g) => (
+          <div key={`${g.label}|${g.tracks[0]?.i}`} className="track-group">
             {g.label && (
               <div className="track-side">
                 <span>{g.label}</span>

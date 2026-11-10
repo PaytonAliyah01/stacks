@@ -237,7 +237,7 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
             </>
           )}
           {error && <p className="account-error" role="alert">{error}</p>}
-          {info && <p className="account-info" role="status">{info}</p>}
+          {info && <output className="account-info">{info}</output>}
         </form>
       </dialog>
     </div>
