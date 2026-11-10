@@ -19,13 +19,15 @@ const num = (s?: string) => {
 };
 
 // "#2", "no. 2", "vol. 2", "v. 2", "bk. 2", "book 2", "book two", "part 2", "[2]", "(2)"
-const NUMBER = String.raw`(?:#|no\.?\s*|nr\.?\s*|vol(?:ume)?\.?\s*|v\.\s*|bk\.?\s*|book\s+|part\s+|tome\s+)?(\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)`;
+const NUMBER_VALUE = String.raw`(\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)`;
+const NUMBER = String.raw`(?:#|no\.?\s*|nr\.?\s*|vol(?:ume)?\.?\s*|v\.\s*|bk\.?\s*|book\s+|part\s+|tome\s+)?${NUMBER_VALUE}`;
 const TRAILING_NUMBER = new RegExp(String.raw`^(.*?)(?:\s*(?:[;,:]|--|-|–)\s*|\s+)[([]?${NUMBER}\s*[)\]]?\.?$`, 'i');
 
 /** Takes publisher notes and the word "series" off a series name: "Harry Potter (Bloomsbury) series" → "Harry Potter". */
 // "Book One of A Song of Ice and Fire", "Volume 2 of the Expanse", "#3 in Discworld"
 // Needs the "book"/"volume" word, so "One of Us Is Lying" stays as it is.
-const LEADING_NUMBER = /^\s*(?:#|no\.?\s*|vol(?:ume)?\.?\s*|bk\.?\s*|book\s+|part\s+|tome\s+)(\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:of|in)\s+(?:the\s+)?(?=\S)/i;
+const LEADING_WORD = String.raw`(?:#|no\.?\s*|vol(?:ume)?\.?\s*|bk\.?\s*|book\s+|part\s+|tome\s+)`;
+const LEADING_NUMBER = new RegExp(String.raw`^\s*${LEADING_WORD}${NUMBER_VALUE}\s+(?:of|in)\s+(?:the\s+)?(?=\S)`, 'i');
 
 const dropSeriesWord = (s: string) => s.replace(/\b(series|saga|sequence|novels?)\s*$/i, '');
 
