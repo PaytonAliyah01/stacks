@@ -141,6 +141,16 @@ async function push(uid: string) {
   saveDirty();
 }
 
+/** A settings row from the cloud. True when it changed something here. */
+function applyPref(r: { id: string; data: unknown; deleted: boolean }): boolean {
+  const p = PREFS[r.id];
+  if (!p || r.deleted) return false;
+  const next = (r.data as { value: unknown })?.value;
+  if (JSON.stringify(next) === JSON.stringify(p.load())) return false;
+  p.save(next as never);
+  return true;
+}
+
 async function pull(uid: string): Promise<boolean> {
   const since = read(sinceKey(uid));
   // A little overlap, in case two saves landed at nearly the same moment.
@@ -161,23 +171,13 @@ async function pull(uid: string): Promise<boolean> {
     for (const r of rows) {
       if (r.updated_at > newest) newest = r.updated_at;
       if (dirty.has(`${r.store}|${r.id}`)) continue; // your newer change here wins
-      if (r.store === 'prefs') {
-        const p = PREFS[r.id];
-        if (p && !r.deleted) {
-          const cur = JSON.stringify(p.load());
-          const next = (r.data as { value: unknown })?.value;
-          if (JSON.stringify(next) !== cur) {
-            p.save(next as never);
-            any = true;
-          }
-        }
-        continue;
+      if (r.store === 'prefs') any = applyPref(r) || any;
+      else if ((SYNC_STORES as readonly string[]).includes(r.store)) {
+        const g = byStore.get(r.store) ?? { puts: [], deletes: [] };
+        if (r.deleted || !r.data) g.deletes.push(r.id);
+        else g.puts.push(r.data);
+        byStore.set(r.store, g);
       }
-      if (!(SYNC_STORES as readonly string[]).includes(r.store)) continue;
-      const g = byStore.get(r.store) ?? { puts: [], deletes: [] };
-      if (r.deleted || !r.data) g.deletes.push(r.id);
-      else g.puts.push(r.data);
-      byStore.set(r.store, g);
     }
     await Promise.all([...byStore].map(([name, g]) => rawStore.rawApply(name as SyncStore, g.puts, g.deletes)));
     if (byStore.size) any = true;

@@ -5,6 +5,7 @@ import { matchKey, sameWork } from './importHistory';
 import { getJson } from './lookup';
 import type { FeedEntry } from './feed';
 import { stripBrackets } from './text';
+import { without } from './omit';
 
 /**
  * Recommendations: what to read next, worked out from the books you've read
@@ -87,10 +88,9 @@ export function tasteOf(books: Book[], readings: Reading[]): Taste {
     const last = rs[rs.length - 1];
     const w = weightOf(last) * (rs.filter((r) => r.status === 'read').length > 1 ? 1.5 : 1);
     if (!w) continue;
-    for (const a of b.authors.slice(0, 2)) add(authors, authorKey(a), w);
-    for (const s of cleanSubjects(b.subjects).slice(0, 10)) add(subjects, s, w);
-    for (const s of b.tags) add(subjects, s.toLowerCase(), w);
-    for (const m of b.moods ?? []) add(moods, m, w);
+    b.authors.slice(0, 2).forEach((a) => add(authors, authorKey(a), w));
+    [...cleanSubjects(b.subjects).slice(0, 10), ...b.tags.map((s) => s.toLowerCase())].forEach((s) => add(subjects, s, w));
+    (b.moods ?? []).forEach((m) => add(moods, m, w));
     if (w >= 1) loved.push({ b, weight: w, rating: last.rating });
   }
   // Loved means 4 stars and up, or any finished book if you don't rate.
@@ -299,28 +299,30 @@ export async function fromOpenLibrary(books: Book[], t: Taste, hidden: Set<strin
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+const friendRaved = (e: FeedEntry, uid: string) =>
+  e.user_id !== uid && (e.kind === 'finished' || e.kind === 'rated') && (e.extra.rating ?? 0) >= 4 && e.items[0]?.kind === 'book';
+
+/** Another friend loved a book already on the list. */
+function addFriendVote(prev: Rec & { n: number }, who: string) {
+  if (prev.reason.includes(who)) return;
+  prev.n++;
+  prev.reason = prev.n === 2 ? `${prev.reason.split(' gave')[0]} and ${who} loved it` : `${prev.n} friends loved it`;
+}
+
 /** Books your friends finished and rated 4 stars or more, that you don't have yet. */
 export function fromFriends(feed: FeedEntry[], books: Book[], uid: string, hidden: Set<string>): Rec[] {
   const have = new Set(books.map((b) => recKey(b.title, b.authors[0])));
   const out = new Map<string, Rec & { n: number }>();
-  for (const e of feed) {
-    if (e.user_id === uid || !(e.kind === 'finished' || e.kind === 'rated') || (e.extra.rating ?? 0) < 4) continue;
+  for (const e of feed.filter((x) => friendRaved(x, uid))) {
     const it = e.items[0];
-    if (it?.kind !== 'book') continue;
     const key = recKey(it.title, it.by);
     if (have.has(key) || hidden.has(key) || alreadyHave(books, it.title, it.by)) continue;
     const who = e.display_name || `@${e.username}`;
     const prev = out.get(key);
-    if (prev) {
-      if (!prev.reason.includes(who)) {
-        prev.n++;
-        prev.reason = prev.n === 2 ? `${prev.reason.split(' gave')[0]} and ${who} loved it` : `${prev.n} friends loved it`;
-      }
-      continue;
-    }
-    out.set(key, { key, n: 1, title: it.title, authors: it.by ? [it.by] : [], cover: it.cover, reason: `${who} gave it ${e.extra.rating}★` });
+    if (prev) addFriendVote(prev, who);
+    else out.set(key, { key, n: 1, title: it.title, authors: it.by ? [it.by] : [], cover: it.cover, reason: `${who} gave it ${e.extra.rating}★` });
   }
-  return [...out.values()].sort((a, b) => b.n - a.n).slice(0, 8).map(({ n: _n, ...r }) => r);
+  return [...out.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((r) => without(r, 'n'));
 }
 
 // Hidden recommendations and the last Open Library results stay on this device.

@@ -52,43 +52,46 @@ export function musicTasteOf(records: Book[], spins: Spin[]): MusicTaste {
   return { artists, genres, favorites };
 }
 
+type Plays = ReturnType<typeof playsByRecord>;
+
+/** How well a record's genres match what you play. */
+function genreFit(gs: string[], t: MusicTaste): number {
+  if (!gs.length) return 0;
+  const fit = gs.reduce((sum, g) => sum + (t.genres.get(g) ?? 0), 0);
+  return fit / Math.sqrt(gs.length);
+}
+
+function whenText(b: Book, last: string | undefined): string {
+  if (last) return `Last spun ${agoLabel(last)}`;
+  if (daysSince(b.addedAt) > 30) return 'Never played since you got it';
+  return 'Not played yet';
+}
+
+function crateRec(b: Book, plays: Plays, t: MusicTaste): { rec: Rec; score: number } {
+  const p = plays.get(b.id);
+  const gs = cleanSubjects(b.subjects);
+  const artist = t.artists.get(artistKey(b.authors[0] ?? ''));
+  const artistPlays = artist ? artist.spins - (p?.count ?? 0) : 0;
+  const dust = p?.last ? Math.min(3, daysSince(p.last) / 60) : 3;
+  const score = dust * 2 + Math.log2(1 + genreFit(gs, t)) + Math.log2(1 + Math.max(0, artistPlays));
+  // The favorite it has most in common with, for the reason.
+  const like = t.favorites.find((f) => f.id !== b.id && cleanSubjects(f.subjects).filter((g) => gs.includes(g)).length >= 2);
+  const when = whenText(b, p?.last);
+  let reason = when;
+  if (like) reason = `${when} · like ${like.title}`;
+  else if (artistPlays > 2) reason = `${when} · you play ${b.authors[0]} a lot`;
+  return { score, rec: { key: recKey(b.title, b.authors[0]), title: b.title, authors: b.authors, cover: b.coverUrl, bookId: b.id, reason } };
+}
+
 /** Records you own to put on: long unplayed ones that sound like what you love. */
 export function fromCrates(records: Book[], spins: Spin[], t: MusicTaste, hidden: Set<string>): Rec[] {
   const plays = playsByRecord(spins);
-  const out: { rec: Rec; score: number }[] = [];
-  for (const b of records) {
-    if (!isMusic(b) || b.owned === false || b.loan || hidden.has(recKey(b.title, b.authors[0]))) continue;
-    const p = plays.get(b.id);
-    if (p?.last && daysSince(p.last) < 21) continue;
-    const gs = cleanSubjects(b.subjects);
-    let fit = 0;
-    for (const g of gs) fit += t.genres.get(g) ?? 0;
-    fit = gs.length ? fit / Math.sqrt(gs.length) : 0;
-    const artist = t.artists.get(artistKey(b.authors[0] ?? ''));
-    const artistPlays = artist ? artist.spins - (p?.count ?? 0) : 0;
-    const dust = p?.last ? Math.min(3, daysSince(p.last) / 60) : 3;
-    const score = dust * 2 + Math.log2(1 + fit) + Math.log2(1 + Math.max(0, artistPlays));
-    // The favorite it has most in common with, for the reason.
-    const like = t.favorites.find((f) => f.id !== b.id && cleanSubjects(f.subjects).filter((g) => gs.includes(g)).length >= 2);
-    let when: string;
-    if (p?.last) when = `Last spun ${agoLabel(p.last)}`;
-    else if (daysSince(b.addedAt) > 30) when = 'Never played since you got it';
-    else when = 'Not played yet';
-    let reason = when;
-    if (like) reason = `${when} · like ${like.title}`;
-    else if (artistPlays > 2) reason = `${when} · you play ${b.authors[0]} a lot`;
-    out.push({
-      score,
-      rec: {
-        key: recKey(b.title, b.authors[0]),
-        title: b.title,
-        authors: b.authors,
-        cover: b.coverUrl,
-        bookId: b.id,
-        reason,
-      },
-    });
-  }
+  const playable = (b: Book) => isMusic(b) && b.owned !== false && !b.loan && !hidden.has(recKey(b.title, b.authors[0]));
+  const restedEnough = (b: Book) => {
+    const last = plays.get(b.id)?.last;
+    return !last || daysSince(last) >= 21;
+  };
+  const out = records.filter((b) => playable(b) && restedEnough(b)).map((b) => crateRec(b, plays, t));
   out.sort((a, b) => b.score - a.score);
   return out.slice(0, 8).map((x) => x.rec);
 }
