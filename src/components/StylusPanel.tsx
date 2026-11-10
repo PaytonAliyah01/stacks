@@ -48,12 +48,66 @@ function NewStylusForm({ onAdd, onCancel }: Readonly<{ onAdd: (s: Stylus) => voi
   );
 }
 
+const timeLeft = (days: number) => (days > 60 ? countOf(Math.round(days / 30), 'month') : countOf(days, 'day'));
+
+function WearAlert({ pct }: Readonly<{ pct: number }>) {
+  if (pct >= 100) return <p className="stylus-alert">Time for a new stylus. A worn one sounds dull and can damage your records.</p>;
+  if (pct >= 85) return <p className="stylus-alert soft">Your stylus is nearly worn out. Good time to order a new one.</p>;
+  return null;
+}
+
+function LifeEditor({ active, styluses, onChange }: Readonly<{ active: Stylus; styluses: Stylus[]; onChange: (s: Stylus[]) => void }>) {
+  const [editingLife, setEditingLife] = useState(false);
+  return editingLife ? (
+    <label className="stylus-life">
+      Replace after{' '}
+      <input
+        id="stylus-life"
+        type="number"
+        min={50}
+        defaultValue={active.lifeHours}
+        onBlur={(e) => {
+          const n = Math.round(Number(e.target.value));
+          if (n >= 50) onChange(styluses.map((x) => (x.id === active.id ? { ...x, lifeHours: n } : x)));
+          setEditingLife(false);
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        ref={focusOnMount}
+      />{' '}
+      hours
+    </label>
+  ) : (
+    <button className="link small" onClick={() => setEditingLife(true)}>Change how long it lasts</button>
+  );
+}
+
+function StylusWear({ active, w, styluses, onChange }: Readonly<{ active: Stylus; w: ReturnType<typeof wear>; styluses: Stylus[]; onChange: (s: Stylus[]) => void }>) {
+  return (
+    <div className="stylus-wear">
+      <div className={`stylus-meter ${wearClass(w.pct)}`}>
+        <i style={{ width: `${w.pct}%` }} />
+      </div>
+      <div className="stylus-numbers">
+        <span>
+          <strong>{hoursLabel(w.hours)}</strong> of {active.lifeHours} hours · {w.pct}% worn
+        </span>
+        <span className="muted small">
+          {w.plays} vinyl play{w.plays === 1 ? '' : 's'}
+          {active.startHours ? ` + ${active.startHours} hours from before` : ''}
+          {w.daysLeft !== undefined && w.pct < 100 && ` · at your pace, about ${timeLeft(w.daysLeft)} left`}
+        </span>
+      </div>
+      <WearAlert pct={w.pct} />
+      <LifeEditor active={active} styluses={styluses} onChange={onChange} />
+    </div>
+  );
+}
+
 export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Props>) {
   const byId = useMemo(() => new Map(records.map((b) => [b.id, b])), [records]);
   const active = styluses.find((s) => !s.retiredOn);
   const old = styluses.filter((s) => s.retiredOn).sort((a, b) => b.retiredOn!.localeCompare(a.retiredOn!));
   const [adding, setAdding] = useState(false);
-  const [editingLife, setEditingLife] = useState(false);
   const w = active && wear(active, spins, byId);
 
   const replace = (s: Stylus) => {
@@ -76,48 +130,7 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
         <NewStylusForm onAdd={replace} onCancel={adding ? () => setAdding(false) : undefined} />
       ) : (
         w && (
-          <div className="stylus-wear">
-            <div className={`stylus-meter ${wearClass(w.pct)}`}>
-              <i style={{ width: `${w.pct}%` }} />
-            </div>
-            <div className="stylus-numbers">
-              <span>
-                <strong>{hoursLabel(w.hours)}</strong> of {active.lifeHours} hours · {w.pct}% worn
-              </span>
-              <span className="muted small">
-                {w.plays} vinyl play{w.plays === 1 ? '' : 's'}
-                {active.startHours ? ` + ${active.startHours} hours from before` : ''}
-                {w.daysLeft !== undefined && w.pct < 100 && ` · at your pace, about ${w.daysLeft > 60 ? countOf(Math.round(w.daysLeft / 30), 'month') : countOf(w.daysLeft, 'day')} left`}
-              </span>
-            </div>
-            {(w.pct >= 100) ? (
-              <p className="stylus-alert">Time for a new stylus. A worn one sounds dull and can damage your records.</p>
-            ) : null}
-            {w.pct < 100 && (w.pct >= 85) ? (
-              <p className="stylus-alert soft">Your stylus is nearly worn out. Good time to order a new one.</p>
-            ) : null}
-            {editingLife ? (
-              <label className="stylus-life">
-                Replace after{' '}
-                <input
-                  id="stylus-life"
-                  type="number"
-                  min={50}
-                  defaultValue={active.lifeHours}
-                  onBlur={(e) => {
-                    const n = Math.round(Number(e.target.value));
-                    if (n >= 50) onChange(styluses.map((x) => (x.id === active.id ? { ...x, lifeHours: n } : x)));
-                    setEditingLife(false);
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                  ref={focusOnMount}
-                />{' '}
-                hours
-              </label>
-            ) : (
-              <button className="link small" onClick={() => setEditingLife(true)}>Change how long it lasts</button>
-            )}
-          </div>
+          <StylusWear active={active} w={w} styluses={styluses} onChange={onChange} />
         )
       )}
 

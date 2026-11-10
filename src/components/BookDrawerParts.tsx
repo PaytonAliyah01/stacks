@@ -1,6 +1,5 @@
 import { CURRENCIES, KIND_LABELS, type Book, type Bookcase, type ItemKind } from '../types';
-import { marketLine } from './ValueView';
-import { discogsReleaseUrl } from '../lib/value';
+import { discogsReleaseUrl, marketLine } from '../lib/value';
 import { booksAt, sameSpot, spotName } from '../lib/shelving';
 import { formatIsbn13 } from '../lib/isbn';
 import { spinePhotoToDataUrl } from '../lib/coverColor';

@@ -1,4 +1,6 @@
 import type { Book } from '../types';
+import { formatMoney } from '../types';
+import { formatDay } from './reading';
 
 /** Currencies the Discogs marketplace can quote in. */
 export const DISCOGS_CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD', 'JPY', 'CHF', 'MXN', 'BRL', 'NZD', 'SEK', 'ZAR'];
@@ -70,3 +72,15 @@ export function summarize(records: Book[], currency: string): ValueSummary {
 
 export const discogsReleaseUrl = (id: number) => `https://www.discogs.com/release/${id}`;
 export const discogsSellUrl = (id: number) => `https://www.discogs.com/sell/release/${id}`;
+
+/** One line about a record's Discogs price, for its panel. */
+export function marketLine(b: Book, currency: string): string {
+  const v = valueOf({ ...b, myValue: undefined }, currency);
+  if (!b.market) return b.discogsId ? 'Press Update prices on Music → Stats → What it’s worth to get the Discogs price.' : 'Not linked to Discogs, so there is no market price.';
+  const parts = [
+    b.market.suggested !== undefined && `suggested ${formatMoney(b.market.suggested, b.market.currency)}`,
+    b.market.lowest !== undefined && `lowest on sale ${formatMoney(b.market.lowest, b.market.currency)}`,
+    b.market.forSale !== undefined && `${b.market.forSale} for sale`,
+  ].filter(Boolean);
+  return `${v ? 'Discogs: ' : 'Discogs has no copies on sale. '}${parts.join(' · ')} (${formatDay(b.market.checkedAt)})`;
+}
