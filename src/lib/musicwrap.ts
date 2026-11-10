@@ -29,6 +29,33 @@ export interface MusicWrap {
 const local = (iso: string) => new Date(iso);
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
+/** Longest run of days in a row with a spin. */
+function longestRun(days: Set<string>, year: number): number {
+  let longest = 0;
+  let run = 0;
+  for (let d = new Date(year, 0, 1); d.getFullYear() === year; d.setDate(d.getDate() + 1)) {
+    run = days.has(dayKey(d)) ? run + 1 : 0;
+    longest = Math.max(longest, run);
+  }
+  return longest;
+}
+
+function spentByCurrency(added: Book[]): Map<string, number> {
+  const spent = new Map<string, number>();
+  for (const b of added.filter((x) => x.pricePaid)) spent.set(b.currency ?? '', (spent.get(b.currency ?? '') ?? 0) + (b.pricePaid ?? 0) * Math.max(1, b.copies));
+  return spent;
+}
+
+/** When each record was first spun, ever. */
+function firstSpins(spins: Spin[]): Map<string, string> {
+  const firstEver = new Map<string, string>();
+  for (const s of spins) {
+    const seen = firstEver.get(s.bookId);
+    if (!seen || s.at < seen) firstEver.set(s.bookId, s.at);
+  }
+  return firstEver;
+}
+
 export function wrapMusic(year: string, books: Book[], spins: Spin[]): MusicWrap {
   const byId = new Map(books.map((b) => [b.id, b]));
   const inYear = spins
@@ -50,14 +77,7 @@ export function wrapMusic(year: string, books: Book[], spins: Spin[]): MusicWrap
     days.add(dayKey(d));
     hours += playHours(b);
   }
-  // Longest run of days in a row with a spin.
-  let longest = 0;
-  let run = 0;
-  const start = new Date(Number(year), 0, 1);
-  for (let d = new Date(start); d.getFullYear() === Number(year); d.setDate(d.getDate() + 1)) {
-    run = days.has(dayKey(d)) ? run + 1 : 0;
-    longest = Math.max(longest, run);
-  }
+  const longest = longestRun(days, Number(year));
   const monthName = (i: number) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'long' });
   const dayName = (i: number) => new Date(2024, 0, 7 + i).toLocaleDateString(undefined, { weekday: 'long' });
   const bm = perMonth.indexOf(Math.max(...perMonth));
@@ -65,10 +85,8 @@ export function wrapMusic(year: string, books: Book[], spins: Spin[]): MusicWrap
 
   const yearOf = (b: Book) => (b.acquiredOn ?? b.addedAt).slice(0, 4);
   const added = books.filter((b) => b.owned !== false && yearOf(b) === year).sort((a, b) => a.addedAt.localeCompare(b.addedAt));
-  const spent = new Map<string, number>();
-  for (const b of added) if (b.pricePaid) spent.set(b.currency ?? '', (spent.get(b.currency ?? '') ?? 0) + b.pricePaid * Math.max(1, b.copies));
-  const firstEver = new Map<string, string>();
-  for (const s of spins) if (!firstEver.has(s.bookId) || s.at < firstEver.get(s.bookId)!) firstEver.set(s.bookId, s.at);
+  const spent = spentByCurrency(added);
+  const firstEver = firstSpins(spins);
   const rediscovered = [...counts.keys()].filter((id) => {
     const b = byId.get(id)!;
     return firstEver.get(id)?.slice(0, 4) === year && yearOf(b) < year;
