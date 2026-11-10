@@ -212,14 +212,31 @@ export function RecsView(props: Readonly<Props>) {
   );
 }
 
+/** Takes the first pick from each pool, then the second, and so on, skipping repeats. */
+function mixPicks(pools: Rec[][], max: number): Rec[] {
+  const picks: Rec[] = [];
+  for (let i = 0; i < max; i++) {
+    for (const p of pools) {
+      if (picks.length >= max) return picks;
+      if (p[i] && !picks.some((x) => x.key === p[i].key)) picks.push(p[i]);
+    }
+  }
+  return picks;
+}
+
+function noPicksText(recs: { loading: boolean; error?: string; taste: { loved: unknown[] } }) {
+  if (recs.loading) return 'Finding books for you…';
+  if (recs.error && recs.taste.loved.length) return recs.error;
+  return 'Rate a few books you finished and Stacks suggests what to read next.';
+}
+
 /** The Home card: a few picks, mixed from your shelves and new books. */
 export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: Readonly<{ books: Book[]; readings: Reading[]; uid?: string; social: boolean; onOpen: (b: Book) => void; onAll: () => void }>) {
   const recs = useRecs(books, readings, uid, social);
-  const picks: Rec[] = [];
   // Books already on your to-read list are in "Up next" right above.
   const shelf = recs.shelf.filter((r) => !(r.bookId && currentReading(readings, r.bookId)?.status === 'want'));
   const pools = [shelf, ...recs.shelves.map((s) => s.recs), recs.friends];
-  for (let i = 0; picks.length < 4 && i < 4; i++) for (const p of pools) if (p[i] && picks.length < 4 && !picks.some((x) => x.key === p[i].key)) picks.push(p[i]);
+  const picks = mixPicks(pools, 4);
   return (
     <section className="panel">
       <div className="home-head">
@@ -242,9 +259,7 @@ export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: Readon
           })}
         </ol>
       ) : (
-        <p className="muted">{recs.loading ? 'Finding books for you…' : null}
-        {!recs.loading && (recs.error && recs.taste.loved.length) ? recs.error : null}
-        {!recs.loading && !(recs.error && recs.taste.loved.length) ? 'Rate a few books you finished and Stacks suggests what to read next.' : null}</p>
+        <p className="muted">{noPicksText(recs)}</p>
       )}
     </section>
   );
