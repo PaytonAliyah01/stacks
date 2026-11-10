@@ -81,7 +81,28 @@ async function fromOpenLibraryEdition(isbn13: string): Promise<Partial<BookMetad
 
 const GOOGLE_KEY_PREF = 'stacks.googleBooksKey';
 
-/** An optional free Google Books API key the person can add in Settings. */
+/**
+ * The shared Google Books key baked in when the site is built (a GitHub repository variable).
+ * Google only accepts it from the Stacks website, so it's safe to ship in the page.
+ */
+const BUILT_IN_GOOGLE_KEY = (import.meta.env.VITE_GOOGLE_BOOKS_KEY ?? '').trim();
+/** Set once Google refuses the built-in key here (e.g. Stacks opened from a file), so we stop sending it. */
+let builtInKeyRefused = false;
+
+export const hasBuiltInGoogleKey = () => !!BUILT_IN_GOOGLE_KEY && !builtInKeyRefused;
+
+/** The key lookups actually use: the person's own key if they added one, otherwise the shared one. */
+export function activeGoogleKey(): string {
+  return getGoogleKey() || (hasBuiltInGoogleKey() ? BUILT_IN_GOOGLE_KEY : '');
+}
+
+/** Adds `&key=…` to a Google Books URL when there's a key to use. */
+export function withGoogleKey(url: string): string {
+  const key = activeGoogleKey();
+  return key ? `${url}&key=${encodeURIComponent(key)}` : url;
+}
+
+/** An optional free Google Books API key the person can add in Settings (overrides the shared one). */
 export function getGoogleKey(): string {
   try {
     return localStorage.getItem(GOOGLE_KEY_PREF) ?? '';
@@ -104,20 +125,34 @@ const isServerError = (err: unknown) => err instanceof Error && (/^HTTP 5\d\d$/.
  * Google Books often answers 503 ("try again") for a moment even when the key is fine,
  * so ask up to three times before giving up.
  */
-async function getGoogle(url: string): Promise<unknown> {
+export async function getGoogle(url: string): Promise<unknown> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await getJson(url);
     } catch (err) {
+      // The shared key only works on the Stacks website. If Google turns it down
+      // (opened from a file, a preview address, key switched off), carry on without it.
+      if (refusesBuiltInKey(url, err)) {
+        builtInKeyRefused = true;
+        url = url.replace(`&key=${encodeURIComponent(BUILT_IN_GOOGLE_KEY)}`, '');
+        attempt--;
+        continue;
+      }
       if (attempt >= 2 || !isServerError(err)) throw err;
       await new Promise((r) => setTimeout(r, attempt ? 1800 : 700));
     }
   }
 }
 
+function refusesBuiltInKey(url: string, err: unknown): boolean {
+  if (!BUILT_IN_GOOGLE_KEY || !url.includes(`&key=${encodeURIComponent(BUILT_IN_GOOGLE_KEY)}`)) return false;
+  const status = err instanceof Error ? err.message : '';
+  const detail = (err as { detail?: string }).detail ?? '';
+  return (status === 'HTTP 403' || status === 'HTTP 400') && !/quota|rate limit/i.test(detail);
+}
+
 function googleUrl(q: string, extra = '') {
-  const key = getGoogleKey();
-  return `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}${extra}${key ? `&key=${encodeURIComponent(key)}` : ''}`;
+  return withGoogleKey(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}${extra}`);
 }
 
 function fromGoogleVolume(item: any): Partial<BookMetadata> | null {
@@ -173,7 +208,7 @@ export async function testGoogleKey(key: string): Promise<string | null> {
   } catch (err) {
     const detail = (err as { detail?: string }).detail ?? '';
     if (/referer|referrer/i.test(detail))
-      return 'The key only allows certain websites. Stacks runs from a file on your computer, so it has no website address. In Google Cloud, set the key’s “Application restrictions” to None.';
+      return 'The key only allows certain websites, and this isn’t one of them. In Google Cloud, edit the key’s “Website restrictions” to include this address (or set “Application restrictions” to None).';
     if (/has not been used|is disabled|SERVICE_DISABLED/i.test(detail))
       return 'The Books API isn’t turned on for this key’s project yet. Open the Books API page in Google Cloud, check the project name at the top matches the key’s project, and press Enable. It can take a few minutes to start working.';
     if (/API key not valid|API_KEY_INVALID/i.test(detail))
