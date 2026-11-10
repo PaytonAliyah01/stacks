@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Cover } from './Cover';
 import { askToBorrow, friendShelf, lendingOpen, type Loan, type ShelfItem } from '../lib/lending';
+import { focusOnMount } from '../lib/focus';
 
 interface Props {
   uid: string;
@@ -18,7 +19,7 @@ const KINDS = [
 ] as const;
 
 /** A friend's shelves on their profile, with "Ask to borrow". */
-export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Props) {
+export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Readonly<Props>) {
   const [items, setItems] = useState<ShelfItem[] | null>();
   const [error, setError] = useState<string>();
   const [q, setQ] = useState('');
@@ -100,7 +101,7 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Pro
           <Cover url={asking.cover ?? undefined} title={asking.title} author={asking.author ?? undefined} size="sm" square={asking.kind !== 'book'} />
           <div>
             <strong>Ask {friendName} to borrow “{asking.title}”</strong>
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional), e.g. when you'll pick it up" maxLength={300} autoFocus />
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional), e.g. when you'll pick it up" maxLength={300} ref={focusOnMount} />
             <span className="loan-actions">
               <button className="btn primary small-btn" disabled={busy} onClick={ask}>{busy ? 'Sending…' : 'Send request'}</button>
               <button className="link small" onClick={() => setAsking(undefined)}>Cancel</button>
@@ -118,15 +119,16 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Pro
                 <Cover url={x.cover ?? undefined} title={x.title} author={x.author ?? undefined} size="md" square={x.kind !== 'book'} />
                 <strong>{x.title}</strong>
                 {x.author && <span className="muted small">{x.author}</span>}
-                {l?.status === 'lent' ? (
+                {(l?.status === 'lent') ? (
                   <span className="friend-badge">You have it</span>
-                ) : l ? (
+                ) : null}
+                {l?.status !== 'lent' && l ? (
                   <span className="friend-badge muted">Requested</span>
-                ) : x.lent_out ? (
+                ) : null}
+                {l?.status !== 'lent' && !l && x.lent_out ? (
                   <span className="muted small">Lent out</span>
-                ) : (
-                  <button className="btn small-btn" onClick={() => setAsking(x)}>Ask to borrow</button>
-                )}
+                ) : null}
+                {l?.status !== 'lent' && !l && !x.lent_out ? <button className="btn small-btn" onClick={() => setAsking(x)}>Ask to borrow</button> : null}
               </li>
             );
           })}

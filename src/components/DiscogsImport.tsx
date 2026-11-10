@@ -12,7 +12,7 @@ interface Props {
 
 const USER_PREF = 'stacks.discogsUser';
 
-export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Props) {
+export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Readonly<Props>) {
   const [list, setList] = useState<'collection' | 'wants'>(wantlist ? 'wants' : 'collection');
   const wants = list === 'wants';
   const [how, setHow] = useState<'user' | 'csv'>('user');
@@ -27,7 +27,6 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Pr
   const [error, setError] = useState('');
   const [loading, setLoading] = useState('');
   const [busy, setBusy] = useState(false);
-  const [showSkipped, setShowSkipped] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -67,12 +66,12 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Pr
   };
 
   const p = plan?.plan;
-  const vinyl = p?.newBooks.filter((b) => b.kind === 'vinyl').length ?? 0;
-  const cds = p?.newBooks.filter((b) => b.kind === 'cd').length ?? 0;
+  const count = p ? p.newBooks.length + p.updated.length : 0;
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Import from Discogs">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Import from Discogs">
         <div className="drawer-form">
           <header className="drawer-head">
             <h2 className="drawer-heading">Import from Discogs</h2>
@@ -93,76 +92,19 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Pr
           </nav>
 
           {how === 'user' ? (
-            <div className="discogs-how">
-              <p className="small">
-                Works when your collection is public (in Discogs: <b>Settings → Privacy</b>). For a private collection, add your Discogs token under <b>More → Lookup keys</b> first, or use the CSV file.
-              </p>
-              <div className="discogs-user">
-                <input
-                  id="discogs-user"
-                  value={user}
-                  onChange={(e) => setUser(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && user.trim() && !loading && load()}
-                  placeholder="Your Discogs username"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button type="button" className="btn primary" onClick={load} disabled={!user.trim() || !!loading}>
-                  {loading ? 'Loading…' : wants ? 'Load my wantlist' : 'Load my collection'}
-                </button>
-              </div>
-              {loading && <p className="muted small">{loading}</p>}
-            </div>
+            <UserSource user={user} setUser={setUser} loading={loading} wants={wants} load={load} />
           ) : (
-            <div className="discogs-how">
-              <p className="small">
-                On discogs.com, open your <b>{wants ? 'Wantlist' : 'Collection'}</b>, press <b>Export</b> (top right), then download the .csv from the <b>Exports</b> page when it's ready.{' '}
-                <a href="https://www.discogs.com/users/export" target="_blank" rel="noreferrer">Open the exports page</a>
-              </p>
-              <p className="muted small">The CSV has no covers, so Stacks fills them in afterwards in the background, one record at a time.</p>
-              <input id="discogs-file" type="file" accept=".csv,text/csv" onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} />
-            </div>
+            <CsvSource wants={wants} read={read} />
           )}
           {error && <p className="form-error">{error}</p>}
 
-          {plan && p && (
-            <div className="import-summary">
-              <p>
-                Found <b>{plan.found.toLocaleString()}</b> releases in your Discogs {wants ? 'wantlist' : 'collection'}.
-              </p>
-              <ul>
-                <li>
-                  <b>{p.newBooks.length}</b> new {wants ? 'on your wantlist' : 'to Stacks'} ({vinyl} vinyl, {cds} CD{cds === 1 ? '' : 's'})
-                </li>
-                {p.updated.length > 0 && <li><b>{p.updated.length}</b> already in Stacks, {wants ? 'now on your wantlist' : 'now linked to Discogs (wanted ones move into your collection)'}</li>}
-                {p.alreadyOwned.length > 0 && (
-                  <li>
-                    <b>{p.alreadyOwned.length}</b> you already own, so they stay off the wantlist:{' '}
-                    <span className="muted">{p.alreadyOwned.slice(0, 5).map((b) => b.title).join(', ')}{p.alreadyOwned.length > 5 ? '…' : ''}</span>
-                  </li>
-                )}
-                {p.unchanged > 0 && <li>{p.unchanged} already in Stacks, nothing to change</li>}
-                {p.skipped.length > 0 && (
-                  <li>
-                    {p.skipped.length} skipped because they aren't vinyl or CDs{' '}
-                    <button type="button" className="link small" onClick={() => setShowSkipped(!showSkipped)}>{showSkipped ? 'hide' : 'show'}</button>
-                    {showSkipped && (
-                      <ul className="skipped-list">
-                        {p.skipped.slice(0, 50).map((x, i) => <li key={i}>{x.title} <span className="muted">({x.format})</span></li>)}
-                      </ul>
-                    )}
-                  </li>
-                )}
-              </ul>
-              {!wants && <p className="muted small">New records go to “Not on a bookcase”. You can place them on your shelves afterwards.</p>}
-            </div>
-          )}
+          {plan && <ImportSummary plan={plan.plan} found={plan.found} wants={wants} />}
 
           <footer className="drawer-foot">
             <button
               className="btn primary"
               type="button"
-              disabled={!p || busy || p.newBooks.length + p.updated.length === 0}
+              disabled={!p || busy || count === 0}
               onClick={async () => {
                 if (!p) return;
                 setBusy(true);
@@ -170,12 +112,107 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Pr
                 setBusy(false);
               }}
             >
-              {busy ? 'Importing…' : p ? `Import ${p.newBooks.length + p.updated.length}` : 'Import'}
+              {importLabel(busy, p ? count : undefined)}
             </button>
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
           </footer>
         </div>
-      </aside>
+      </dialog>
+    </div>
+  );
+}
+
+function importLabel(busy: boolean, count: number | undefined) {
+  if (busy) return 'Importing…';
+  return count === undefined ? 'Import' : `Import ${count}`;
+}
+
+interface UserSourceProps {
+  user: string;
+  setUser: (v: string) => void;
+  loading: string;
+  wants: boolean;
+  load: () => void;
+}
+
+function UserSource({ user, setUser, loading, wants, load }: Readonly<UserSourceProps>) {
+  let label = wants ? 'Load my wantlist' : 'Load my collection';
+  if (loading) label = 'Loading…';
+  return (
+    <div className="discogs-how">
+      <p className="small">
+        Works when your collection is public (in Discogs: <b>Settings → Privacy</b>). For a private collection, add your Discogs token under <b>More → Lookup keys</b> first, or use the CSV file.
+      </p>
+      <div className="discogs-user">
+        <input
+          id="discogs-user"
+          value={user}
+          onChange={(e) => setUser(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && user.trim() && !loading && load()}
+          placeholder="Your Discogs username"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <button type="button" className="btn primary" onClick={load} disabled={!user.trim() || !!loading}>
+          {label}
+        </button>
+      </div>
+      {loading && <p className="muted small">{loading}</p>}
+    </div>
+  );
+}
+
+function CsvSource({ wants, read }: Readonly<{ wants: boolean; read: (file: File) => void }>) {
+  return (
+    <div className="discogs-how">
+      <p className="small">
+        On discogs.com, open your <b>{wants ? 'Wantlist' : 'Collection'}</b>, press <b>Export</b> (top right), then download the .csv from the <b>Exports</b> page when it's ready.{' '}
+        <a href="https://www.discogs.com/users/export" target="_blank" rel="noreferrer">Open the exports page</a>
+      </p>
+      <p className="muted small">The CSV has no covers, so Stacks fills them in afterwards in the background, one record at a time.</p>
+      <input id="discogs-file" type="file" accept=".csv,text/csv" onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} />
+    </div>
+  );
+}
+
+function SkippedLine({ skipped }: Readonly<{ skipped: DiscogsPlan['skipped'] }>) {
+  const [show, setShow] = useState(false);
+  return (
+    <li>
+      {skipped.length} skipped because they aren't vinyl or CDs{' '}
+      <button type="button" className="link small" onClick={() => setShow(!show)}>{show ? 'hide' : 'show'}</button>
+      {show && (
+        <ul className="skipped-list">
+          {skipped.slice(0, 50).map((x) => <li key={`${x.title}|${x.format}`}>{x.title} <span className="muted">({x.format})</span></li>)}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function ImportSummary({ plan: p, found, wants }: Readonly<{ plan: DiscogsPlan; found: number; wants: boolean }>) {
+  const vinyl = p.newBooks.filter((b) => b.kind === 'vinyl').length;
+  const cds = p.newBooks.filter((b) => b.kind === 'cd').length;
+  return (
+    <div className="import-summary">
+      <p>
+        Found <b>{found.toLocaleString()}</b> releases in your Discogs {wants ? 'wantlist' : 'collection'}.
+      </p>
+      <ul>
+        <li>
+          <b>{p.newBooks.length}</b> new {wants ? 'on your wantlist' : 'to Stacks'} ({vinyl} vinyl, {cds} CD{cds === 1 ? '' : 's'})
+        </li>
+        {p.updated.length > 0 && <li><b>{p.updated.length}</b> already in Stacks, {wants ? 'now on your wantlist' : 'now linked to Discogs (wanted ones move into your collection)'}</li>}
+        {p.alreadyOwned.length > 0 && (
+          <li>
+            <b>{p.alreadyOwned.length}</b> you already own, so they stay off the wantlist:{' '}
+            <span className="muted">{p.alreadyOwned.slice(0, 5).map((b) => b.title).join(', ')}{p.alreadyOwned.length > 5 ? '…' : ''}</span>
+          </li>
+        )}
+        {p.unchanged > 0 && <li>{p.unchanged} already in Stacks, nothing to change</li>}
+        {p.skipped.length > 0 && <SkippedLine skipped={p.skipped} />}
+      </ul>
+      {!wants && <p className="muted small">New records go to “Not on a bookcase”. You can place them on your shelves afterwards.</p>}
     </div>
   );
 }

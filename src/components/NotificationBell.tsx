@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ago, markNotifsRead, readNotifs, type Notif, type NotifTarget } from '../lib/notifications';
 
 /** The bell in the top bar: everything waiting for you, in one list. */
-export function NotificationBell({ notifs, onGo }: { notifs: Notif[]; onGo: (t: NotifTarget) => void }) {
+export function NotificationBell({ notifs, onGo }: Readonly<{ notifs: Notif[]; onGo: (t: NotifTarget) => void }>) {
   const ref = useRef<HTMLDetailsElement>(null);
   const [read, setRead] = useState(readNotifs);
   const [now, setNow] = useState(Date.now());
@@ -39,7 +39,7 @@ export function NotificationBell({ notifs, onGo }: { notifs: Notif[]; onGo: (t: 
         <span aria-hidden="true">🔔</span>
         {unread.length > 0 && <span className="tab-badge">{unread.length > 99 ? '99+' : unread.length}</span>}
       </summary>
-      <div className="menu-pop notif-pop" role="dialog" aria-label="Notifications">
+      <dialog open className="menu-pop notif-pop" aria-label="Notifications">
         <div className="notif-head">
           <strong>Notifications</strong>
           {unread.length > 0 && (
@@ -73,7 +73,7 @@ export function NotificationBell({ notifs, onGo }: { notifs: Notif[]; onGo: (t: 
             })}
           </ul>
         )}
-      </div>
+      </dialog>
     </details>
   );
 }

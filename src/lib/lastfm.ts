@@ -1,5 +1,7 @@
 import type { Book, Spin, Track } from '../types';
 import { SITE_URL, supabase } from './cloud';
+import { eachInTurn } from './inTurn';
+import { without } from './omit';
 
 /**
  * Last.fm scrobbling. The "lastfm" Supabase Edge Function holds the secret
@@ -24,7 +26,7 @@ export interface QueuedScrobble {
 const QUEUE = 'stacks.lastfm.queue';
 const ON = 'stacks.lastfm.on';
 /** Last.fm takes scrobbles up to two weeks old. */
-const MAX_AGE_MS = 13 * 86400_000;
+const MAX_AGE_MS = 13 * 86_400_000;
 
 class NotReady extends Error {}
 
@@ -117,7 +119,7 @@ export function plan(spin: Spin, b: Book, tracks: Track[]): QueuedScrobble[] {
   let side = '';
   const out: QueuedScrobble[] = [];
   for (const tr of tracks) {
-    const s = (tr.position ?? '').match(/^[A-Za-z]+/)?.[0] ?? '';
+    const s = /^[A-Za-z]+/.exec(tr.position ?? '')?.[0] ?? '';
     if (side && s && s !== side) t += FLIP;
     if (s) side = s;
     const dur = seconds(tr.duration);
@@ -161,14 +163,15 @@ export async function flush(now = Date.now()): Promise<{ sent: number; error?: s
     const q = readQueue().filter((x) => now - x.timestamp * 1000 < MAX_AGE_MS);
     const ready = q.filter((x) => x.due <= now);
     let sent = 0;
-    for (let i = 0; i < ready.length; i += 50) {
-      const batch = ready.slice(i, i + 50);
-      await call('scrobble', { tracks: batch.map(({ spinId: _s, due: _d, ...t }) => t) });
+    const batches: (typeof ready)[] = [];
+    for (let i = 0; i < ready.length; i += 50) batches.push(ready.slice(i, i + 50));
+    await eachInTurn(batches, async (batch) => {
+      await call('scrobble', { tracks: batch.map((x) => without(without(x, 'spinId'), 'due')) });
       sent += batch.length;
       // Take them off the queue as soon as they're in, in case the next batch fails.
       const gone = new Set(batch);
       writeQueue(readQueue().filter((x) => ![...gone].some((g) => g.spinId === x.spinId && g.timestamp === x.timestamp && g.track === x.track)));
-    }
+    });
     if (q.length !== readQueue().length && !ready.length) writeQueue(q);
     return { sent };
   } catch (e) {

@@ -102,7 +102,8 @@ export const BADGES: BadgeDef[] = [
     earnedOn: (c, p, today) => {
       if (!p.started || p.ended || p.done === 0) return null;
       const weekOfPages = (c.goal / Math.max(1, dayNum(c.endOn) - dayNum(c.startOn) + 1)) * 7;
-      return p.done - p.expected >= (c.measure === 'books' ? 1 : weekOfPages) ? today : null;
+      const ahead = c.measure === 'books' ? 1 : weekOfPages;
+      return p.done - p.expected >= ahead ? today : null;
     },
   },
   {
@@ -111,7 +112,7 @@ export const BADGES: BadgeDef[] = [
     mark: '3',
     description: () => 'Finish a book in three months in a row.',
     earnedOn: (_c, p) => {
-      const months = [...new Set(p.reads.map((x) => x.reading.finishedOn!.slice(0, 7)))].sort();
+      const months = [...new Set(p.reads.map((x) => x.reading.finishedOn!.slice(0, 7)))].sort((a, b) => a.localeCompare(b));
       const idx = (m: string) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7));
       for (let i = 2; i < months.length; i++) {
         if (idx(months[i]) - idx(months[i - 2]) === 2) {

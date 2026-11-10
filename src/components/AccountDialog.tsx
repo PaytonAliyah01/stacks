@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { Avatar } from './ProfileEditor';
 import type { Profile } from '../lib/profile';
+import { countOf } from '../lib/labels';
 import { SITE_URL, pendingCount, signOut, supabase, syncNow, type SyncState } from '../lib/cloud';
 
 interface Props {
@@ -19,6 +20,15 @@ interface Props {
 }
 
 type Mode = 'signin' | 'signup' | 'forgot';
+
+const HEADINGS: Record<Mode, string> = { signup: 'Make an account', forgot: 'Forgot password', signin: 'Sign in' };
+const SUBMIT_LABELS: Record<Mode, string> = { signup: 'Make my account', forgot: 'Send the link', signin: 'Sign in' };
+const INTROS: Record<Mode, string> = {
+  signup: 'An account keeps your library safe and the same on all your devices. It’s free.',
+  forgot: 'Type your email and we’ll send you a link to choose a new password.',
+  signin: 'Sign in to keep your library safe and the same on your phone and computer.',
+};
+const VISIBILITY: Record<string, string> = { public: 'anyone with the link', friends: 'friends only' };
 
 function authMessage(e: { message?: string } | null | undefined): string {
   const m = e?.message ?? '';
@@ -40,13 +50,13 @@ export function syncLabel(s: SyncState): string {
     case 'synced':
       return Date.now() - Date.parse(s.at) < 60_000 ? 'Synced just now' : `Synced at ${new Date(s.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
     case 'offline':
-      return s.pending ? `Offline · ${s.pending} change${s.pending === 1 ? '' : 's'} to send` : 'Offline';
+      return s.pending ? `Offline · ${countOf(s.pending, 'change')} to send` : 'Offline';
     case 'error':
       return 'Sync problem';
   }
 }
 
-export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, profile, onEditProfile, onViewProfile, startMode }: Props) {
+export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, profile, onEditProfile, onViewProfile, startMode }: Readonly<Props>) {
   const [mode, setMode] = useState<Mode>(startMode ?? 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -111,24 +121,26 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
     });
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Account">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Account">
         <form className="drawer-form account-form" onSubmit={submit}>
           <header className="drawer-head">
-            <h2 className="drawer-heading">{user ? 'Your account' : mode === 'signup' ? 'Make an account' : mode === 'forgot' ? 'Forgot password' : 'Sign in'}</h2>
+            <h2 className="drawer-heading">{user ? 'Your account' : HEADINGS[mode]}</h2>
             <button type="button" className="icon-btn close" onClick={onClose} aria-label="Close">✕</button>
           </header>
 
-          {user && recovering ? (
+          {user && recovering && (
             <>
               <p>Choose a new password for {user.email}.</p>
               <label className="field">
                 <span>New password</span>
                 <input id="acct-new-password" type="password" autoComplete="new-password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
               </label>
-              <button className="btn primary" disabled={busy || password.length < 6}>{busy ? 'Saving…' : 'Save new password'}</button>
+              <button type="submit" className="btn primary" disabled={busy || password.length < 6}>{busy ? 'Saving…' : 'Save new password'}</button>
             </>
-          ) : user ? (
+          )}
+          {user && !recovering && (
             <>
               <div className="account-card">
                 <span className="stat-label">Signed in as</span>
@@ -144,7 +156,7 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
                     <Avatar p={profile} size={48} />
                     <span className="account-profile-text">
                       <strong>{profile.display_name || `@${profile.username}`}</strong>
-                      <span className="muted small">@{profile.username} · {profile.visibility === 'public' ? 'anyone with the link' : profile.visibility === 'friends' ? 'friends only' : 'only you'}</span>
+                      <span className="muted small">@{profile.username} · {VISIBILITY[profile.visibility] ?? 'only you'}</span>
                     </span>
                     <span className="account-actions">
                       <button type="button" className="btn small-btn" onClick={onViewProfile}>View</button>
@@ -181,14 +193,11 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
                 </div>
               )}
             </>
-          ) : (
+          )}
+          {!user && (
             <>
               <p className="muted">
-                {mode === 'signup'
-                  ? 'An account keeps your library safe and the same on all your devices. It’s free.'
-                  : mode === 'forgot'
-                    ? 'Type your email and we’ll send you a link to choose a new password.'
-                    : 'Sign in to keep your library safe and the same on your phone and computer.'}
+{INTROS[mode]}
               </p>
               <label className="field">
                 <span>Email</span>
@@ -209,8 +218,8 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
                   {mode === 'signup' && <span className="hint">At least 6 characters.</span>}
                 </label>
               )}
-              <button className="btn primary" disabled={busy}>
-                {busy ? 'One moment…' : mode === 'signup' ? 'Make my account' : mode === 'forgot' ? 'Send the link' : 'Sign in'}
+              <button type="submit" className="btn primary" disabled={busy}>
+                {busy ? 'One moment…' : SUBMIT_LABELS[mode]}
               </button>
               <div className="account-switch">
                 {mode === 'signin' ? (
@@ -230,7 +239,7 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
           {error && <p className="account-error" role="alert">{error}</p>}
           {info && <p className="account-info" role="status">{info}</p>}
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

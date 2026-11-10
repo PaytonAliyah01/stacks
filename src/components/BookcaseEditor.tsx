@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BOOKCASE_PRESETS, type Bookcase, type BookcaseType } from '../types';
+import { bookcaseName } from '../lib/labels';
+import { focusOnMount } from '../lib/focus';
 
 interface Props {
   bookcase: Bookcase;
@@ -17,7 +19,7 @@ const COLORS: { value: Bookcase['color']; label: string }[] = [
   { value: 'black', label: 'Black' },
 ];
 
-export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, onClose }: Props) {
+export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, onClose }: Readonly<Props>) {
   const [d, setD] = useState(bookcase);
   const [confirm, setConfirm] = useState(false);
   const set = <K extends keyof Bookcase>(k: K, v: Bookcase[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -31,7 +33,7 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
   const pickType = (type: BookcaseType) => {
     const p = BOOKCASE_PRESETS[type];
     // Keep the name in step with the type until the person names it themselves.
-    const autoName = (t: string) => (t.startsWith('billy') ? 'Billy' : t.startsWith('kallax') ? 'Kallax' : 'Bookcase');
+    const autoName = bookcaseName;
     setD((x) => ({
       ...x,
       type,
@@ -45,8 +47,9 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
   const shrinking = !isNew && (d.shelves < bookcase.shelves || d.sections < bookcase.sections);
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label={isNew ? 'Add a bookcase' : `Edit ${bookcase.name}`}>
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label={isNew ? 'Add a bookcase' : `Edit ${bookcase.name}`}>
         <form
           className="drawer-form"
           onSubmit={(e) => {
@@ -60,7 +63,7 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
           </header>
           <label className="field">
             <span>Name</span>
-            <input id="bc-name" value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="Living room Billy" autoFocus />
+            <input id="bc-name" value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="Living room Billy" ref={focusOnMount} />
           </label>
           <label className="field">
             <span>Type</span>
@@ -116,7 +119,7 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
             <button type="submit" className="btn primary">{isNew ? 'Add bookcase' : 'Save'}</button>
           </footer>
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

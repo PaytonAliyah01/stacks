@@ -26,9 +26,11 @@ const SHOWN = 8;
 function moveTo(queue: Props['queue'], from: number, to: number): Reading | undefined {
   if (from === to || to < 0 || to >= queue.length) return;
   const rest = queue.filter((_, i) => i !== from).map((x) => queueKey(x.r));
-  const before = rest[to - 1];
-  const after = rest[to];
-  const order = before === undefined ? after - 60_000 : after === undefined ? before + 60_000 : (before + after) / 2;
+  // Halfway between the new neighbours, or a minute past the end.
+  let order: number;
+  if (to === 0) order = rest[to] - 60_000;
+  else if (to >= rest.length) order = rest[to - 1] + 60_000;
+  else order = (rest[to - 1] + rest[to]) / 2;
   return { ...queue[from].r, queueOrder: order, updatedAt: new Date().toISOString() };
 }
 
@@ -37,7 +39,7 @@ const startReading = (r: Reading): Reading => {
   return { ...r, status: 'reading', startedOn: r.startedOn ?? todayIso(), updatedAt: now };
 };
 
-function Picker({ queue, onOpen, onChange, onClose }: Props & { onClose: () => void }) {
+function Picker({ queue, onOpen, onChange, onClose }: Readonly<Props & { onClose: () => void }>) {
   const [length, setLength] = useState<Length>('any');
   const [ownedOnly, setOwnedOnly] = useState(false);
   const [topic, setTopic] = useState('any');
@@ -118,7 +120,7 @@ function Picker({ queue, onOpen, onChange, onClose }: Props & { onClose: () => v
   );
 }
 
-export function MoodTags({ book }: { book: Book }) {
+export function MoodTags({ book }: Readonly<{ book: Book }>) {
   const tags = [...(book.moods ?? []).slice(0, 3).map(cap), ...(book.pace ? [`${cap(book.pace)} paced`] : [])];
   if (!tags.length) return null;
   return (
@@ -129,7 +131,7 @@ export function MoodTags({ book }: { book: Book }) {
 }
 
 /** The ordered to-read list, with drag or arrow reordering and the "what next" picker. */
-export function UpNext({ queue, onOpen, onChange }: Props) {
+export function UpNext({ queue, onOpen, onChange }: Readonly<Props>) {
   const [all, setAll] = useState(false);
   const [picking, setPicking] = useState(false);
   const [dragFrom, setDragFrom] = useState<number | null>(null);

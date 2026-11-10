@@ -55,7 +55,7 @@ function useAct(onChanged: () => void) {
   return { busy, error, act };
 }
 
-function Row({ l, children, onOpenProfile, line }: { l: Loan; children?: React.ReactNode; onOpenProfile: (u: string) => void; line: React.ReactNode }) {
+function Row({ l, children, onOpenProfile, line }: Readonly<{ l: Loan; children?: React.ReactNode; onOpenProfile: (u: string) => void; line: React.ReactNode }>) {
   return (
     <li className="loan">
       <Cover url={l.item.cover} title={l.item.title} author={l.item.by} size="sm" square={l.item.kind !== 'book'} />
@@ -75,13 +75,16 @@ function Row({ l, children, onOpenProfile, line }: { l: Loan; children?: React.R
   );
 }
 
-function Due({ due }: { due: string | null }) {
+function Due({ due }: Readonly<{ due: string | null }>) {
   const d = daysLeft(due);
-  return <span className={`loan-due ${d !== undefined && d < 0 ? 'late' : d !== undefined && d <= 3 ? 'soon' : ''}`}>{dueLabel(due)}</span>;
+  let cls = '';
+  if (d !== undefined && d < 0) cls = 'late';
+  else if (d !== undefined && d <= 3) cls = 'soon';
+  return <span className={`loan-due ${cls}`}>{dueLabel(due)}</span>;
 }
 
 /** Answer a request: yes with a due date, or no, with an optional note either way. */
-function Answer({ l, onChanged }: { l: Loan; onChanged: () => void }) {
+function Answer({ l, onChanged }: Readonly<{ l: Loan; onChanged: () => void }>) {
   const [due, setDue] = useState(weeksFromNow(3));
   const [reply, setReply] = useState('');
   const { busy, error, act } = useAct(onChanged);
@@ -100,7 +103,7 @@ function Answer({ l, onChanged }: { l: Loan; onChanged: () => void }) {
   );
 }
 
-function LentRow({ l, books, onChanged, onOpenProfile, onOpenBook }: { l: Loan; books: Book[]; onChanged: () => void; onOpenProfile: (u: string) => void; onOpenBook: (b: Book) => void }) {
+function LentRow({ l, books, onChanged, onOpenProfile, onOpenBook }: Readonly<{ l: Loan; books: Book[]; onChanged: () => void; onOpenProfile: (u: string) => void; onOpenBook: (b: Book) => void }>) {
   const [editing, setEditing] = useState(false);
   const [due, setDue] = useState(l.due_on ?? weeksFromNow(2));
   const { busy, error, act } = useAct(onChanged);
@@ -126,7 +129,7 @@ function LentRow({ l, books, onChanged, onOpenProfile, onOpenBook }: { l: Loan; 
 }
 
 /** Lend something to a friend who didn't ask. */
-function LendForm({ uid, books, friends, loans, onChanged }: { uid: string; books: Book[]; friends: Friend[]; loans: Loan[]; onChanged: () => void }) {
+function LendForm({ uid, books, friends, loans, onChanged }: Readonly<{ uid: string; books: Book[]; friends: Friend[]; loans: Loan[]; onChanged: () => void }>) {
   const [friend, setFriend] = useState('');
   const [q, setQ] = useState('');
   const [pick, setPick] = useState<Book>();
@@ -191,7 +194,7 @@ function LendForm({ uid, books, friends, loans, onChanged }: { uid: string; book
   );
 }
 
-export function LendingView(props: Props) {
+export function LendingView(props: Readonly<Props>) {
   const { uid, loans, onChanged, onOpenProfile } = props;
   const { busy, error, act } = useAct(onChanged);
   const g = useMemo(() => {
@@ -212,7 +215,7 @@ export function LendingView(props: Props) {
     <div className="lending">
       <section className="panel lend-switch">
         <label className="check">
-          <input type="checkbox" checked={!!props.open} disabled={props.open === undefined} onChange={(e) => props.onSetOpen(e.target.checked)} />
+          <input type="checkbox" aria-label="Let friends browse my shelves and ask to borrow" checked={!!props.open} disabled={props.open === undefined} onChange={(e) => props.onSetOpen(e.target.checked)} />
           <span>
             <strong>Let friends browse my shelves and ask to borrow</strong>
             <span className="muted small">

@@ -4,6 +4,8 @@ import { currentReading, readingsOf } from './reading';
 import { matchKey, sameWork } from './importHistory';
 import { getJson } from './lookup';
 import type { FeedEntry } from './feed';
+import { stripBrackets } from './text';
+import { without } from './omit';
 
 /**
  * Recommendations: what to read next, worked out from the books you've read
@@ -37,16 +39,23 @@ export interface Taste {
 }
 
 // Subjects that say nothing about what a book is like.
-const NOISE =
-  /^(fiction|general|novel|novels|literature|english|american|large type books|accessible book|protected daisy|in library|lending library|open library|overdrive|reading level|translations?( into .*)?|fiction in english|english fiction|american fiction|nyt:.*|new york times.*|award winners?|bestsellers?|readers?|textbooks?|juvenile works|long now manual for civilization|internet archive wishlist)$/;
+const NOISE_WORDS = new Set([
+  'fiction', 'general', 'novel', 'novels', 'literature', 'english', 'american', 'large type books', 'accessible book',
+  'protected daisy', 'in library', 'lending library', 'open library', 'overdrive', 'reading level', 'translation',
+  'translations', 'fiction in english', 'english fiction', 'american fiction', 'award winner', 'award winners',
+  'bestseller', 'bestsellers', 'reader', 'readers', 'textbook', 'textbooks', 'juvenile works',
+  'long now manual for civilization', 'internet archive wishlist',
+]);
+const NOISE_STARTS = ['translation into ', 'translations into ', 'nyt:', 'new york times'];
+const isNoise = (p: string) => NOISE_WORDS.has(p) || NOISE_STARTS.some((s) => p.startsWith(s));
 
 /** "Fiction, fantasy, general" → ["fantasy"]. Lowercase, without noise. */
 export function cleanSubjects(subjects: string[] = []): string[] {
   const out = new Set<string>();
   for (const s of subjects)
-    for (const part of s.toLowerCase().split(/\s*(?:,|--|\/|;)\s*/)) {
-      const p = part.replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim();
-      if (p.length < 3 || p.length > 40 || NOISE.test(p) || /\d{4}/.test(p)) continue;
+    for (const part of s.toLowerCase().split(/,|--|\/|;/)) {
+      const p = stripBrackets(part, '', { '(': ')' }).replace(/\s+/g, ' ').trim();
+      if (p.length < 3 || p.length > 40 || isNoise(p) || /\d{4}/.test(p)) continue;
       out.add(p);
     }
   return [...out];
@@ -79,10 +88,9 @@ export function tasteOf(books: Book[], readings: Reading[]): Taste {
     const last = rs[rs.length - 1];
     const w = weightOf(last) * (rs.filter((r) => r.status === 'read').length > 1 ? 1.5 : 1);
     if (!w) continue;
-    for (const a of b.authors.slice(0, 2)) add(authors, authorKey(a), w);
-    for (const s of cleanSubjects(b.subjects).slice(0, 10)) add(subjects, s, w);
-    for (const s of b.tags) add(subjects, s.toLowerCase(), w);
-    for (const m of b.moods ?? []) add(moods, m, w);
+    b.authors.slice(0, 2).forEach((a) => add(authors, authorKey(a), w));
+    [...cleanSubjects(b.subjects).slice(0, 10), ...b.tags.map((s) => s.toLowerCase())].forEach((s) => add(subjects, s, w));
+    (b.moods ?? []).forEach((m) => add(moods, m, w));
     if (w >= 1) loved.push({ b, weight: w, rating: last.rating });
   }
   // Loved means 4 stars and up, or any finished book if you don't rate.
@@ -134,7 +142,7 @@ export function fromShelves(books: Book[], readings: Reading[], t: Taste, hidden
       continue;
     const f = fit(b, t);
     // Books that have waited longest get a small nudge.
-    const waited = Math.min(1, (Date.now() - Date.parse(b.addedAt)) / (365 * 86400_000));
+    const waited = Math.min(1, (Date.now() - Date.parse(b.addedAt)) / (365 * 86_400_000));
     const queued = r?.status === 'want';
     out.push({
       waited: waited * 0.5,
@@ -146,7 +154,7 @@ export function fromShelves(books: Book[], readings: Reading[], t: Taste, hidden
         cover: b.coverUrl,
         pages: b.pageCount,
         bookId: b.id,
-        reason: f.reason ?? (queued ? 'Already on your to-read list' : waited > 0.5 ? 'Has been on your shelf a while' : 'On your shelf, not read yet'),
+        reason: f.reason ?? shelfReason(queued, waited),
       },
     });
   }
@@ -168,10 +176,19 @@ export function alreadyHave(books: Book[], title: string, author?: string): bool
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const FIELDS = 'key,title,author_name,cover_i,first_publish_year,number_of_pages_median,ratings_average,ratings_count,subject';
 // Things Open Library lists as books that aren't one to read next.
-const NOT_A_BOOK = /box(ed)? set|collection|omnibus|trilogy set|books? \d+\s*(-|–|&|and|to)\s*\d+|summary|study guide|sparknotes|cliffs ?notes|coloring|calendar|journal|workbook|companion|untitled|^the works of|selected works|complete works|\bsampler\b/i;
+const NOT_A_BOOK_WORDS = [
+  'box set', 'boxed set', 'collection', 'omnibus', 'trilogy set', 'summary', 'study guide', 'sparknotes', 'cliffsnotes',
+  'cliffs notes', 'coloring', 'calendar', 'journal', 'workbook', 'companion', 'untitled', 'selected works', 'complete works',
+];
+// "Books 1-3", "Book 1 to 4"
+const BOOK_RANGE = /books? \d+ ?(?:-|–|&|and|to) ?\d/i;
+const isNotABook = (title: string) => {
+  const t = title.toLowerCase();
+  return NOT_A_BOOK_WORDS.some((w) => t.includes(w)) || t.startsWith('the works of') || /\bsampler\b/.test(t) || BOOK_RANGE.test(t);
+};
 
 function docToRec(d: any, reason: string): Rec | undefined {
-  if (!d?.title || NOT_A_BOOK.test(d.title)) return undefined;
+  if (!d?.title || isNotABook(d.title)) return undefined;
   const authors: string[] = d.author_name ?? [];
   return {
     key: recKey(d.title, authors[0]),
@@ -241,7 +258,7 @@ export async function fromOpenLibrary(books: Book[], t: Taste, hidden: Set<strin
 
   const [byAuthor, bySeed] = await Promise.all([
     Promise.allSettled(topAuthors.map((a) => search(`author=${encodeURIComponent(a)}`, '&sort=rating'))),
-    Promise.allSettled(seeds.map((x) => search(`q=${encodeURIComponent(seedSubjects(x.b, t).map((s) => `subject:"${s}"`).join(' AND '))}`, '&sort=rating'))),
+    Promise.allSettled(seeds.map((x) => search(`q=${encodeURIComponent(subjectQuery(seedSubjects(x.b, t)))}`, '&sort=rating'))),
   ]);
   if ([...byAuthor, ...bySeed].every((r) => r.status === 'rejected') && byAuthor.length + bySeed.length)
     throw new Error("Couldn't reach Open Library for new books. Check your connection and try again.");
@@ -250,7 +267,8 @@ export async function fromOpenLibrary(books: Book[], t: Taste, hidden: Set<strin
   byAuthor.forEach((res, i) => {
     if (res.status !== 'fulfilled') return;
     const seed = t.loved.find((x) => authorKey(x.b.authors[0] ?? '') === authorKey(topAuthors[i]));
-    const reason = seed ? `You ${seed.weight >= 2 ? 'loved' : 'read'} ${seed.b.title}${stars(seed.rating)}` : `More by ${topAuthors[i]}`;
+    const verb = seed && seed.weight >= 2 ? 'loved' : 'read';
+    const reason = seed ? `You ${verb} ${seed.b.title}${stars(seed.rating)}` : `More by ${topAuthors[i]}`;
     const docs = res.value
       .filter((d) => (d.author_name ?? []).some((n: string) => authorKey(n) === authorKey(topAuthors[i])))
       .sort((a, b) => score(b) - score(a));
@@ -282,28 +300,30 @@ export async function fromOpenLibrary(books: Book[], t: Taste, hidden: Set<strin
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+const friendRaved = (e: FeedEntry, uid: string) =>
+  e.user_id !== uid && (e.kind === 'finished' || e.kind === 'rated') && (e.extra.rating ?? 0) >= 4 && e.items[0]?.kind === 'book';
+
+/** Another friend loved a book already on the list. */
+function addFriendVote(prev: Rec & { n: number }, who: string) {
+  if (prev.reason.includes(who)) return;
+  prev.n++;
+  prev.reason = prev.n === 2 ? `${prev.reason.split(' gave')[0]} and ${who} loved it` : `${prev.n} friends loved it`;
+}
+
 /** Books your friends finished and rated 4 stars or more, that you don't have yet. */
 export function fromFriends(feed: FeedEntry[], books: Book[], uid: string, hidden: Set<string>): Rec[] {
   const have = new Set(books.map((b) => recKey(b.title, b.authors[0])));
   const out = new Map<string, Rec & { n: number }>();
-  for (const e of feed) {
-    if (e.user_id === uid || !(e.kind === 'finished' || e.kind === 'rated') || (e.extra.rating ?? 0) < 4) continue;
+  for (const e of feed.filter((x) => friendRaved(x, uid))) {
     const it = e.items[0];
-    if (!it || it.kind !== 'book') continue;
     const key = recKey(it.title, it.by);
     if (have.has(key) || hidden.has(key) || alreadyHave(books, it.title, it.by)) continue;
     const who = e.display_name || `@${e.username}`;
     const prev = out.get(key);
-    if (prev) {
-      if (!prev.reason.includes(who)) {
-        prev.n++;
-        prev.reason = prev.n === 2 ? `${prev.reason.split(' gave')[0]} and ${who} loved it` : `${prev.n} friends loved it`;
-      }
-      continue;
-    }
-    out.set(key, { key, n: 1, title: it.title, authors: it.by ? [it.by] : [], cover: it.cover, reason: `${who} gave it ${e.extra.rating}★` });
+    if (prev) addFriendVote(prev, who);
+    else out.set(key, { key, n: 1, title: it.title, authors: it.by ? [it.by] : [], cover: it.cover, reason: `${who} gave it ${e.extra.rating}★` });
   }
-  return [...out.values()].sort((a, b) => b.n - a.n).slice(0, 8).map(({ n: _n, ...r }) => r);
+  return [...out.values()].sort((a, b) => b.n - a.n).slice(0, 8).map((r) => without(r, 'n'));
 }
 
 // Hidden recommendations and the last Open Library results stay on this device.
@@ -340,7 +360,7 @@ export const tasteId = (t: Taste) => t.loved.slice(0, 6).map((x) => `${x.b.id}:$
 export function cachedShelves(id: string, key = CACHE): Shelf[] | undefined {
   try {
     const c = JSON.parse(localStorage.getItem(key) ?? 'null') as { id: string; at: number; shelves: Shelf[] } | null;
-    if (c && c.id === id && Date.now() - c.at < 3 * 86400_000) return c.shelves;
+    if (c?.id === id && Date.now() - c.at < 3 * 86_400_000) return c.shelves;
   } catch {
     /* none */
   }
@@ -353,3 +373,10 @@ export function cacheShelves(id: string, shelves: Shelf[], key = CACHE) {
     /* full or blocked */
   }
 }
+
+function shelfReason(queued: boolean, waited: number): string {
+  if (queued) return 'Already on your to-read list';
+  return waited > 0.5 ? 'Has been on your shelf a while' : 'On your shelf, not read yet';
+}
+
+const subjectQuery = (subjects: string[]) => subjects.map((s) => `subject:"${s}"`).join(' AND ');

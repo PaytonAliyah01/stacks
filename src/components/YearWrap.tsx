@@ -1,9 +1,11 @@
-import { paintBackdrop, paintSpines } from '../lib/backdrop';
 import { useMemo, useState } from 'react';
 import type { Book, BookNote, Challenge, Reading } from '../types';
 import { shortTitle, wrapYear, type Wrap } from '../lib/wrapup';
 import { hoursAndMinutes } from '../lib/sessions';
+import { drawYearImage } from '../lib/shareImage';
 import { Cover } from './Cover';
+import { MonthBars, ShareButtons, WrapYearPicker } from './WrapParts';
+import { useSharePicture } from '../lib/useSharePicture';
 
 interface Props {
   books: Book[];
@@ -13,178 +15,165 @@ interface Props {
   onOpen: (b: Book) => void;
 }
 
-const MONTH_LETTERS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'narrow' }));
-const stars = (n?: number) => (n ? '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '') : '');
+const stars = (n?: number) => {
+  if (!n) return '';
+  return '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '');
+};
+const plural = (n: number, word: string) => `${word}${n === 1 ? '' : 's'}`;
 
-export function hue(s: string) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
-  return h;
+interface CardProps {
+  w: Wrap;
+  onOpen: (b: Book) => void;
 }
 
-export const loadImage = (url: string) =>
-  new Promise<HTMLImageElement | null>((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const t = setTimeout(() => resolve(null), 4000);
-    img.onload = () => {
-      clearTimeout(t);
-      resolve(img.naturalWidth > 5 ? img : null);
-    };
-    img.onerror = () => {
-      clearTimeout(t);
-      resolve(null);
-    };
-    img.src = url;
-  });
-
-/** A 1080×1350 picture of the year, the size Instagram and most chats show whole. */
-async function drawShareImage(w: Wrap): Promise<Blob | null> {
-  const W = 1080;
-  const H = 1350;
-  const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
-  const g = c.getContext('2d')!;
-  const serif = "Literata, Georgia, 'Times New Roman', serif";
-  const sans = 'system-ui, -apple-system, Segoe UI, sans-serif';
-  paintBackdrop(g, W, H, 'books');
-  paintSpines(g, W - 110, 330);
-  g.fillStyle = '#d8ad55';
-  g.font = `600 34px ${sans}`;
-  g.fillText('STACKS', 80, 110);
-  g.fillStyle = '#f3efe4';
-  g.font = `600 92px ${serif}`;
-  g.fillText(`My ${w.year}`, 80, 220);
-  g.fillText('in books', 80, 320);
-
-  const stat = (x: number, value: string, label: string) => {
-    g.fillStyle = '#f3efe4';
-    g.font = `700 88px ${serif}`;
-    g.fillText(value, x, 470);
-    g.fillStyle = '#b9c8bf';
-    g.font = `500 30px ${sans}`;
-    g.fillText(label, x, 515);
-  };
-  stat(80, w.books.toLocaleString(), w.books === 1 ? 'book' : 'books');
-  stat(400, w.pages.toLocaleString(), 'pages');
-  if (w.minutes) stat(760, String(Math.round(w.minutes / 60)), 'hours');
-
-  // Covers: real ones where the image server allows it, colored blocks otherwise.
-  const shown = w.covers.slice(-12);
-  const cw = 140;
-  const ch = 210;
-  const gap = 18;
-  const imgs = await Promise.all(shown.map((b) => (b.coverUrl ? loadImage(b.coverUrl) : Promise.resolve(null))));
-  shown.forEach((b, i) => {
-    const x = 80 + (i % 6) * (cw + gap);
-    const y = 580 + Math.floor(i / 6) * (ch + gap);
-    const img = imgs[i];
-    if (img) g.drawImage(img, x, y, cw, ch);
-    else {
-      g.fillStyle = `hsl(${hue(b.title)} 35% 38%)`;
-      g.fillRect(x, y, cw, ch);
-      g.fillStyle = '#f3efe4';
-      g.font = `600 20px ${serif}`;
-      const words = shortTitle(b).split(' ');
-      let line = '';
-      let ly = y + 34;
-      for (const word of words) {
-        if (g.measureText(`${line} ${word}`).width > cw - 24 && line) {
-          g.fillText(line, x + 12, ly);
-          line = word;
-          ly += 26;
-          if (ly > y + ch - 20) break;
-        } else line = line ? `${line} ${word}` : word;
-      }
-      if (ly <= y + ch - 20) g.fillText(line, x + 12, ly);
-    }
-  });
-
-  let y = shown.length > 6 ? 1080 : shown.length ? 870 : 600;
-  const line = (label: string, value: string) => {
-    if (y > H - 80) return;
-    g.fillStyle = '#b9c8bf';
-    g.font = `500 28px ${sans}`;
-    g.fillText(label.toUpperCase(), 80, y);
-    g.fillStyle = '#f3efe4';
-    g.font = `600 38px ${serif}`;
-    let v = value;
-    while (g.measureText(v).width > W - 160 - 300 && v.length > 4) v = v.slice(0, -2);
-    g.fillText(v === value ? v : `${v}…`, 380, y);
-    y += 66;
-  };
-  if (w.favorite) line('Favorite', `${shortTitle(w.favorite.book)} ${stars(w.favorite.rating)}`);
-  if (w.moods.length) line('Mood', w.moods.map(([m]) => m).join(', '));
-  if (w.topAuthor && w.topAuthor[1] > 1) line('Top author', w.topAuthor[0]);
-  if (w.challenge) line('Challenge', `${w.challenge.done.toLocaleString()} of ${w.challenge.goal.toLocaleString()} ${w.challenge.unit}`);
-  if (w.longest) line('Longest', `${shortTitle(w.longest)}, ${w.longest.pageCount} pages`);
-
-  // Books per month along the bottom, when there's room.
-  if (y < 1150) {
-    const peak = Math.max(1, ...w.perMonth);
-    const bw = 58;
-    const step = (W - 160 - bw) / 11;
-    w.perMonth.forEach((n, i) => {
-      const x = 80 + i * step;
-      const h = Math.max(4, (n / peak) * 110);
-      g.fillStyle = n ? '#d8ad55' : 'rgba(255,255,255,0.15)';
-      g.fillRect(x, 1270 - h, bw, h);
-      g.fillStyle = '#b9c8bf';
-      g.font = `500 24px ${sans}`;
-      g.textAlign = 'center';
-      g.fillText(MONTH_LETTERS[i], x + bw / 2, 1305);
-      g.textAlign = 'left';
-    });
-  }
-  return new Promise((resolve) => c.toBlob((b) => resolve(b), 'image/png'));
+function FavoriteCard({ w, onOpen }: Readonly<CardProps>) {
+  const fav = w.favorite;
+  if (!fav) return null;
+  return (
+    <section className="panel wrap-card wrap-fav">
+      <h3>Favorite</h3>
+      <button className="wrap-book" onClick={() => onOpen(fav.book)}>
+        <Cover url={fav.book.coverUrl} title={fav.book.title} author={fav.book.authors[0]} size="sm" />
+        <span>
+          <strong>{shortTitle(fav.book)}</strong>
+          <span className="muted small">{fav.book.authors.join(', ')}</span>
+          <span className="wrap-stars">{stars(fav.rating)}</span>
+        </span>
+      </button>
+      {w.topRated.length > 1 && (
+        <ol className="wrap-list">
+          {w.topRated.slice(1).map((x) => (
+            <li key={x.book.id}>
+              <button className="link" onClick={() => onOpen(x.book)}>{shortTitle(x.book)}</button> <span className="wrap-stars small">{stars(x.rating)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
 }
 
-export function YearWrap({ books, readings, notes, challenges, onOpen }: Props) {
-  const years = useMemo(() => {
-    const ys = new Set(readings.filter((r) => r.status === 'read' && r.finishedOn).map((r) => r.finishedOn!.slice(0, 4)));
-    ys.add(String(new Date().getFullYear()));
-    if (new Date().getMonth() === 0) ys.add(String(new Date().getFullYear() - 1));
-    return [...ys].sort().reverse();
-  }, [readings]);
+function ChallengeCard({ w }: Readonly<{ w: Wrap }>) {
+  const ch = w.challenge;
+  if (!ch) return null;
+  return (
+    <section className="panel wrap-card">
+      <h3>Challenge</h3>
+      <p className="wrap-big">
+        {ch.done.toLocaleString()} <span className="muted">of {ch.goal.toLocaleString()} {ch.unit}</span>
+      </p>
+      <p className="muted small">
+        {ch.name}
+        {ch.done >= ch.goal ? '. Goal reached!' : ''}
+      </p>
+    </section>
+  );
+}
+
+function RecordRow({ label, book, extra, onOpen }: Readonly<{ label: string; book?: Book; extra?: string; onOpen: (b: Book) => void }>) {
+  if (!book) return null;
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>
+        <button className="link" onClick={() => onOpen(book)}>{shortTitle(book)}</button>
+        {extra && <> <span className="muted small">· {extra}</span></>}
+      </dd>
+    </div>
+  );
+}
+
+function RecordsCard({ w, onOpen, isThisYear }: Readonly<CardProps & { isThisYear: boolean }>) {
+  return (
+    <section className="panel wrap-card">
+      <h3>Records</h3>
+      <dl className="records">
+        <RecordRow label="Longest" book={w.longest} extra={`${w.longest?.pageCount} pages`} onOpen={onOpen} />
+        <RecordRow label="Shortest" book={w.shortest === w.longest ? undefined : w.shortest} extra={`${w.shortest?.pageCount} pages`} onOpen={onOpen} />
+        <RecordRow label="Fastest" book={w.fastest?.book} extra={w.fastest && `${w.fastest.days} ${plural(w.fastest.days, 'day')}`} onOpen={onOpen} />
+        <RecordRow label="First" book={w.firstBook} onOpen={onOpen} />
+        <RecordRow label={isThisYear ? 'Latest' : 'Last'} book={w.lastBook === w.firstBook ? undefined : w.lastBook} onOpen={onOpen} />
+      </dl>
+    </section>
+  );
+}
+
+function AlsoCard({ w }: Readonly<{ w: Wrap }>) {
+  const topAuthor = w.topAuthor && w.topAuthor[1] > 1 ? w.topAuthor : undefined;
+  const topGenre = w.topGenre && w.topGenre[1] > 1 ? w.topGenre : undefined;
+  const series = w.seriesFinished;
+  return (
+    <section className="panel wrap-card">
+      <h3>Also</h3>
+      <ul className="wrap-facts">
+        {topAuthor && <li>Most-read author: <strong>{topAuthor[0]}</strong> ({topAuthor[1]} books)</li>}
+        {topGenre && <li>Top genre or tag: <strong>{topGenre[0]}</strong></li>}
+        {series.length > 0 && <li>Finished {series.length === 1 ? 'a series' : 'series'}: <strong>{series.join(', ')}</strong></li>}
+        {w.rereads > 0 && <li>{w.rereads} {plural(w.rereads, 're-read')}</li>}
+        {w.dnf > 0 && <li>{w.dnf} you put down</li>}
+        {w.added > 0 && <li>{w.added} {plural(w.added, 'book')} added to your shelves</li>}
+        {w.quotesSaved > 0 && <li>{w.quotesSaved} {plural(w.quotesSaved, 'quote')} saved</li>}
+      </ul>
+    </section>
+  );
+}
+
+function QuoteCard({ w, onOpen }: Readonly<CardProps>) {
+  const q = w.quote;
+  if (!q) return null;
+  return (
+    <section className="panel wrap-card wrap-quote">
+      <h3>A line you kept</h3>
+      <blockquote>{q.note.text}</blockquote>
+      <button className="link spotlight-src" onClick={() => onOpen(q.book)}>{shortTitle(q.book)}</button>
+    </section>
+  );
+}
+
+function WrapCards({ w, onOpen, isThisYear }: Readonly<CardProps & { isThisYear: boolean }>) {
+  const busiest = w.busiestMonth;
+  return (
+    <div className="wrap-grid">
+      <FavoriteCard w={w} onOpen={onOpen} />
+      {w.moods.length > 0 && (
+        <section className="panel wrap-card">
+          <h3>Your mood</h3>
+          <p className="wrap-big">{w.moods.map(([m]) => m).join(', ')}</p>
+          {w.pace && <p className="muted">Mostly {w.pace}-paced books.</p>}
+        </section>
+      )}
+      <section className="panel wrap-card">
+        <h3>Month by month</h3>
+        <MonthBars perMonth={w.perMonth} unit="book" label="Books finished each month" />
+        {busiest && <p className="muted small">Busiest: {busiest[0]}, with {busiest[1]} {plural(busiest[1], 'book')}.</p>}
+      </section>
+      <ChallengeCard w={w} />
+      <RecordsCard w={w} onOpen={onOpen} isThisYear={isThisYear} />
+      <AlsoCard w={w} />
+      <QuoteCard w={w} onOpen={onOpen} />
+    </div>
+  );
+}
+
+function yearsWithReads(readings: Reading[]): string[] {
+  const now = new Date();
+  const ys = new Set(readings.filter((r) => r.status === 'read' && r.finishedOn).map((r) => r.finishedOn!.slice(0, 4)));
+  ys.add(String(now.getFullYear()));
+  if (now.getMonth() === 0) ys.add(String(now.getFullYear() - 1));
+  return [...ys].sort((a, b) => b.localeCompare(a));
+}
+
+export function YearWrap({ books, readings, notes, challenges, onOpen }: Readonly<Props>) {
+  const years = useMemo(() => yearsWithReads(readings), [readings]);
   // In January, last year is the one worth looking back on.
   const [year, setYear] = useState(String(new Date().getFullYear() - (new Date().getMonth() === 0 ? 1 : 0)));
   const w = useMemo(() => wrapYear(year, books, readings, notes, challenges), [year, books, readings, notes, challenges]);
-  const [sharing, setSharing] = useState('');
-  const peak = Math.max(1, ...w.perMonth);
+  const share = useSharePicture(() => drawYearImage(w), `my-${year}-in-books.png`);
   const isThisYear = year === String(new Date().getFullYear());
-
-  const save = async () => {
-    setSharing('Making your picture…');
-    const blob = await drawShareImage(w);
-    if (!blob) return setSharing("Couldn't make the picture.");
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `my-${year}-in-books.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-    setSharing('Saved to your downloads.');
-  };
-  const copy = async () => {
-    setSharing('Making your picture…');
-    const blob = await drawShareImage(w);
-    try {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob! })]);
-      setSharing('Copied. Paste it into a message or post.');
-    } catch {
-      setSharing("Your browser wouldn't copy the picture. Use Save picture instead.");
-    }
-  };
 
   return (
     <div className="reading-view wrap">
-      <div className="finished-head">
-        <p className="muted">{isThisYear ? 'Your year so far. It fills in as you finish books.' : 'Your year in books.'}</p>
-        <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-      </div>
+      <WrapYearPicker intro={isThisYear ? 'Your year so far. It fills in as you finish books.' : 'Your year in books.'} year={year} years={years} onYear={setYear} />
 
       <section className="wrap-hero">
         <svg className="wrap-spines" viewBox="0 0 319 300" aria-hidden="true">
@@ -209,11 +198,7 @@ export function YearWrap({ books, readings, notes, challenges, onOpen }: Props) 
             ))}
           </ul>
         )}
-        <div className="wrap-share">
-          <button className="btn primary small-btn" onClick={save} disabled={!w.books}>Save picture</button>
-          <button className="btn ghost small-btn wrap-ghost" onClick={copy} disabled={!w.books}>Copy picture</button>
-          {sharing && <span className="small">{sharing}</span>}
-        </div>
+        <ShareButtons {...share} disabled={!w.books} />
       </section>
 
       {w.books === 0 ? (
@@ -221,121 +206,7 @@ export function YearWrap({ books, readings, notes, challenges, onOpen }: Props) 
           <p className="muted">No finished books in {year} yet. Mark books as Read, or import your Goodreads or StoryGraph history, and your wrap-up builds itself.</p>
         </section>
       ) : (
-        <div className="wrap-grid">
-          {w.favorite && (
-            <section className="panel wrap-card wrap-fav">
-              <h3>Favorite</h3>
-              <button className="wrap-book" onClick={() => onOpen(w.favorite!.book)}>
-                <Cover url={w.favorite.book.coverUrl} title={w.favorite.book.title} author={w.favorite.book.authors[0]} size="sm" />
-                <span>
-                  <strong>{shortTitle(w.favorite.book)}</strong>
-                  <span className="muted small">{w.favorite.book.authors.join(', ')}</span>
-                  <span className="wrap-stars">{stars(w.favorite.rating)}</span>
-                </span>
-              </button>
-              {w.topRated.length > 1 && (
-                <ol className="wrap-list">
-                  {w.topRated.slice(1).map((x) => (
-                    <li key={x.book.id}>
-                      <button className="link" onClick={() => onOpen(x.book)}>{shortTitle(x.book)}</button> <span className="wrap-stars small">{stars(x.rating)}</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </section>
-          )}
-
-          {w.moods.length > 0 && (
-            <section className="panel wrap-card">
-              <h3>Your mood</h3>
-              <p className="wrap-big">{w.moods.map(([m]) => m).join(', ')}</p>
-              {w.pace && <p className="muted">Mostly {w.pace}-paced books.</p>}
-            </section>
-          )}
-
-          <section className="panel wrap-card">
-            <h3>Month by month</h3>
-            <div className="wrap-months" aria-label="Books finished each month">
-              {w.perMonth.map((n, i) => (
-                <div key={i} className="wrap-month" title={`${n} book${n === 1 ? '' : 's'}`}>
-                  <span className="wrap-bar" style={{ height: `${(n / peak) * 100}%` }}>{n > 0 && <b>{n}</b>}</span>
-                  <span className="wrap-m">{MONTH_LETTERS[i]}</span>
-                </div>
-              ))}
-            </div>
-            {w.busiestMonth && <p className="muted small">Busiest: {w.busiestMonth[0]}, with {w.busiestMonth[1]} book{w.busiestMonth[1] === 1 ? '' : 's'}.</p>}
-          </section>
-
-          {w.challenge && (
-            <section className="panel wrap-card">
-              <h3>Challenge</h3>
-              <p className="wrap-big">
-                {w.challenge.done.toLocaleString()} <span className="muted">of {w.challenge.goal.toLocaleString()} {w.challenge.unit}</span>
-              </p>
-              <p className="muted small">
-                {w.challenge.name}
-                {w.challenge.done >= w.challenge.goal ? '. Goal reached!' : ''}
-              </p>
-            </section>
-          )}
-
-          <section className="panel wrap-card">
-            <h3>Records</h3>
-            <dl className="records">
-              {w.longest && (
-                <div>
-                  <dt>Longest</dt>
-                  <dd><button className="link" onClick={() => onOpen(w.longest!)}>{shortTitle(w.longest)}</button> <span className="muted small">· {w.longest.pageCount} pages</span></dd>
-                </div>
-              )}
-              {w.shortest && w.shortest !== w.longest && (
-                <div>
-                  <dt>Shortest</dt>
-                  <dd><button className="link" onClick={() => onOpen(w.shortest!)}>{shortTitle(w.shortest)}</button> <span className="muted small">· {w.shortest.pageCount} pages</span></dd>
-                </div>
-              )}
-              {w.fastest && (
-                <div>
-                  <dt>Fastest</dt>
-                  <dd><button className="link" onClick={() => onOpen(w.fastest!.book)}>{shortTitle(w.fastest.book)}</button> <span className="muted small">· {w.fastest.days} day{w.fastest.days === 1 ? '' : 's'}</span></dd>
-                </div>
-              )}
-              {w.firstBook && (
-                <div>
-                  <dt>First</dt>
-                  <dd><button className="link" onClick={() => onOpen(w.firstBook!)}>{shortTitle(w.firstBook)}</button></dd>
-                </div>
-              )}
-              {w.lastBook && w.lastBook !== w.firstBook && (
-                <div>
-                  <dt>{isThisYear ? 'Latest' : 'Last'}</dt>
-                  <dd><button className="link" onClick={() => onOpen(w.lastBook!)}>{shortTitle(w.lastBook)}</button></dd>
-                </div>
-              )}
-            </dl>
-          </section>
-
-          <section className="panel wrap-card">
-            <h3>Also</h3>
-            <ul className="wrap-facts">
-              {w.topAuthor && w.topAuthor[1] > 1 && <li>Most-read author: <strong>{w.topAuthor[0]}</strong> ({w.topAuthor[1]} books)</li>}
-              {w.topGenre && w.topGenre[1] > 1 && <li>Top genre or tag: <strong>{w.topGenre[0]}</strong></li>}
-              {w.seriesFinished.length > 0 && <li>Finished {w.seriesFinished.length === 1 ? 'a series' : 'series'}: <strong>{w.seriesFinished.join(', ')}</strong></li>}
-              {w.rereads > 0 && <li>{w.rereads} re-read{w.rereads === 1 ? '' : 's'}</li>}
-              {w.dnf > 0 && <li>{w.dnf} you put down</li>}
-              {w.added > 0 && <li>{w.added} book{w.added === 1 ? '' : 's'} added to your shelves</li>}
-              {w.quotesSaved > 0 && <li>{w.quotesSaved} quote{w.quotesSaved === 1 ? '' : 's'} saved</li>}
-            </ul>
-          </section>
-
-          {w.quote && (
-            <section className="panel wrap-card wrap-quote">
-              <h3>A line you kept</h3>
-              <blockquote>{w.quote.note.text}</blockquote>
-              <button className="link spotlight-src" onClick={() => onOpen(w.quote!.book)}>{shortTitle(w.quote.book)}</button>
-            </section>
-          )}
-        </div>
+        <WrapCards w={w} onOpen={onOpen} isThisYear={isThisYear} />
       )}
     </div>
   );

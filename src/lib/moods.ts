@@ -114,15 +114,20 @@ export function guessVibe(subjects: string[]): VibeGuess {
   let fast = 0;
   let slow = 0;
   const warnings = new Set<string>();
-  for (const s of text) {
-    // "Fiction" alone, or a library code, says nothing.
-    if (s.length < 4) continue;
-    for (const [re, moods] of MOOD_RULES) if (re.test(s)) for (const m of moods) score.set(m, (score.get(m) ?? 0) + 1);
+  // "Fiction" alone, or a library code, says nothing.
+  for (const s of text.filter((t) => t.length >= 4)) {
+    for (const m of MOOD_RULES.filter(([re]) => re.test(s)).flatMap(([, ms]) => ms)) score.set(m, (score.get(m) ?? 0) + 1);
     if (FAST.test(s)) fast++;
     if (SLOW.test(s)) slow++;
     for (const [re, w] of WARNING_RULES) if (re.test(s)) warnings.add(w);
   }
   const moods = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([m]) => m);
-  const pace: Pace | undefined = fast > slow ? 'fast' : slow > fast ? 'slow' : fast > 0 ? 'medium' : undefined;
+  const pace = paceOf(fast, slow);
   return { moods, pace, contentWarnings: [...warnings] };
+}
+
+function paceOf(fast: number, slow: number): Pace | undefined {
+  if (fast > slow) return 'fast';
+  if (slow > fast) return 'slow';
+  return fast > 0 ? 'medium' : undefined;
 }

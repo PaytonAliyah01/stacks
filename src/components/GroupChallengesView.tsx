@@ -13,6 +13,7 @@ import {
   timePassed,
   type GroupChallenge,
 } from '../lib/groupchallenges';
+import { unitWord } from '../lib/labels';
 
 interface Props {
   uid: string;
@@ -28,7 +29,7 @@ interface Props {
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const day = (s: string) => new Date(`${s}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-const unit = (m: ChallengeMeasure, n: number) => (m === 'books' ? (n === 1 ? 'book' : 'books') : n === 1 ? 'page' : 'pages');
+const unit = (m: ChallengeMeasure, n: number) => unitWord(m, n);
 
 /** Ready-made challenges, so starting one is two taps. */
 function presets(now = new Date()) {
@@ -49,7 +50,7 @@ function presets(now = new Date()) {
   ];
 }
 
-function StartForm({ uid, friends, books, readings, onDone, onCancel }: { uid: string; friends: Friend[]; books: Book[]; readings: Reading[]; onDone: () => void; onCancel: () => void }) {
+function StartForm({ uid, friends, books, readings, onDone, onCancel }: Readonly<{ uid: string; friends: Friend[]; books: Book[]; readings: Reading[]; onDone: () => void; onCancel: () => void }>) {
   const p0 = presets()[0];
   const [name, setName] = useState(p0.name);
   const [measure, setMeasure] = useState<ChallengeMeasure>(p0.measure);
@@ -143,7 +144,7 @@ function StartForm({ uid, friends, books, readings, onDone, onCancel }: { uid: s
   );
 }
 
-function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupChallenge; uid: string; friends: Friend[]; onChanged: () => void; onOpenProfile: (u: string) => void; onJoin: () => Promise<void> }) {
+function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: Readonly<{ g: GroupChallenge; uid: string; friends: Friend[]; onChanged: () => void; onOpenProfile: (u: string) => void; onJoin: () => Promise<void> }>) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [inviting, setInviting] = useState(false);
@@ -173,7 +174,10 @@ function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupC
   };
   // Ties share a place.
   let place = 0;
-  const places = joined.map((m, i) => (i === 0 || m.progress !== joined[i - 1].progress ? (place = i + 1) : place));
+  const places = joined.map((m, i) => {
+        if (i === 0 || m.progress !== joined[i - 1].progress) place = i + 1;
+        return place;
+      });
 
   return (
     <article className={`panel group-card ${invited ? 'invite' : ''}`}>
@@ -182,7 +186,9 @@ function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupC
           <h3 className="group-name">{g.name}</h3>
           <p className="muted small">
             {g.goal.toLocaleString()} {unit(g.measure, g.goal)} · {day(g.start_on)} to {day(g.end_on)}
-            {ended ? ' · finished' : notYet ? ' · starts soon' : ` · ${Math.ceil((Date.parse(`${g.end_on}T23:59:59`) - Date.now()) / 86400_000)} days left`}
+            {ended ? ' · finished' : null}
+            {!ended && notYet ? ' · starts soon' : null}
+            {!ended && !notYet ? ` · ${daysUntilEnd(g.end_on)} days left` : null}
           </p>
         </div>
         {ended && leader && leader.progress > 0 && <span className="group-winner">🏆 {memberName(leader)}</span>}
@@ -257,7 +263,7 @@ function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupC
   );
 }
 
-export function GroupChallengesView(props: Props) {
+export function GroupChallengesView(props: Readonly<Props>) {
   const { uid, groups, onChanged } = props;
   const [starting, setStarting] = useState(false);
   const byId = useMemo(() => new Map(props.books.map((b) => [b.id, b])), [props.books]);
@@ -280,14 +286,14 @@ export function GroupChallengesView(props: Props) {
             onChanged();
           }}
         />
-      ) : hasFriends ? (
+      ) : null}
+      {!starting && hasFriends ? (
         <button className="btn primary group-new" onClick={() => setStarting(true)}>Start a challenge with friends</button>
-      ) : (
-        <div className="profile-missing">
+      ) : null}
+      {!starting && !hasFriends ? <div className="profile-missing">
           <p>Race your friends to a reading goal, like 24 books this year. Add a friend first.</p>
           <button className="btn primary" onClick={props.onFindFriends}>Find friends</button>
-        </div>
-      )}
+        </div> : null}
       {props.error && <p className="account-error">{props.error}</p>}
       {current.map((g) => (
         <Card key={g.id} g={g} uid={uid} friends={props.friends} onChanged={onChanged} onOpenProfile={props.onOpenProfile} onJoin={() => joinGroup(g.id, uid, myProgress(g, props.readings, byId))} />
@@ -303,4 +309,9 @@ export function GroupChallengesView(props: Props) {
       )}
     </div>
   );
+}
+
+function daysUntilEnd(endOn: string): number {
+  const end = Date.parse(`${endOn}T23:59:59`);
+  return Math.ceil((end - Date.now()) / 86_400_000);
 }

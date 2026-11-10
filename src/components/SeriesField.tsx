@@ -3,7 +3,7 @@ import type { Book } from '../types';
 import { seriesLabel } from '../lib/series';
 
 /** The book's series, shown as one line and edited in place. Changes go into the drawer's draft. */
-export function SeriesField({ draft, knownNames, onChange }: { draft: Book; knownNames: string[]; onChange: (patch: Partial<Book>) => void }) {
+export function SeriesField({ draft, knownNames, onChange }: Readonly<{ draft: Book; knownNames: string[]; onChange: (patch: Partial<Book>) => void }>) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(draft.series?.name ?? '');
   const [number, setNumber] = useState(draft.series?.number !== undefined ? String(draft.series.number) : '');

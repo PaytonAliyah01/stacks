@@ -16,7 +16,7 @@ import {
   type Visibility,
 } from '../lib/profile';
 
-export function Avatar({ p, size = 40 }: { p: Pick<Profile, 'avatar_url' | 'avatar_color' | 'display_name' | 'username'>; size?: number }) {
+export function Avatar({ p, size = 40 }: Readonly<{ p: Pick<Profile, 'avatar_url' | 'avatar_color' | 'display_name' | 'username'>; size?: number }>) {
   return p.avatar_url ? (
     <img className="avatar" src={p.avatar_url} alt="" width={size} height={size} style={{ width: size, height: size }} />
   ) : (
@@ -33,7 +33,7 @@ const VISIBILITY: { v: Visibility; label: string; help: string }[] = [
 ];
 
 /** Pick up to 4 favorites from your own shelves. */
-function TopPicker({ label, pool, ids, onChange }: { label: string; pool: Book[]; ids: string[]; onChange: (ids: string[]) => void }) {
+function TopPicker({ label, pool, ids, onChange }: Readonly<{ label: string; pool: Book[]; ids: string[]; onChange: (ids: string[]) => void }>) {
   const [q, setQ] = useState('');
   const byId = useMemo(() => new Map(pool.map((b) => [b.id, b])), [pool]);
   const chosen = ids.map((id) => byId.get(id)).filter((b): b is Book => !!b);
@@ -99,7 +99,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSaved, onClose }: Props) {
+export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSaved, onClose }: Readonly<Props>) {
   const [username, setUsername] = useState(profile?.username ?? cleanUsername(email?.split('@')[0] ?? '').slice(0, 20));
   const [name, setName] = useState(profile?.display_name ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
@@ -165,8 +165,9 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
   const preview = { avatar_url: avatarUrl, avatar_color: color, display_name: name, username };
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Edit profile">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Edit profile">
         <form className="drawer-form profile-editor" onSubmit={save}>
           <header className="drawer-head">
             <h2 className="drawer-heading">{profile ? 'Edit profile' : 'Set up your profile'}</h2>
@@ -177,16 +178,18 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             <Avatar p={preview} size={88} />
             <div className="avatar-edit-actions">
               <button type="button" className="btn small-btn" onClick={() => fileRef.current?.click()} disabled={busy === 'photo'}>
-                {busy === 'photo' ? 'Uploading…' : avatarUrl ? 'Change picture' : 'Upload a picture'}
+                {(busy === 'photo') ? 'Uploading…' : null}
+                {busy !== 'photo' && avatarUrl ? 'Change picture' : null}
+                {busy !== 'photo' && !avatarUrl ? 'Upload a picture' : null}
               </button>
               {avatarUrl && <button type="button" className="link small" onClick={() => setAvatarUrl(null)}>Use initials instead</button>}
               <input ref={fileRef} id="avatar-file" type="file" accept="image/*" hidden onChange={(e) => void pickPhoto(e.target.files?.[0])} />
             </div>
           </div>
           {!avatarUrl && (
-            <div className="swatches" role="radiogroup" aria-label="Picture color">
+            <div className="color-dots" role="radiogroup" aria-label="Picture color">
               {AVATAR_COLORS.map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={c} className={`swatch ${color === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />
+                <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={c} className={`color-dot ${color === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />
               ))}
             </div>
           )}
@@ -211,9 +214,9 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
 
           <div className="field">
             <span>Profile color</span>
-            <div className="swatches" role="radiogroup" aria-label="Profile color">
+            <div className="color-dots" role="radiogroup" aria-label="Profile color">
               {ACCENTS.map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={accent === c} aria-label={c} className={`swatch ${accent === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setAccent(c)} />
+                <button key={c} type="button" role="radio" aria-checked={accent === c} aria-label={c} className={`color-dot ${accent === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setAccent(c)} />
               ))}
             </div>
           </div>
@@ -225,7 +228,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             <legend className="section-label">Who can see your profile</legend>
             {VISIBILITY.map((o) => (
               <label key={o.v} className={`visibility-option ${visibility === o.v ? 'on' : ''}`}>
-                <input type="radio" name="visibility" checked={visibility === o.v} onChange={() => setVisibility(o.v)} />
+                <input type="radio" name="visibility" aria-label={o.label} checked={visibility === o.v} onChange={() => setVisibility(o.v)} />
                 <span>
                   <strong>{o.label}</strong>
                   <span className="muted small">{o.help}</span>
@@ -234,7 +237,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             ))}
           </fieldset>
           <label className="check-row">
-            <input id="p-share" type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} />
+            <input id="p-share" type="checkbox" aria-label="Share what I read and spin with friends" checked={share} onChange={(e) => setShare(e.target.checked)} />
             <span>
               <strong>Share what I read and spin with friends</strong>
               <span className="muted small">Starting or finishing a book, your rating, putting on a record, and new additions show up in your friends' feed.</span>
@@ -247,11 +250,11 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
 
           {error && <p className="account-error" role="alert">{error}</p>}
           <div className="drawer-foot">
-            <button className="btn primary" disabled={!!busy || !okName}>{busy === 'save' ? 'Saving…' : 'Save profile'}</button>
+            <button type="submit" className="btn primary" disabled={!!busy || !okName}>{busy === 'save' ? 'Saving…' : 'Save profile'}</button>
             <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
           </div>
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

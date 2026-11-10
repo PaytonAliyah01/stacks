@@ -14,7 +14,7 @@ interface Props {
 type Show = 'all' | 'quote' | 'note' | 'favorite';
 
 /** Every quote and note across your books, on its own Reading page. */
-export function NotesView({ books, notes, onOpen, onSave, onRemove }: Props) {
+export function NotesView({ books, notes, onOpen, onSave, onRemove }: Readonly<Props>) {
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   const [show, setShow] = useState<Show>('all');
   const [query, setQuery] = useState('');

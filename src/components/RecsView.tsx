@@ -3,6 +3,7 @@ import type { Book, Reading } from '../types';
 import { Cover } from './Cover';
 import { currentReading } from '../lib/reading';
 import { loadFeed, type FeedEntry } from '../lib/feed';
+import { countOf } from '../lib/labels';
 import {
   cachedShelves,
   cacheShelves,
@@ -99,7 +100,7 @@ interface Actions {
   onHide: (r: Rec) => void;
 }
 
-function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }: { r: Rec; books: Book[]; readings: Reading[] } & Actions) {
+function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }: Readonly<{ r: Rec; books: Book[]; readings: Reading[] } & Actions>) {
   const local = r.bookId ? books.find((b) => b.id === r.bookId) : undefined;
   const queued = local && currentReading(readings, local.id)?.status === 'want';
   const by = r.authors.slice(0, 2).join(', ');
@@ -111,21 +112,17 @@ function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }:
       <div className="rec-body">
         {local ? (
           <button className="link-plain rec-title" onClick={() => onOpen(local)}>{r.title}</button>
-        ) : r.openLibraryKey ? (
+        ) : null}
+        {!local && r.openLibraryKey ? (
           <a className="rec-title" href={`https://openlibrary.org${r.openLibraryKey}`} target="_blank" rel="noreferrer">{r.title}</a>
-        ) : (
-          <strong className="rec-title">{r.title}</strong>
-        )}
+        ) : null}
+        {!local && !r.openLibraryKey ? <strong className="rec-title">{r.title}</strong> : null}
         {by && <span className="muted small">{by}{r.year ? ` · ${r.year}` : ''}</span>}
         <span className="rec-why small">{r.reason}</span>
         <span className="rec-actions">
-          {local ? (
-            queued ? (
-              <span className="muted small">On your to-read list</span>
-            ) : (
-              <button className="btn small-btn" onClick={() => onWant(r)}>Want to read</button>
-            )
-          ) : (
+          {local && queued && <span className="muted small">On your to-read list</span>}
+          {local && !queued && <button className="btn small-btn" onClick={() => onWant(r)}>Want to read</button>}
+          {!local && (
             <>
               <button className="btn small-btn" onClick={() => onWant(r)}>Want to read</button>
               <button className="link small" onClick={() => onWish(r)}>Wishlist</button>
@@ -147,7 +144,7 @@ interface Props extends Omit<Actions, 'onHide'> {
   onFindFriends: () => void;
 }
 
-export function RecsView(props: Props) {
+export function RecsView(props: Readonly<Props>) {
   const { books, readings, uid, social } = props;
   const recs = useRecs(books, readings, uid, social);
   const actions: Actions = { onOpen: props.onOpen, onWant: props.onWant, onWish: props.onWish, onRead: props.onRead, onHide: recs.hide };
@@ -159,13 +156,14 @@ export function RecsView(props: Props) {
     </ul>
   );
   const noTaste = !recs.taste.loved.length;
+  const lovedBooks = recs.taste.loved.length === 1 ? 'book' : countOf(recs.taste.loved.length, 'book');
 
   return (
     <div className="recs-page">
       <p className="muted recs-intro">
         {noTaste
           ? 'Rate the books you finish (4 stars and up counts as loved) and Stacks learns what you like. Until then, here are unread books from your shelves.'
-          : `Picked from the ${recs.taste.loved.length === 1 ? 'book' : `${recs.taste.loved.length} books`} you loved, their genres and moods, and what your friends rated highly.`}
+          : `Picked from the ${lovedBooks} you loved, their genres and moods, and what your friends rated highly.`}
       </p>
 
       <section className="panel">
@@ -215,14 +213,31 @@ export function RecsView(props: Props) {
   );
 }
 
-/** The Home card: a few picks, mixed from your shelves and new books. */
-export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: { books: Book[]; readings: Reading[]; uid?: string; social: boolean; onOpen: (b: Book) => void; onAll: () => void }) {
-  const recs = useRecs(books, readings, uid, social);
+/** Takes the first pick from each pool, then the second, and so on, skipping repeats. */
+function mixPicks(pools: Rec[][], max: number): Rec[] {
   const picks: Rec[] = [];
+  for (let i = 0; i < max; i++) {
+    for (const p of pools) {
+      if (picks.length >= max) return picks;
+      if (p[i] && !picks.some((x) => x.key === p[i].key)) picks.push(p[i]);
+    }
+  }
+  return picks;
+}
+
+function noPicksText(recs: { loading: boolean; error?: string; taste: { loved: unknown[] } }) {
+  if (recs.loading) return 'Finding books for you…';
+  if (recs.error && recs.taste.loved.length) return recs.error;
+  return 'Rate a few books you finished and Stacks suggests what to read next.';
+}
+
+/** The Home card: a few picks, mixed from your shelves and new books. */
+export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: Readonly<{ books: Book[]; readings: Reading[]; uid?: string; social: boolean; onOpen: (b: Book) => void; onAll: () => void }>) {
+  const recs = useRecs(books, readings, uid, social);
   // Books already on your to-read list are in "Up next" right above.
   const shelf = recs.shelf.filter((r) => !(r.bookId && currentReading(readings, r.bookId)?.status === 'want'));
   const pools = [shelf, ...recs.shelves.map((s) => s.recs), recs.friends];
-  for (let i = 0; picks.length < 4 && i < 4; i++) for (const p of pools) if (p[i] && picks.length < 4 && !picks.some((x) => x.key === p[i].key)) picks.push(p[i]);
+  const picks = mixPicks(pools, 4);
   return (
     <section className="panel">
       <div className="home-head">
@@ -245,7 +260,7 @@ export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: { book
           })}
         </ol>
       ) : (
-        <p className="muted">{recs.loading ? 'Finding books for you…' : recs.error && recs.taste.loved.length ? recs.error : 'Rate a few books you finished and Stacks suggests what to read next.'}</p>
+        <p className="muted">{noPicksText(recs)}</p>
       )}
     </section>
   );

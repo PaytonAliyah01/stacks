@@ -3,6 +3,7 @@ import type { Book, Challenge, ChallengeMeasure, Reading } from '../types';
 import { BADGES, progressOf } from '../lib/challenges';
 import { formatDay, todayIso } from '../lib/reading';
 import { newId } from '../lib/storage';
+import { unitWord } from '../lib/labels';
 
 interface Props {
   challenges: Challenge[];
@@ -14,7 +15,27 @@ interface Props {
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
-function ChallengeForm({ initial, onSave, onCancel }: { initial?: Challenge; onSave: (c: Challenge) => void; onCancel: () => void }) {
+type Progress = ReturnType<typeof progressOf>;
+
+function paceText(c: Challenge, p: Progress): string {
+  if (!p.started) return `Starts ${formatDay(c.startOn)}`;
+  if (p.done >= c.goal) return 'Goal reached!';
+  if (p.ended) return `Ended ${formatDay(c.endOn)}`;
+  const diff = p.done - p.expected;
+  if (Math.abs(diff) < (c.measure === 'books' ? 0.5 : c.goal / 100)) return 'Right on pace';
+  const u = c.measure === 'books' ? 'book' : 'page';
+  const plural = Math.round(Math.abs(diff)) === 1 ? '' : 's';
+  return `${fmt(Math.abs(diff))} ${u}${plural} ${diff > 0 ? 'ahead of' : 'behind'} pace`;
+}
+
+function needText(c: Challenge, p: Progress): string {
+  if (!p.started || p.ended || p.done >= c.goal) return '';
+  if (c.measure !== 'books') return `About ${fmt(p.perWeekNeeded / 7)} pages a day to finish on time.`;
+  const rate = p.perWeekNeeded < 1 ? `1 book every ${Math.max(1, Math.round(7 / Math.max(p.perWeekNeeded, 0.01)))} days` : `${p.perWeekNeeded.toFixed(1)} books a week`;
+  return `About ${rate} to finish on time.`;
+}
+
+function ChallengeForm({ initial, onSave, onCancel }: Readonly<{ initial?: Challenge; onSave: (c: Challenge) => void; onCancel: () => void }>) {
   const year = new Date().getFullYear();
   const [measure, setMeasure] = useState<ChallengeMeasure>(initial?.measure ?? 'books');
   const [goal, setGoal] = useState(String(initial?.goal ?? 24));
@@ -81,7 +102,7 @@ function ChallengeForm({ initial, onSave, onCancel }: { initial?: Challenge; onS
             const e = period === 'year' ? `${yearValue}-12-31` : endOn;
             if (!s || !e || e < s) return setError('The end date has to be after the start date.');
             const now = new Date().toISOString();
-            const unit = measure === 'books' ? (n === 1 ? 'book' : 'books') : 'pages';
+            const unit = measure === 'books' ? unitWord('books', n) : 'pages';
             onSave({
               id: initial?.id ?? newId(),
               name: name.trim() || (period === 'year' ? `${n.toLocaleString()} ${unit} in ${yearValue}` : `${n.toLocaleString()} ${unit}`),
@@ -90,7 +111,7 @@ function ChallengeForm({ initial, onSave, onCancel }: { initial?: Challenge; onS
               startOn: s,
               endOn: e,
               // Changing the goal or dates can change what's earned, so start the badges fresh.
-              badges: initial && initial.goal === n && initial.measure === measure && initial.startOn === s && initial.endOn === e ? initial.badges : {},
+              badges: initial?.goal === n && initial.measure === measure && initial.startOn === s && initial.endOn === e ? initial.badges : {},
               createdAt: initial?.createdAt ?? now,
               updatedAt: now,
             });
@@ -104,7 +125,7 @@ function ChallengeForm({ initial, onSave, onCancel }: { initial?: Challenge; onS
   );
 }
 
-export function ChallengesPanel({ challenges, books, readings, onSave, onRemove }: Props) {
+export function ChallengesPanel({ challenges, books, readings, onSave, onRemove }: Readonly<Props>) {
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -147,25 +168,9 @@ export function ChallengesPanel({ challenges, books, readings, onSave, onRemove 
             );
           }
           const p = progressOf(c, readings, byId, today);
-          const diff = p.done - p.expected;
           const u = c.measure === 'books' ? 'book' : 'page';
-          const pace = !p.started
-            ? `Starts ${formatDay(c.startOn)}`
-            : p.done >= c.goal
-              ? 'Goal reached!'
-              : p.ended
-                ? `Ended ${formatDay(c.endOn)}`
-                : Math.abs(diff) < (c.measure === 'books' ? 0.5 : c.goal / 100)
-                  ? 'Right on pace'
-                  : diff > 0
-                    ? `${fmt(diff)} ${u}${Math.round(diff) === 1 ? '' : 's'} ahead of pace`
-                    : `${fmt(-diff)} ${u}${Math.round(-diff) === 1 ? '' : 's'} behind pace`;
-          const need =
-            p.started && !p.ended && p.done < c.goal
-              ? c.measure === 'books'
-                ? `About ${p.perWeekNeeded < 1 ? `1 book every ${Math.max(1, Math.round(7 / Math.max(p.perWeekNeeded, 0.01)))} days` : `${p.perWeekNeeded.toFixed(1)} books a week`} to finish on time.`
-                : `About ${fmt(p.perWeekNeeded / 7)} pages a day to finish on time.`
-              : '';
+          const pace = paceText(c, p);
+          const need = needText(c, p);
           return (
             <li key={c.id} className="challenge">
               <div className="challenge-top">
@@ -195,8 +200,9 @@ export function ChallengesPanel({ challenges, books, readings, onSave, onRemove 
               <ul className="badges" aria-label="Badges">
                 {BADGES.map((b) => {
                   const on = c.badges[b.id];
+                  const earned = on ? ` Earned ${formatDay(on)}.` : '';
                   return (
-                    <li key={b.id} className={`badge-medal ${on ? 'earned' : 'locked'}`} title={`${b.name}: ${b.description(c)}${on ? ` Earned ${formatDay(on)}.` : ''}`}>
+                    <li key={b.id} className={`badge-medal ${on ? 'earned' : 'locked'}`} title={`${b.name}: ${b.description(c)}${earned}`}>
                       <span className="medal" aria-hidden="true">{b.mark}</span>
                       <span className="medal-name">{b.name}</span>
                       <span className="sr-only">{on ? `earned ${formatDay(on)}` : `not earned yet. ${b.description(c)}`}</span>

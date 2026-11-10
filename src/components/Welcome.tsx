@@ -64,8 +64,8 @@ function ShelfArt() {
   return (
     <div className="welcome-art" aria-hidden="true">
       <div className="welcome-shelf">
-        {SPINES.map((s, i) => (
-          <span key={i} className="welcome-spine" style={{ height: s.h, width: s.w, background: s.c }} />
+        {SPINES.map((s) => (
+          <span key={`${s.c}${s.h}`} className="welcome-spine" style={{ height: s.h, width: s.w, background: s.c }} />
         ))}
         <span className="welcome-spine lean" style={{ height: 90, width: 18, background: '#5b8f6e' }} />
         <span className="welcome-sleeve">
@@ -84,7 +84,7 @@ function ShelfArt() {
   );
 }
 
-export function Welcome({ onSignIn, onSignUp, onTry, hasLocal }: Props) {
+export function Welcome({ onSignIn, onSignUp, onTry, hasLocal }: Readonly<Props>) {
   return (
     <div className="welcome">
       <header className="welcome-top">

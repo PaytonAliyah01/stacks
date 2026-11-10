@@ -13,7 +13,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onClose }: Props) {
+export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onClose }: Readonly<Props>) {
   const [query, setQuery] = useState(initialQuery ?? '');
   const [busy, setBusy] = useState(false);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -29,7 +29,7 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
   }, [onClose]);
 
   useEffect(() => {
-    if (initialQuery?.trim()) run(initialQuery);
+    if (initialQuery?.trim()) void run(initialQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -46,13 +46,14 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
   };
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Search by title">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Search by title">
         <form
           className="drawer-form"
           onSubmit={(e) => {
             e.preventDefault();
-            run();
+            void run();
           }}
         >
           <header className="drawer-head">
@@ -81,16 +82,18 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
           {problem && (
             <p className="search-problem">
               {problem}{' '}
-              {problemKind === 'server' ? (
+              {(problemKind === 'server') ? (
                 <span className="muted">That's Google having a hiccup, not your {getGoogleKey() ? 'key' : 'settings'}. Press Search again in a minute.</span>
-              ) : problemKind === 'quota' && !getGoogleKey() ? (
+              ) : null}
+              {problemKind !== 'server' && (problemKind === 'quota' && !getGoogleKey()) ? (
                 <button type="button" className="link" onClick={onOpenSettings}>Add a Google Books key</button>
-              ) : problemKind === 'quota' ? (
+              ) : null}
+              {problemKind !== 'server' && !(problemKind === 'quota' && !getGoogleKey()) && (problemKind === 'quota') ? (
                 <button type="button" className="link" onClick={onOpenSettings}>Check your Google Books key</button>
               ) : null}
             </p>
           )}
-          {hits && hits.length === 0 && !busy && <p className="muted">Nothing found. Try fewer words, or just the title.</p>}
+          {hits?.length === 0 && !busy && <p className="muted">Nothing found. Try fewer words, or just the title.</p>}
           {hits && hits.length > 0 && (
             <ul className="search-hits">
               {hits.map((h) => (
@@ -113,7 +116,7 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
             </ul>
           )}
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

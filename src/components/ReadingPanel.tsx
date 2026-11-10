@@ -14,13 +14,14 @@ interface Props {
 const STATUSES: ReadStatus[] = ['want', 'reading', 'read', 'dnf'];
 
 /** Five stars, each split in half: click the left half for a half star. Click the same value again to clear. */
-export function Stars({ value, onChange }: { value?: number; onChange?: (v: number | undefined) => void }) {
+export function Stars({ value, onChange }: Readonly<{ value?: number; onChange?: (v: number | undefined) => void }>) {
   const [hover, setHover] = useState<number>();
   const shown = hover ?? value ?? 0;
   return (
     <div className="stars" role={onChange ? 'radiogroup' : 'img'} aria-label={value ? `${value} out of 5 stars` : 'Not rated'} onMouseLeave={() => setHover(undefined)}>
       {[1, 2, 3, 4, 5].map((n) => {
-        const fill = shown >= n ? 'full' : shown >= n - 0.5 ? 'half' : 'empty';
+        let fill = shown >= n - 0.5 ? 'half' : 'empty';
+        if (shown >= n) fill = 'full';
         return (
           <span key={n} className={`star ${fill}`}>
             ★
@@ -45,7 +46,7 @@ export function Stars({ value, onChange }: { value?: number; onChange?: (v: numb
   );
 }
 
-export function ReadingPanel({ book, readings, onChange, onRemove }: Props) {
+export function ReadingPanel({ book, readings, onChange, onRemove }: Readonly<Props>) {
   const current = readings[0];
   const earlier = readings.slice(1).filter((r) => r.status === 'read' || r.status === 'dnf');
   const pct = progressPct(current, book);
@@ -74,7 +75,7 @@ export function ReadingPanel({ book, readings, onChange, onRemove }: Props) {
       next.finishedOn = undefined;
     }
     if (status === 'read' || status === 'dnf') next.finishedOn ??= today;
-    if (status === 'read' && !(pct === 100)) {
+    if (status === 'read' && pct !== 100) {
       next.updates = [...next.updates, pages ? { at: new Date().toISOString(), page: pages } : { at: new Date().toISOString(), percent: 100 }];
     }
     save(next);
@@ -207,7 +208,9 @@ export function ReadingPanel({ book, readings, onChange, onRemove }: Props) {
         )}
         {current && (
           <button type="button" className="link muted-link" onClick={() => onRemove(current.id)}>
-            {current.status === 'want' ? 'Remove from want to read' : readings.length > 1 ? 'Undo this read' : 'Clear reading status'}
+            {(current.status === 'want') ? 'Remove from want to read' : null}
+            {current.status !== 'want' && (readings.length > 1) ? 'Undo this read' : null}
+            {current.status !== 'want' && readings.length <= 1 ? 'Clear reading status' : null}
           </button>
         )}
       </div>

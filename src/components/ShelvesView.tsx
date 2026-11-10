@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BOOKCASE_PRESETS, itemHeightCm, kindOf, spineCm, type Book, type Bookcase } from '../types';
 import { useCoverColor } from '../lib/coverColor';
 import { allSpotsOf, booksAt, spotName, spotsOf, topSpot, usedCm, type Spot } from '../lib/shelving';
+import { countOf, outside } from '../lib/labels';
 
 // Drawing scale at full size; "fit to window" shrinks it so the tallest bookcase fits.
 const PX_PER_CM = 7;
@@ -12,7 +13,7 @@ const clearanceCm = (bc?: Bookcase) => (bc?.type.startsWith('kallax') ? 33 : 28)
 
 function hash(s: string) {
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + (s.codePointAt(i) ?? 0)) >>> 0;
   return h;
 }
 
@@ -43,7 +44,7 @@ interface DropTarget {
 
 const keyOf = (s: Spot) => `${s.bookcaseId}:${s.shelf}:${s.section}`;
 
-function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed = false }: { book: Book; highlight: boolean; onOpen: () => void; maxCm?: number; scale?: number; fixed?: boolean }) {
+function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed = false }: Readonly<{ book: Book; highlight: boolean; onOpen: () => void; maxCm?: number; scale?: number; fixed?: boolean }>) {
   const h = hash(book.title);
   const kind = kindOf(book);
   // At least wide enough to read the title and author; records are thin, so a bit less.
@@ -93,7 +94,7 @@ function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed =
         e.dataTransfer.effectAllowed = 'move';
       }}
       onClick={onOpen}
-      title={`${book.placement ? `${book.placement.position}. ` : ''}${book.title}${book.authors[0] ? ` by ${book.authors[0]}` : ''}${book.pageCount ? ` · ${book.pageCount} pages` : ''}`}
+      title={spineTitle(book)}
     >
       {lookKind !== 'photo' && (
         <span className={`spine-text ${width >= 20 && k > 0.7 ? 'two-line' : ''} ${width < 13 || k < 0.6 ? 'tiny' : ''}`}>
@@ -106,7 +107,7 @@ function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed =
   );
 }
 
-export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove, onAddBookcase, onEditBookcase, readOnly = false }: Props) {
+export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove, onAddBookcase, onEditBookcase, readOnly = false }: Readonly<Props>) {
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const hlRef = useRef<HTMLDivElement>(null);
   const casesRef = useRef<HTMLDivElement>(null);
@@ -176,8 +177,8 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
       const el = slotEls.current.get(key);
       if (!el) continue;
       const r = el.getBoundingClientRect();
-      const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
-      const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+      const dx = outside(x, r.left, r.right);
+      const dy = outside(y, r.top, r.bottom);
       const d = dx * dx + dy * dy;
       if (d < bestD) {
         bestD = d;
@@ -266,7 +267,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
               /* preference only */
             }
           }}
-        />
+        />{' '}
         Fit bookcases to the window
       </label>
       <div className="bookcases" ref={casesRef}>
@@ -345,11 +346,9 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
         <div className="tray-head">
           <h3>Not on a bookcase</h3>
           <span className="muted small">
-            {unshelved.length === 0
-              ? 'Every book has a spot.'
-              : readOnly
-                ? `${unshelved.length} ${unshelved.length === 1 ? 'item' : 'items'}`
-                : `${unshelved.length} ${unshelved.length === 1 ? 'book' : 'books'}. Drag them onto a shelf, or drag a book here to take it off.`}
+            {(unshelved.length === 0) ? 'Every book has a spot.' : null}
+            {unshelved.length !== 0 && readOnly ? countOf(unshelved.length, 'item') : null}
+            {unshelved.length !== 0 && !readOnly ? `${countOf(unshelved.length, 'book')}. Drag them onto a shelf, or drag a book here to take it off.` : null}
           </span>
         </div>
         {unshelved.length > 0 && (
@@ -364,3 +363,10 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
   );
 }
 
+
+function spineTitle(book: Book): string {
+  const pos = book.placement ? `${book.placement.position}. ` : '';
+  const by = book.authors[0] ? ` by ${book.authors[0]}` : '';
+  const pages = book.pageCount ? ` · ${book.pageCount} pages` : '';
+  return `${pos}${book.title}${by}${pages}`;
+}

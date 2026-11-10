@@ -13,8 +13,8 @@ const TEXT_TYPES = new Set(['text', 'search', '']);
  * characters without Shift (e.g. French or Belgian AZERTY: & é " ' ( …).
  */
 export function digitOf(e: KeyboardEvent | React.KeyboardEvent): string | null {
-  if (/^[0-9]$/.test(e.key)) return e.key;
-  const m = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+  if (/^\d$/.test(e.key)) return e.key;
+  const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
   return m ? m[1] : null;
 }
 
@@ -22,6 +22,28 @@ export function digitOf(e: KeyboardEvent | React.KeyboardEvent): string | null {
 function setInputValue(el: HTMLInputElement, value: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, value);
   el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+const PLAIN_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit']);
+
+/** Where a key went: a text box (the event's target), somewhere on the page, or somewhere a scan should leave alone. */
+function whereTyped(e: KeyboardEvent, box: HTMLInputElement | null): 'text' | 'page' | 'ignore' {
+  if (!e.target || Object.is(e.target, box)) return 'ignore';
+  const el = e.target as HTMLElement;
+  if ('scanInput' in el.dataset) return 'ignore';
+  if (e.ctrlKey || e.metaKey || e.altKey) return 'ignore';
+  if (el instanceof HTMLTextAreaElement || el.isContentEditable) return 'ignore';
+  if (!(el instanceof HTMLInputElement)) return 'page';
+  if (TEXT_TYPES.has(el.type)) return 'text';
+  // Dates, numbers, prices.
+  return PLAIN_INPUTS.has(el.type) ? 'page' : 'ignore';
+}
+
+function handToScanBox(e: KeyboardEvent, digit: string, box: HTMLInputElement) {
+  e.preventDefault();
+  box.focus();
+  box.value += digit;
+  box.dataset.last = String(e.timeStamp);
 }
 
 /**
@@ -53,28 +75,16 @@ export function useBarcodeScanner(
     let last = -Infinity;
 
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
       const box = scanBox.current;
-      if (!el || el === box || el.dataset.scanInput !== undefined) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (el instanceof HTMLTextAreaElement || el.isContentEditable) return;
-      const textBox = el instanceof HTMLInputElement && TEXT_TYPES.has(el.type) ? el : null;
-      const otherInput =
-        el instanceof HTMLInputElement && !textBox && !['checkbox', 'radio', 'button', 'submit'].includes(el.type);
-      if (otherInput) return; // dates, numbers, prices
-
+      const where = whereTyped(e, box);
+      if (where === 'ignore') return;
       const digit = digitOf(e);
-
-      if (!textBox) {
+      if (where === 'page') {
         // Page, buttons, dropdowns, checkboxes: hand the scan to the scan box.
-        if (digit && box) {
-          e.preventDefault();
-          box.focus();
-          box.value += digit;
-          box.dataset.last = String(e.timeStamp);
-        }
+        if (digit && box) handToScanBox(e, digit, box);
         return;
       }
+      const textBox = e.target as HTMLInputElement;
 
       // Inside a text box: judge by when the key was pressed, not when the
       // page got round to handling it, so a busy moment doesn't split a scan.

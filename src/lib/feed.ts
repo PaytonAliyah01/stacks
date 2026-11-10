@@ -113,7 +113,8 @@ export function sentence(e: Pick<FeedEntry, 'kind' | 'items' | 'extra'>): string
     case 'added': {
       const n = e.extra.count ?? e.items.length;
       const music = e.items.every((x) => x.kind !== 'book');
-      return `added ${n} ${music ? (n === 1 ? 'record' : 'records') : n === 1 ? 'book' : 'books'} to their shelves`;
+      const noun = music ? 'record' : 'book';
+      return `added ${n} ${noun}${n === 1 ? '' : 's'} to their shelves`;
     }
   }
 }

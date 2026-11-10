@@ -13,7 +13,7 @@ interface Props {
 }
 
 /** Writing or editing one quote or note. Not a <form>: it sits inside the book drawer's form. */
-export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: { initial?: BookNote; bookId: string; pageCount?: number; onSave: (n: BookNote) => void; onCancel?: () => void }) {
+export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: Readonly<{ initial?: BookNote; bookId: string; pageCount?: number; onSave: (n: BookNote) => void; onCancel?: () => void }>) {
   const [kind, setKind] = useState<BookNote['kind']>(initial?.kind ?? 'quote');
   const [text, setText] = useState(initial?.text ?? '');
   const [page, setPage] = useState(initial?.page ? String(initial.page) : '');
@@ -38,13 +38,13 @@ export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: { i
   };
   return (
     <div className="note-editor">
-      <div className="status-pick" role="group" aria-label="Quote or note">
+      <fieldset className="status-pick" aria-label="Quote or note">
         {(['quote', 'note'] as const).map((k) => (
           <button key={k} type="button" className={`status-option mood-chip${kind === k ? ' on' : ''}`} aria-pressed={kind === k} onClick={() => setKind(k)}>
             {k === 'quote' ? 'Quote' : 'My note'}
           </button>
         ))}
-      </div>
+      </fieldset>
       <textarea
         className="note-text"
         rows={3}
@@ -71,7 +71,9 @@ export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: { i
           aria-label="Page"
         />
         <button type="button" className="btn primary small-btn" onClick={save} disabled={!text.trim()}>
-          {initial ? 'Save' : kind === 'quote' ? 'Save quote' : 'Save note'}
+          {initial ? 'Save' : null}
+          {!initial && (kind === 'quote') ? 'Save quote' : null}
+          {!initial && kind !== 'quote' ? 'Save note' : null}
         </button>
         {onCancel && <button type="button" className="btn ghost small-btn" onClick={onCancel}>Cancel</button>}
       </div>
@@ -79,7 +81,7 @@ export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: { i
   );
 }
 
-export function NoteCard({ note, onSave, onRemove, onEdit, children }: { note: BookNote; onSave: (n: BookNote) => void; onRemove: (id: string) => void; onEdit: () => void; children?: React.ReactNode }) {
+export function NoteCard({ note, onSave, onRemove, onEdit, children }: Readonly<{ note: BookNote; onSave: (n: BookNote) => void; onRemove: (id: string) => void; onEdit: () => void; children?: React.ReactNode }>) {
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
   return (
@@ -133,7 +135,7 @@ export function NoteCard({ note, onSave, onRemove, onEdit, children }: { note: B
 }
 
 /** Quotes and notes for one book, in the book drawer. Saved right away. */
-export function NotesPanel({ bookId, pageCount, notes, onSave, onRemove }: Props) {
+export function NotesPanel({ bookId, pageCount, notes, onSave, onRemove }: Readonly<Props>) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const sorted = [...notes].sort((a, b) => (a.page ?? 1e9) - (b.page ?? 1e9) || a.createdAt.localeCompare(b.createdAt));

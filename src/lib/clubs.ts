@@ -1,5 +1,6 @@
 import { supabase } from './cloud';
-import { buddyBookOf, type BuddyBook, type BuddyRead } from './buddy';
+import type { BuddyBook, BuddyRead } from './buddy';
+export { buddyBookOf as clubBookOf } from './buddy';
 
 /** Book clubs: friends reading one book at a time, meeting about it, and voting on the next. */
 export interface ClubMember {
@@ -161,7 +162,7 @@ export async function setMeeting(readId: string, meeting: Meeting) {
   check(error);
 }
 
-export const clubBookOf = buddyBookOf;
+
 export const memberName = (m: Pick<ClubMember, 'display_name' | 'username'>) => m.display_name || `@${m.username}`;
 
 /** The buddy read behind the club's current book, if you're in it. */
@@ -177,9 +178,9 @@ export function meetingLabel(iso: string, now = new Date()): string {
 
 export function meetingSoon(iso: string, now = Date.now()): string | undefined {
   const ms = Date.parse(iso) - now;
-  if (ms < -3 * 3600_000) return 'past';
+  if (ms < -3 * 3_600_000) return 'past';
   if (ms < 0) return 'now';
-  const days = Math.floor(ms / 86400_000);
+  const days = Math.floor(ms / 86_400_000);
   if (days === 0) return 'today';
   if (days === 1) return 'tomorrow';
   return `in ${days} days`;

@@ -2,11 +2,11 @@ import { useState } from 'react';
 
 function hue(s: string) {
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + (s.codePointAt(i) ?? 0)) % 360;
   return h;
 }
 
-export function Cover({ url, title, author, size = 'md', square = false }: { url?: string; title: string; author?: string; size?: 'sm' | 'md' | 'lg'; square?: boolean }) {
+export function Cover({ url, title, author, size = 'md', square = false }: Readonly<{ url?: string; title: string; author?: string; size?: 'sm' | 'md' | 'lg'; square?: boolean }>) {
   const shape = square ? ' cover-square' : '';
   const [failed, setFailed] = useState(false);
   if (url && !failed) {

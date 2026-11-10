@@ -3,6 +3,7 @@ import { isMusic } from '../types';
 import { isValidIsbn10, isValidIsbn13, isbn10to13, isbn13to10 } from './isbn';
 import { newId } from './storage';
 import { parseMoods, parsePace, parseWarnings, type Mood, type Pace } from './moods';
+import { stripBrackets } from './text';
 
 export type ImportSource = 'goodreads' | 'storygraph';
 
@@ -29,36 +30,52 @@ export interface ImportRow {
   contentWarnings?: string[];
 }
 
+/** Reads a quoted CSV field from just after its opening quote. Returns the text and where to carry on. */
+function readQuoted(s: string, from: number): [string, number] {
+  let out = '';
+  let i = from;
+  while (i < s.length) {
+    if (s[i] !== '"') {
+      out += s[i];
+      i++;
+    } else if (s[i + 1] === '"') {
+      out += '"';
+      i += 2;
+    } else return [out, i + 1];
+  }
+  return [out, i];
+}
+
 /** A small CSV reader: quoted fields, doubled quotes and line breaks inside quotes. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
-  let quoted = false;
-  const s = text.replace(/^﻿/, '');
-  for (let i = 0; i < s.length; i++) {
+  const s = text.replace(/^\uFEFF/, '');
+  const endField = () => {
+    row.push(field);
+    field = '';
+  };
+  const endRow = () => {
+    endField();
+    if (row.some((f) => f !== '')) rows.push(row);
+    row = [];
+  };
+  let i = 0;
+  while (i < s.length) {
     const ch = s[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (s[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else quoted = false;
-      } else field += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ',') {
-      row.push(field);
-      field = '';
-    } else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && s[i + 1] === '\n') i++;
-      row.push(field);
-      if (row.some((f) => f !== '')) rows.push(row);
-      row = [];
-      field = '';
+    i++;
+    if (ch === '"') {
+      const [quoted, next] = readQuoted(s, i);
+      field += quoted;
+      i = next;
+    } else if (ch === ',') endField();
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && s[i] === '\n') i++;
+      endRow();
     } else field += ch;
   }
-  row.push(field);
-  if (row.some((f) => f !== '')) rows.push(row);
+  endRow();
   return rows;
 }
 
@@ -98,6 +115,12 @@ const SHELF_STATUS: Record<string, ReadStatus> = {
   abandoned: 'dnf',
 };
 
+function readsFor(status: string, finished?: string): ImportRow['reads'] {
+  if (status === 'read' || status === 'dnf') return [{ finishedOn: finished }];
+  if (status === 'reading') return [{}];
+  return [];
+}
+
 function fromGoodreads(get: (row: string[], col: string) => string, rows: string[][]): ImportRow[] {
   return rows.map((r) => {
     const shelf = get(r, 'Exclusive Shelf').trim().toLowerCase();
@@ -115,7 +138,7 @@ function fromGoodreads(get: (row: string[], col: string) => string, rows: string
       publishedDate: year || undefined,
       format: formatOf(get(r, 'Binding')),
       status,
-      reads: status === 'read' || status === 'dnf' ? [{ finishedOn: finished }] : status === 'reading' ? [{}] : [],
+      reads: readsFor(status, finished),
       rating,
       review: get(r, 'My Review').replace(/<br\s*\/?>/gi, '\n').trim() || undefined,
       tags: get(r, 'Bookshelves')
@@ -186,15 +209,13 @@ export function parseHistory(text: string): { source: ImportSource; rows: Import
 }
 
 const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/\(.*?\)|\[.*?\]/g, '')
+  stripBrackets(s.toLowerCase())
     .split(':')[0]
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 export const matchKey = (title: string, author?: string) => `${norm(title)}|${norm(author ?? '').split(' ').pop() ?? ''}`;
 
-const plain = (s: string) => s.toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
+const plain = (s: string) => stripBrackets(s.toLowerCase()).replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
 /** The whole title, and the part after a colon ("Percy Jackson and the Olympians: The Lightning Thief"). */
 const titleForms = (t: string) => {
   const parts = t.split(':');
@@ -231,107 +252,140 @@ export interface ImportPlan {
   merges: { from: string; into: string }[];
 }
 
+interface PlanCtx {
+  plan: ImportPlan;
+  existing: Book[];
+  byIsbn: Map<string, Book>;
+  byTitle: Map<string, Book>;
+  source: ImportSource;
+  defaultFormat: BookFormat;
+  now: string;
+}
+
+const ownedBook = (b?: Book): boolean => !!b && b.owned !== false && !b.wishlist && !isMusic(b);
+
+/** The book this row is about: same ISBN, same title, or a copy you own under another edition's title. */
+function findBook(row: ImportRow, c: PlanCtx): Book | undefined {
+  const book = (row.isbn13 && c.byIsbn.get(row.isbn13)) || c.byTitle.get(matchKey(row.title, row.authors[0]));
+  if (ownedBook(book)) return book;
+  const twin = c.existing.find((b) => ownedBook(b) && b.id !== book?.id && sameWork(b.title, b.authors[0], row.title, row.authors[0]));
+  if (!twin) return book;
+  // An earlier import made a separate, not-owned copy: fold it into yours.
+  if (book?.owned === false && !c.plan.merges.some((m) => m.from === book.id)) c.plan.merges.push({ from: book.id, into: twin.id });
+  return twin;
+}
+
+/** Fills in what the import knows, without overwriting anything you set yourself. */
+function patchFor(row: ImportRow, book: Book): Partial<Book> {
+  const patch: Partial<Book> = {};
+  if (row.owned && book.owned === false) patch.owned = undefined;
+  if (row.moods?.length && !book.moods?.length) patch.moods = row.moods;
+  if (row.pace && !book.pace) patch.pace = row.pace;
+  if (row.contentWarnings?.length && !book.contentWarnings?.length) patch.contentWarnings = row.contentWarnings;
+  return patch;
+}
+
+function updateBook(row: ImportRow, found: Book, c: PlanCtx): Book {
+  c.plan.matched++;
+  const patch = patchFor(row, found);
+  if (!Object.keys(patch).length) return found;
+  const book = { ...found, ...patch, updatedAt: c.now };
+  const at = c.plan.updatedBooks.findIndex((b) => b.id === book.id);
+  if (at >= 0) c.plan.updatedBooks[at] = book;
+  else c.plan.updatedBooks.push(book);
+  return book;
+}
+
+const nonEmpty = <T,>(list?: T[]) => (list?.length ? list : undefined);
+
+function addBook(row: ImportRow, c: PlanCtx): Book {
+  const book: Book = {
+    id: newId(),
+    kind: 'book',
+    title: row.title,
+    authors: row.authors,
+    isbn13: row.isbn13,
+    isbn10: row.isbn10,
+    pageCount: row.pageCount,
+    publisher: row.publisher,
+    publishedDate: row.publishedDate,
+    subjects: [],
+    coverUrl: row.isbn13 ? `https://covers.openlibrary.org/b/isbn/${row.isbn13}-M.jpg?default=false` : undefined,
+    sources: [c.source],
+    format: row.format ?? c.defaultFormat,
+    copies: 1,
+    tags: row.tags,
+    owned: row.owned ? undefined : false,
+    moods: nonEmpty(row.moods),
+    pace: row.pace,
+    contentWarnings: nonEmpty(row.contentWarnings),
+    addedAt: row.addedOn ? `${row.addedOn}T12:00:00.000Z` : c.now,
+    updatedAt: c.now,
+  };
+  c.plan.newBooks.push(book);
+  if (book.isbn13) c.byIsbn.set(book.isbn13, book);
+  c.byTitle.set(matchKey(book.title, book.authors[0]), book);
+  return book;
+}
+
+const isBareWant = (r: Reading) => r.status === 'want' && !r.updates?.length && !r.sessions?.length;
+
+function planReads(row: ImportRow, book: Book, existingReadings: Reading[], c: PlanCtx) {
+  const { plan, now } = c;
+  const merged = new Set(plan.merges.filter((m) => m.into === book.id).map((m) => m.from));
+  const logged = existingReadings.filter((r) => r.bookId === book.id || merged.has(r.bookId));
+  // You marked it "Want to read" in Stacks, but Goodreads or StoryGraph says you read it (or are reading it):
+  // drop the want, or it stays the book's current status and the read never shows.
+  if (row.status !== 'want')
+    for (const r of logged) if (isBareWant(r) && !plan.removedReadings.includes(r.id)) plan.removedReadings.push(r.id);
+  // Oldest first, open reads last, so the newest read gets the current status, rating and review.
+  const reads = row.status === 'want' ? [{}] : [...row.reads].sort((a, b) => (a.finishedOn ?? '9999').localeCompare(b.finishedOn ?? '9999'));
+  reads.forEach((read: { startedOn?: string; finishedOn?: string }, i) => {
+    const isLast = i === reads.length - 1;
+    const status: ReadStatus = isLast ? row.status : 'read';
+    // Already there? Same status and finish date (or the same open status).
+    if (logged.some((r) => r.status === status && (r.finishedOn ?? '') === (read.finishedOn ?? ''))) {
+      plan.skippedReads++;
+      return;
+    }
+    const created = read.startedOn ?? read.finishedOn ?? row.addedOn;
+    const finished = status === 'read' || status === 'dnf';
+    plan.readings.push({
+      id: newId(),
+      bookId: book.id,
+      status,
+      startedOn: read.startedOn,
+      finishedOn: finished ? read.finishedOn : undefined,
+      updates: [],
+      rating: isLast ? row.rating : undefined,
+      review: isLast ? row.review : undefined,
+      // Keep the order of re-reads right, so the latest one decides the status.
+      createdAt: created ? `${created}T12:00:00.${String(i).padStart(3, '0')}Z` : now,
+      updatedAt: now,
+    });
+  });
+}
+
 /**
  * Works out what to add: new books for titles you don't have yet, read-throughs
  * for every book (skipping ones already logged with the same finish date).
  */
 export function planImport(rows: ImportRow[], source: ImportSource, existing: Book[], existingReadings: Reading[], defaultFormat: BookFormat, existingNotes: BookNote[] = []): ImportPlan {
-  const byIsbn = new Map(existing.filter((b) => b.isbn13).map((b) => [b.isbn13!, b]));
-  const byTitle = new Map(existing.map((b) => [matchKey(b.title, b.authors[0]), b]));
-  const plan: ImportPlan = { newBooks: [], updatedBooks: [], readings: [], notes: [], matched: 0, skippedReads: 0, removedReadings: [], merges: [] };
-  const now = new Date().toISOString();
-
+  const c: PlanCtx = {
+    plan: { newBooks: [], updatedBooks: [], readings: [], notes: [], matched: 0, skippedReads: 0, removedReadings: [], merges: [] },
+    existing,
+    byIsbn: new Map(existing.filter((b) => b.isbn13).map((b) => [b.isbn13!, b])),
+    byTitle: new Map(existing.map((b) => [matchKey(b.title, b.authors[0]), b])),
+    source,
+    defaultFormat,
+    now: new Date().toISOString(),
+  };
   for (const row of rows) {
-    let book = (row.isbn13 && byIsbn.get(row.isbn13)) || byTitle.get(matchKey(row.title, row.authors[0]));
-    // A copy you own under another edition's title counts as the same book.
-    const owned = (b?: Book) => !!b && b.owned !== false && !b.wishlist && !isMusic(b);
-    if (!owned(book)) {
-      const twin = existing.find((b) => owned(b) && b.id !== book?.id && sameWork(b.title, b.authors[0], row.title, row.authors[0]));
-      if (twin) {
-        // An earlier import made a separate, not-owned copy: fold it into yours.
-        if (book && book.owned === false && !plan.merges.some((m) => m.from === book!.id)) plan.merges.push({ from: book.id, into: twin.id });
-        book = twin;
-      }
-    }
-    if (book) {
-      plan.matched++;
-      // Fill in what we learn, without overwriting anything you set yourself.
-      const patch: Partial<Book> = {};
-      if (row.owned && book.owned === false) patch.owned = undefined;
-      if (row.moods?.length && !book.moods?.length) patch.moods = row.moods;
-      if (row.pace && !book.pace) patch.pace = row.pace;
-      if (row.contentWarnings?.length && !book.contentWarnings?.length) patch.contentWarnings = row.contentWarnings;
-      if (Object.keys(patch).length) {
-        book = { ...book, ...patch, updatedAt: now };
-        const at = plan.updatedBooks.findIndex((b) => b.id === book!.id);
-        if (at >= 0) plan.updatedBooks[at] = book;
-        else plan.updatedBooks.push(book);
-      }
-    } else {
-      book = {
-        id: newId(),
-        kind: 'book',
-        title: row.title,
-        authors: row.authors,
-        isbn13: row.isbn13,
-        isbn10: row.isbn10,
-        pageCount: row.pageCount,
-        publisher: row.publisher,
-        publishedDate: row.publishedDate,
-        subjects: [],
-        coverUrl: row.isbn13 ? `https://covers.openlibrary.org/b/isbn/${row.isbn13}-M.jpg?default=false` : undefined,
-        sources: [source],
-        format: row.format ?? defaultFormat,
-        copies: 1,
-        tags: row.tags,
-        owned: row.owned ? undefined : false,
-        moods: row.moods?.length ? row.moods : undefined,
-        pace: row.pace,
-        contentWarnings: row.contentWarnings?.length ? row.contentWarnings : undefined,
-        addedAt: row.addedOn ? `${row.addedOn}T12:00:00.000Z` : now,
-        updatedAt: now,
-      };
-      plan.newBooks.push(book);
-      if (book.isbn13) byIsbn.set(book.isbn13, book);
-      byTitle.set(matchKey(book.title, book.authors[0]), book);
-    }
-
-    if (row.privateNotes && !existingNotes.some((n) => n.bookId === book!.id && n.text === row.privateNotes)) {
-      plan.notes.push({ id: newId(), bookId: book.id, kind: 'note', text: row.privateNotes, createdAt: now, updatedAt: now });
-    }
-
-    const merged = plan.merges.filter((m) => m.into === book!.id).map((m) => m.from);
-    const logged = existingReadings.filter((r) => r.bookId === book!.id || merged.includes(r.bookId));
-    // You marked it "Want to read" in Stacks, but Goodreads or StoryGraph says you read it (or are reading it):
-    // drop the want, or it stays the book's current status and the read never shows.
-    if (row.status !== 'want')
-      for (const r of logged)
-        if (r.status === 'want' && !r.updates?.length && !r.sessions?.length && !plan.removedReadings.includes(r.id)) plan.removedReadings.push(r.id);
-    // Oldest first, open reads last, so the newest read gets the current status, rating and review.
-    const reads = row.status === 'want' ? [{}] : [...row.reads].sort((a, b) => (a.finishedOn ?? '9999').localeCompare(b.finishedOn ?? '9999'));
-    reads.forEach((read: { startedOn?: string; finishedOn?: string }, i) => {
-      const isLast = i === reads.length - 1;
-      const status: ReadStatus = isLast ? row.status : 'read';
-      // Already there? Same status and finish date (or the same open status).
-      if (logged.some((r) => r.status === status && (r.finishedOn ?? '') === (read.finishedOn ?? ''))) {
-        plan.skippedReads++;
-        return;
-      }
-      const created = read.startedOn ?? read.finishedOn ?? row.addedOn;
-      plan.readings.push({
-        id: newId(),
-        bookId: book!.id,
-        status,
-        startedOn: read.startedOn,
-        finishedOn: status === 'read' || status === 'dnf' ? read.finishedOn : undefined,
-        updates: [],
-        rating: isLast ? row.rating : undefined,
-        review: isLast ? row.review : undefined,
-        // Keep the order of re-reads right, so the latest one decides the status.
-        createdAt: created ? `${created}T12:00:00.${String(i).padStart(3, '0')}Z` : now,
-        updatedAt: now,
-      });
-    });
+    const found = findBook(row, c);
+    const book = found ? updateBook(row, found, c) : addBook(row, c);
+    if (row.privateNotes && !existingNotes.some((n) => n.bookId === book.id && n.text === row.privateNotes))
+      c.plan.notes.push({ id: newId(), bookId: book.id, kind: 'note', text: row.privateNotes, createdAt: c.now, updatedAt: c.now });
+    planReads(row, book, existingReadings, c);
   }
-  return plan;
+  return c.plan;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDiscogsToken, getGoogleKey, hasBuiltInGoogleKey, setDiscogsToken, setGoogleKey, testGoogleKey } from '../lib/lookup';
 
-export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+export function SettingsDialog({ onClose, onSaved }: Readonly<{ onClose: () => void; onSaved: () => void }>) {
   const [key, setKey] = useState(getGoogleKey());
   const [discogs, setDiscogs] = useState(getDiscogsToken());
   const [test, setTest] = useState<{ state: 'idle' | 'testing' | 'ok' | 'bad'; message?: string }>({ state: 'idle' });
@@ -19,8 +19,9 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
   }, [onClose]);
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Lookup keys">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Lookup keys">
         <form
           className="drawer-form"
           onSubmit={(e) => {
@@ -102,7 +103,7 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
           </footer>
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

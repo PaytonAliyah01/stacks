@@ -68,7 +68,7 @@ export function useCoverColor(url?: string): SpineColors | null | undefined {
       });
       pending.set(url, p);
     }
-    p.then((c) => live && setColors(c));
+    p.then((c) => live && setColors(c)).catch(() => undefined);
     return () => {
       live = false;
     };

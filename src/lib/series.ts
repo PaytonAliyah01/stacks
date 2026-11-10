@@ -1,5 +1,6 @@
 import type { Book, BookSeries, Reading } from '../types';
 import { currentReading } from './reading';
+import { dropTrailingBookNumber, stripBrackets, trimEndOf } from './text';
 
 /** Bump when the series finder gets better, so books are looked at again. */
 export const SERIES_FINDER_VERSION = 2;
@@ -26,15 +27,13 @@ const TRAILING_NUMBER = new RegExp(String.raw`^(.*?)(?:\s*(?:[;,:]|--|-|–)\s*|
 // Needs the "book"/"volume" word, so "One of Us Is Lying" stays as it is.
 const LEADING_NUMBER = new RegExp(String.raw`^\s*(?:#|no\.?\s*|vol(?:ume)?\.?\s*|bk\.?\s*|book\s+|part\s+|tome\s+)(\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:of|in)\s+(?:the\s+)?(?=\S)`, 'i');
 
+const dropSeriesWord = (s: string) => s.replace(/\b(series|saga|sequence|novels?)\s*$/i, '');
+
 export function cleanSeriesName(name: string): string {
-  return name
-    .replace(LEADING_NUMBER, (m) => (/\bthe\s+$/i.test(m) ? 'The ' : ''))
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-    .replace(/\b(series|saga|sequence|novels?)\s*$/i, '')
-    // A number left on the end ("The Empyrean 3.5") belongs to the book, not the series.
-    .replace(/(\D)[\s,;:#-]*(?:#|book\s+|bk\.?\s*|vol\.?\s*)?\d+(?:[.,]\d+)?\s*$/i, '$1')
-    .replace(/\b(series|saga|sequence|novels?)\s*$/i, '')
-    .replace(/[\s,;:#.-]+$/, '')
+  const withoutLead = name.replace(LEADING_NUMBER, (m) => (/\bthe\s+$/i.test(m) ? 'The ' : ''));
+  // A number left on the end ("The Empyrean 3.5") belongs to the book, not the series.
+  const withoutNumber = dropTrailingBookNumber(dropSeriesWord(stripBrackets(withoutLead, ' ')));
+  return trimEndOf(dropSeriesWord(withoutNumber), ',;:#.-')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -43,16 +42,16 @@ export function cleanSeriesName(name: string): string {
 export function parseSeries(raw: string): BookSeries | undefined {
   const s = raw.replace(/^series\s*:\s*/i, '').replace(/_/g, ' ').trim();
   if (!s || s.length > 90) return;
-  const m = s.match(TRAILING_NUMBER);
-  const lead = s.match(LEADING_NUMBER);
+  const m = TRAILING_NUMBER.exec(s);
+  const lead = LEADING_NUMBER.exec(s);
   const name = cleanSeriesName(m ? m[1] : s);
   if (!name || /^\d+$/.test(name) || name.length < 2) return;
-  return { name, number: m ? num(m[2]) : lead ? num(lead[1]) : undefined };
+  return { name, number: num(m ? m[2] : lead?.[1]) };
 }
 
 /** Goodreads-style titles: "Leviathan Wakes (The Expanse, #1)", "(Mistborn Book 2)", "(Dune #1)". */
 export function seriesFromTitle(title: string): BookSeries | undefined {
-  const m = title.match(new RegExp(String.raw`\(([^()]+?),?\s*${NUMBER}\)\s*$`, 'i'));
+  const m = new RegExp(String.raw`\(([^()]+?),?\s*${NUMBER}\)\s*$`, 'i').exec(title);
   if (!m) return;
   const name = cleanSeriesName(m[1]);
   if (!name) return;
@@ -87,7 +86,10 @@ const baseKey = (name: string) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
-export const seriesLabel = (s?: BookSeries) => (s ? `${s.name}${s.number !== undefined ? ` #${s.number}` : ''}` : '');
+export function seriesLabel(s?: BookSeries): string {
+  if (!s) return '';
+  return s.number === undefined ? s.name : `${s.name} #${s.number}`;
+}
 
 export interface SeriesEntry {
   book: Book;
@@ -191,5 +193,12 @@ export function groupSeries(books: Book[], readings: Reading[]): SeriesGroup[] {
 }
 
 /** Publisher lines that libraries record as a "series" but aren't one ("Penguin Classics", "Vintage International"). */
-export const isPublisherSeries = (name: string) =>
-  /\b(classics?|library|collection|editions?|imprint|penguin|vintage|everyman|signet|bantam|orbit|tor|ace|del rey|harper|pan|picador|reader'?s?|book club|bestsellers?|large print|international|perennial|anchor|modern)\b/i.test(name);
+const PUBLISHER_WORDS = new Set(
+  'classic classics library collection edition editions imprint penguin vintage everyman signet bantam orbit tor ace harper pan picador reader readers bestseller bestsellers international perennial anchor modern'.split(' '),
+);
+const PUBLISHER_PHRASES = [' del rey ', ' book club ', ' large print '];
+export const isPublisherSeries = (name: string) => {
+  const words = name.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  const spaced = ` ${words.join(' ')} `;
+  return words.some((w) => PUBLISHER_WORDS.has(w)) || PUBLISHER_PHRASES.some((p) => spaced.includes(p));
+};

@@ -57,7 +57,7 @@ export function wrapYear(year: string, books: Book[], readings: Reading[], notes
     .filter((x) => x.r.startedOn)
     .map((x) => ({ book: x.b, days: Math.max(1, Math.round((Date.parse(x.r.finishedOn!) - Date.parse(x.r.startedOn!)) / DAY) + 1) }))
     .sort((a, b) => a.days - b.days);
-  const perMonth = Array(12).fill(0);
+  const perMonth = new Array(12).fill(0);
   for (const x of read) perMonth[Number(x.r.finishedOn!.slice(5, 7)) - 1]++;
   const bm = perMonth.indexOf(Math.max(...perMonth));
   const moodMap = tally(read.map((x) => (x.b.moods ?? []).map(cap)));

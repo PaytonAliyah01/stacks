@@ -9,7 +9,7 @@ interface Props {
 }
 
 /** Mood, pace and content warnings for one book. Changes go into the drawer's draft. */
-export function MoodPanel({ draft, onChange: change }: Props) {
+export function MoodPanel({ draft, onChange: change }: Readonly<Props>) {
   // Any change by hand means the tags are yours now, not a guess.
   const onChange = (patch: Partial<Book>) => change({ ...patch, vibeGuessed: undefined, vibeChecked: true });
   const [guessing, setGuessing] = useState('');
@@ -56,7 +56,7 @@ export function MoodPanel({ draft, onChange: change }: Props) {
       )}
       <div>
         <div className="mood-label">Mood <span className="muted small">pick any that fit</span></div>
-        <div className="status-pick" role="group" aria-label="Mood">
+        <fieldset className="status-pick" aria-label="Mood">
           {MOODS.map((m) => {
             const on = moods.includes(m);
             return (
@@ -71,11 +71,11 @@ export function MoodPanel({ draft, onChange: change }: Props) {
               </button>
             );
           })}
-        </div>
+        </fieldset>
       </div>
       <div>
         <div className="mood-label">Pace</div>
-        <div className="status-pick" role="group" aria-label="Pace">
+        <fieldset className="status-pick" aria-label="Pace">
           {PACES.map((p) => (
             <button
               key={p}
@@ -87,7 +87,7 @@ export function MoodPanel({ draft, onChange: change }: Props) {
               {cap(p)}
             </button>
           ))}
-        </div>
+        </fieldset>
       </div>
       <div>
         <div className="mood-label">Content warnings</div>

@@ -10,7 +10,7 @@ interface Props {
 }
 
 /** A record's track list with favorite stars. Not a <form>: it sits inside the drawer's form. */
-export function TracksPanel({ draft, onSave }: Props) {
+export function TracksPanel({ draft, onSave }: Readonly<Props>) {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
@@ -38,7 +38,7 @@ export function TracksPanel({ draft, onSave }: Props) {
   useEffect(() => {
     if (tried.current || tracks.length || draft.tracksChecked || !draft.title) return;
     tried.current = true;
-    lookUp(true);
+    void lookUp(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
 
@@ -53,11 +53,9 @@ export function TracksPanel({ draft, onSave }: Props) {
         <div>
           <h3>Tracks</h3>
           <p className="muted small">
-            {loading
-              ? 'Looking up the track list…'
-              : tracks.length
-                ? [`${tracks.length} tracks`, total && clock(total), favs && `${favs} favorite${favs === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
-                : 'No track list yet.'}
+            {loading ? 'Looking up the track list…' : null}
+            {!loading && tracks.length ? [`${tracks.length} tracks`, total && clock(total), favs && `${favs} favorite${favs === 1 ? '' : 's'}`].filter(Boolean).join(' · ') : null}
+            {!loading && !tracks.length ? 'No track list yet.' : null}
           </p>
         </div>
         {editing === null && (
@@ -104,7 +102,7 @@ export function TracksPanel({ draft, onSave }: Props) {
             )}
             <ol className="track-list">
               {g.tracks.map(({ t, i }) => (
-                <TrackRow key={i} t={t} onStar={() => toggle(i)} />
+                <TrackRow key={`${t.position ?? ''}|${t.title}`} t={t} onStar={() => toggle(i)} />
               ))}
             </ol>
           </div>
@@ -114,7 +112,7 @@ export function TracksPanel({ draft, onSave }: Props) {
   );
 }
 
-function TrackRow({ t, onStar }: { t: Track; onStar: () => void }) {
+function TrackRow({ t, onStar }: Readonly<{ t: Track; onStar: () => void }>) {
   return (
     <li className={t.favorite ? 'is-fav' : ''}>
       <span className="track-pos">{t.position}</span>

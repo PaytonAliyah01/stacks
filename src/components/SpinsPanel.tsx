@@ -2,6 +2,9 @@ import { useState } from 'react';
 import type { Spin } from '../types';
 import { todayIso as todayIsoDate } from '../lib/reading';
 import { agoLabel } from '../lib/spins';
+import { countOf } from '../lib/labels';
+
+const timesPlayed = (n: number) => (n === 1 ? 'once' : countOf(n, 'time'));
 
 interface Props {
   /** This record's spins. */
@@ -14,7 +17,7 @@ const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 /** The record drawer's play log. Not a <form>: it sits inside the drawer's form. */
-export function SpinsPanel({ spins, onSpin, onRemove }: Props) {
+export function SpinsPanel({ spins, onSpin, onRemove }: Readonly<Props>) {
   const [earlier, setEarlier] = useState(false);
   const [day, setDay] = useState(todayIsoDate());
   const [all, setAll] = useState(false);
@@ -27,7 +30,7 @@ export function SpinsPanel({ spins, onSpin, onRemove }: Props) {
           <h3>Plays</h3>
           <p className="muted small">
             {sorted.length
-              ? `Played ${sorted.length === 1 ? 'once' : `${sorted.length} times`} · last ${agoLabel(sorted[0].at)}`
+              ? `Played ${timesPlayed(sorted.length)} · last ${agoLabel(sorted[0].at)}`
               : 'Never played yet. Press Spin when you put it on.'}
           </p>
         </div>

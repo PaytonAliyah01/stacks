@@ -1,5 +1,6 @@
 import { BOOKCASE_PRESETS, spineCm, type Book, type Bookcase, type BookcaseType, type Placement } from '../types';
 import { newId } from './storage';
+import { without } from './omit';
 
 export interface Spot {
   bookcaseId: string;
@@ -32,7 +33,7 @@ export function placeLabel(book: Book, bookcases: Bookcase[]): string {
   if (!p) return '';
   const bc = bookcases.find((c) => c.id === p.bookcaseId);
   if (!bc) return '';
-  const noun = book.kind === 'vinyl' ? 'Record' : book.kind === 'cd' ? 'CD' : 'Book';
+  const noun = ({ vinyl: 'Record', cd: 'CD', book: 'Book' } as const)[book.kind ?? 'book'];
   return `${bc.name} · ${spotName(bc, p)} · ${noun} ${p.position}`;
 }
 
@@ -64,8 +65,7 @@ export function moveBook(all: Book[], bookId: string, target: Spot | null, index
     list.splice(Math.max(0, Math.min(index, list.length)), 0, book);
     renumber(list, target);
   } else if (from) {
-    const { placement: _gone, ...rest } = book;
-    void _gone;
+    const rest = without(book, 'placement');
     changed.set(bookId, { ...rest, updatedAt: now });
   }
   return [...changed.values()];
@@ -80,7 +80,7 @@ export function newBookcase(type: BookcaseType, order: number, name?: string): B
   const now = new Date().toISOString();
   return {
     id: newId(),
-    name: name ?? (type.startsWith('billy') ? 'Billy' : type.startsWith('kallax') ? 'Kallax' : 'Bookcase'),
+    name: name ?? caseName(type),
     type,
     shelves: p.shelves,
     sections: p.sections,
@@ -105,4 +105,9 @@ export function spotsOf(bc: Bookcase): Spot[] {
   for (let shelf = 1; shelf <= bc.shelves; shelf++)
     for (let section = 1; section <= bc.sections; section++) out.push({ bookcaseId: bc.id, shelf, section });
   return out;
+}
+
+function caseName(type: string): string {
+  if (type.startsWith('billy')) return 'Billy';
+  return type.startsWith('kallax') ? 'Kallax' : 'Bookcase';
 }

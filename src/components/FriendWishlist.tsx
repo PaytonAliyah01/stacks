@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Cover } from './Cover';
 import { formatIsbn13 } from '../lib/isbn';
 import { claimGift, friendWishlist, getWishlistOpen, setWishlistOpen, unclaimGift, type WishItem } from '../lib/gifts';
+import { formatWord } from '../lib/labels';
 
 interface Props {
   uid: string;
@@ -14,7 +15,7 @@ interface Props {
 }
 
 /** A friend's wishlist and wantlist, with "I'm getting this". */
-export function FriendWishlist({ uid, friendId, friendName, onChanged, heading = true }: Props) {
+export function FriendWishlist({ uid, friendId, friendName, onChanged, heading = true }: Readonly<Props>) {
   const [items, setItems] = useState<WishItem[]>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
@@ -86,7 +87,7 @@ export function FriendWishlist({ uid, friendId, friendName, onChanged, heading =
                 <span className="wish-gift-text">
                   <strong>{w.title}</strong>
                   <span className="muted small">
-                    {[w.author, w.kind === 'vinyl' ? 'Vinyl' : w.kind === 'cd' ? 'CD' : undefined, w.year].filter(Boolean).join(' · ')}
+                    {[w.author, formatWord(w.kind), w.year].filter(Boolean).join(' · ')}
                   </span>
                   {w.isbn && <span className="muted small mono">ISBN {formatIsbn13(w.isbn)}</span>}
                 </span>
@@ -96,11 +97,11 @@ export function FriendWishlist({ uid, friendId, friendName, onChanged, heading =
                       <span className="gift-mine small">🎁 You’re getting this</span>
                       <button className="link small" disabled={busy === w.id} onClick={() => act(w, () => unclaimGift(friendId, w.id))}>Not anymore</button>
                     </>
-                  ) : w.claimed_by ? (
+                  ) : null}
+                  {!w.claimed_by_me && w.claimed_by ? (
                     <span className="muted small">{w.claimed_by} is getting this</span>
-                  ) : (
-                    <button className="btn small-btn" disabled={busy === w.id} onClick={() => act(w, () => claimGift(uid, friendId, w))}>I’m getting this</button>
-                  )}
+                  ) : null}
+                  {!w.claimed_by_me && !w.claimed_by ? <button className="btn small-btn" disabled={busy === w.id} onClick={() => act(w, () => claimGift(uid, friendId, w))}>I’m getting this</button> : null}
                 </span>
               </li>
             ))}
@@ -112,7 +113,7 @@ export function FriendWishlist({ uid, friendId, friendName, onChanged, heading =
 }
 
 /** On your own wishlist: share it with friends for gift ideas, or keep it to yourself. */
-export function WishlistSharing({ uid, onSeeFriends }: { uid: string; onSeeFriends: () => void }) {
+export function WishlistSharing({ uid, onSeeFriends }: Readonly<{ uid: string; onSeeFriends: () => void }>) {
   const [open, setOpen] = useState<boolean>();
   const [error, setError] = useState<string>();
   useEffect(() => {

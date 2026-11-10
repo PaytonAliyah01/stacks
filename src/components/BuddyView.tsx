@@ -39,7 +39,7 @@ interface Props {
 const stars = (n: number) => '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '');
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
-function StartForm({ books, readings, friends, onStart, onCancel }: Pick<Props, 'books' | 'readings' | 'friends' | 'onStart'> & { onCancel: () => void }) {
+function StartForm({ books, readings, friends, onStart, onCancel }: Readonly<Pick<Props, 'books' | 'readings' | 'friends' | 'onStart'> & { onCancel: () => void }>) {
   const [q, setQ] = useState('');
   const [book, setBook] = useState<Book>();
   const [chosen, setChosen] = useState<string[]>([]);
@@ -131,7 +131,7 @@ function StartForm({ books, readings, friends, onStart, onCancel }: Pick<Props, 
   );
 }
 
-function Chat({ read, uid, myPage, finished, onOpenProfile }: { read: BuddyRead; uid: string; myPage: number; finished: boolean; onOpenProfile: (u: string) => void }) {
+function Chat({ read, uid, myPage, finished, onOpenProfile }: Readonly<{ read: BuddyRead; uid: string; myPage: number; finished: boolean; onOpenProfile: (u: string) => void }>) {
   const [msgs, setMsgs] = useState<ChatMessage[]>();
   const [body, setBody] = useState('');
   const [page, setPage] = useState(String(myPage || ''));
@@ -163,10 +163,11 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: { read: BuddyRead;
       {error && <p className="account-error small">{error}</p>}
       {!msgs ? (
         <p className="muted small">Loading the chat…</p>
-      ) : !msgs.length ? (
+      ) : null}
+{msgs && !msgs.length ? (
         <p className="muted small">No messages yet. Say what you think so far. Messages are tagged with your page, so nobody gets spoiled.</p>
-      ) : (
-        <ul className="chat-list">
+      ) : null}
+{msgs?.length ? <ul className="chat-list">
           {msgs.map((m) => {
             const spoiler = !finished && m.page != null && m.page > myPage && m.user_id !== uid && !shown.has(m.id);
             return (
@@ -194,29 +195,170 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: { read: BuddyRead;
               </li>
             );
           })}
-        </ul>
-      )}
+        </ul> : null}
       <form className="chat-form" onSubmit={send}>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} maxLength={1000} placeholder="What do you think so far?" aria-label="Message" />
         <div className="chat-send">
           <label className="small">
             at page <input type="number" min={0} value={page} onChange={(e) => setPage(e.target.value)} aria-label="Page this is about" />
           </label>
-          <button className="btn primary small-btn" disabled={!body.trim()}>Send</button>
+          <button type="submit" className="btn primary small-btn" disabled={!body.trim()}>Send</button>
         </div>
       </form>
     </div>
   );
 }
 
+type Act = (fn: () => Promise<unknown>) => Promise<void>;
+type Member = BuddyRead['members'][number];
+
+function memberProgress(m: Member, pages: number | undefined, pct: number) {
+  if (m.finished_at) return `finished ${formatDay(m.finished_at)}`;
+  if (m.page != null) return `page ${m.page}${pages ? ' of ' : ''}${pages || ''}`;
+  return pct ? `${pct}%` : 'not started';
+}
+
+function BuddyTop({ read, local, pages, onOpen }: Readonly<{ read: BuddyRead; local: Book | undefined; pages: number | undefined; onOpen: (b: Book) => void }>) {
+  return (
+    <div className="buddy-top">
+      <Cover url={read.book.cover ?? local?.coverUrl} title={read.book.title} author={read.book.by} size="sm" />
+      <div className="buddy-title">
+        {local ? <button className="link-plain" onClick={() => onOpen(local)}>{read.book.title}</button> : <strong>{read.book.title}</strong>}
+        <span className="muted small">{[read.book.by, pages ? `${pages} pages` : ''].filter(Boolean).join(' · ')}</span>
+        {read.note && <span className="buddy-note">“{read.note}”</span>}
+        {read.finish_by && <span className="muted small">Finish by {formatDay(read.finish_by)}</span>}
+      </div>
+    </div>
+  );
+}
+
+function BuddyInvite({ read, club, local, busy, act, uid, onJoin }: Readonly<{ read: BuddyRead; club?: string; local: Book | undefined; busy: boolean; act: Act; uid: string; onJoin: Props['onJoin'] }>) {
+  return (
+    <div className="buddy-invite">
+      <p>
+        {club ? (
+          <><strong>{club}</strong> is reading this. Join when you start it, to see everyone’s progress and the chat.</>
+        ) : (
+          <>
+            <strong>{memberName(read.members.find((m) => m.user_id === read.owner) ?? read.members[0])}</strong> wants to read this with you.
+          </>
+        )}
+        {!local && ' It isn’t in your library yet; joining adds it as a book you’re reading.'}
+      </p>
+      <div className="account-actions">
+        <button className="btn primary" disabled={busy} onClick={() => act(() => onJoin(read))}>Join</button>
+        {!club && <button className="btn ghost" disabled={busy} onClick={() => act(() => leaveBuddyRead(read.id, uid))}>No thanks</button>}
+      </div>
+    </div>
+  );
+}
+
+function BuddyDone({ joined, uid }: Readonly<{ joined: Member[]; uid: string }>) {
+  return (
+    <div className="buddy-done">
+      <strong>Everyone finished! 🎉</strong>
+      <ul>
+        {[...joined]
+          .sort((a, b) => (a.finished_at ?? '').localeCompare(b.finished_at ?? ''))
+          .map((m, i) => (
+            <li key={m.user_id}>
+              {i === 0 ? '🥇 ' : ''}
+              {m.user_id === uid ? 'You' : memberName(m)} · {formatDay(m.finished_at!)}
+              {m.rating ? <span className="post-stars"> {stars(m.rating)}</span> : null}
+            </li>
+          ))}
+      </ul>
+    </div>
+  );
+}
+
+function BuddyProgress({ joined, invited, pages, uid, onOpenProfile }: Readonly<{ joined: Member[]; invited: Member[]; pages: number | undefined; uid: string; onOpenProfile: (username: string) => void }>) {
+  return (
+    <ul className="buddy-progress">
+      {joined.map((m) => {
+        const pct = memberPct(m, pages);
+        return (
+          <li key={m.user_id}>
+            <button className="post-who" onClick={() => onOpenProfile(m.username)} aria-label={`@${m.username}`}>
+              <Avatar p={m} size={32} />
+            </button>
+            <span className="buddy-who">
+              <span className="buddy-name">
+                <strong>{m.user_id === uid ? 'You' : memberName(m)}</strong>
+                <span className="muted small">{memberProgress(m, pages, pct)}</span>
+              </span>
+              <span className="progress-bar"><i style={{ width: `${pct}%` }} /></span>
+            </span>
+          </li>
+        );
+      })}
+      {invited.map((m) => (
+        <li key={m.user_id} className="buddy-invited">
+          <Avatar p={m} size={32} />
+          <span className="muted small">{memberName(m)} hasn't joined yet</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+interface ActionsProps {
+  read: BuddyRead;
+  uid: string;
+  owner: boolean;
+  club?: string;
+  notIn: Friend[];
+  busy: boolean;
+  act: Act;
+  chat: boolean;
+  setChat: (v: boolean) => void;
+}
+
+function BuddyActions({ read, uid, owner, club, notIn, busy, act, chat, setChat }: Readonly<ActionsProps>) {
+  const [confirm, setConfirm] = useState<'leave' | 'delete'>();
+  const [inviting, setInviting] = useState(false);
+  return (
+    <>
+      <div className="buddy-actions">
+        <button className={`btn small-btn ${chat ? '' : 'primary'}`} onClick={() => setChat(!chat)}>{chat ? 'Hide chat' : 'Chat'}</button>
+        {owner && !club && notIn.length > 0 && !inviting && <button className="btn ghost small-btn" onClick={() => setInviting(true)}>Invite more</button>}
+        {confirm ? (
+          <>
+            <button className="btn danger small-btn" disabled={busy} onClick={() => act(() => (confirm === 'delete' ? deleteBuddyRead(read.id) : leaveBuddyRead(read.id, uid)))}>
+              {confirm === 'delete' ? 'Delete for everyone' : 'Leave'}
+            </button>
+            <button className="link small" onClick={() => setConfirm(undefined)}>Keep it</button>
+          </>
+        ) : (
+          <button className="link small muted" onClick={() => setConfirm(owner ? 'delete' : 'leave')}>{owner ? 'Delete' : 'Leave'}</button>
+        )}
+      </div>
+      {inviting && (
+        <div className="buddy-friends">
+          {notIn.map((f) => (
+            <button key={f.id} className="buddy-friend" disabled={busy} onClick={() => act(() => inviteMore(read.id, [f.id])).then(() => setInviting(false))}>
+              <Avatar p={f} size={28} /> <span>Invite {f.display_name || `@${f.username}`}</span>
+            </button>
+          ))}
+          <button className="link small" onClick={() => setInviting(false)}>Cancel</button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Where you are in the book: past the end once you've finished, so the chat shows everything. */
+function pageOf(me: Member | undefined, myReading: Reading | undefined) {
+  if (me?.finished_at) return 1e9;
+  return me?.page ?? (myReading ? lastPage(myReading) : undefined) ?? 0;
+}
+
 /** One buddy read. In a book club, `club` is the club's name. */
-export function ReadCard(props: Props & { read: BuddyRead; club?: string }) {
+export function ReadCard(props: Readonly<Props & { read: BuddyRead; club?: string }>) {
   const { read, uid, books, readings, friends, onOpen, onRefresh, onJoin, onOpenProfile } = props;
   const me = read.members.find((m) => m.user_id === uid);
   const [busy, setBusy] = useState(false);
   const [chat, setChat] = useState(false);
-  const [confirm, setConfirm] = useState<'leave' | 'delete'>();
-  const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string>();
   const local = findLocalBook(read, me, books);
   const myReading = local && currentReading(readings, local.id);
@@ -224,7 +366,6 @@ export function ReadCard(props: Props & { read: BuddyRead; club?: string }) {
   const joined = read.members.filter((m) => m.status === 'joined');
   const invited = read.members.filter((m) => m.status === 'invited');
   const allDone = joined.length > 1 && joined.every((m) => m.finished_at);
-  const myPage = me?.finished_at ? Infinity : (me?.page ?? (myReading ? lastPage(myReading) : undefined) ?? 0);
   const owner = read.owner === uid;
   const notIn = friends.filter((f) => f.status === 'accepted' && !read.members.some((m) => m.user_id === f.id));
 
@@ -243,117 +384,41 @@ export function ReadCard(props: Props & { read: BuddyRead; club?: string }) {
 
   return (
     <li className={`panel buddy-card ${me?.status === 'invited' ? 'invite' : ''}`}>
-      <div className="buddy-top">
-        <Cover url={read.book.cover ?? local?.coverUrl} title={read.book.title} author={read.book.by} size="sm" />
-        <div className="buddy-title">
-          {local ? <button className="link-plain" onClick={() => onOpen(local)}>{read.book.title}</button> : <strong>{read.book.title}</strong>}
-          <span className="muted small">{[read.book.by, pages ? `${pages} pages` : ''].filter(Boolean).join(' · ')}</span>
-          {read.note && <span className="buddy-note">“{read.note}”</span>}
-          {read.finish_by && <span className="muted small">Finish by {formatDay(read.finish_by)}</span>}
-        </div>
-      </div>
+      <BuddyTop read={read} local={local} pages={pages} onOpen={onOpen} />
 
       {error && <p className="account-error small">{error}</p>}
       {me?.status === 'invited' ? (
-        <div className="buddy-invite">
-          <p>
-            {props.club ? (
-              <><strong>{props.club}</strong> is reading this. Join when you start it, to see everyone’s progress and the chat.</>
-            ) : (
-              <>
-                <strong>{memberName(read.members.find((m) => m.user_id === read.owner) ?? read.members[0])}</strong> wants to read this with you.
-              </>
-            )}
-            {!local && ' It isn’t in your library yet; joining adds it as a book you’re reading.'}
-          </p>
-          <div className="account-actions">
-            <button className="btn primary" disabled={busy} onClick={() => act(() => onJoin(read))}>Join</button>
-            {!props.club && <button className="btn ghost" disabled={busy} onClick={() => act(() => leaveBuddyRead(read.id, uid))}>No thanks</button>}
-          </div>
-        </div>
+        <BuddyInvite read={read} club={props.club} local={local} busy={busy} act={act} uid={uid} onJoin={onJoin} />
       ) : (
         <>
-          {allDone && (
-            <div className="buddy-done">
-              <strong>Everyone finished! 🎉</strong>
-              <ul>
-                {[...joined]
-                  .sort((a, b) => (a.finished_at ?? '').localeCompare(b.finished_at ?? ''))
-                  .map((m, i) => (
-                    <li key={m.user_id}>
-                      {i === 0 ? '🥇 ' : ''}
-                      {m.user_id === uid ? 'You' : memberName(m)} · {formatDay(m.finished_at!)}
-                      {m.rating ? <span className="post-stars"> {stars(m.rating)}</span> : null}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-          <ul className="buddy-progress">
-            {joined.map((m) => {
-              const pct = memberPct(m, pages);
-              return (
-                <li key={m.user_id}>
-                  <button className="post-who" onClick={() => onOpenProfile(m.username)} aria-label={`@${m.username}`}>
-                    <Avatar p={m} size={32} />
-                  </button>
-                  <span className="buddy-who">
-                    <span className="buddy-name">
-                      <strong>{m.user_id === uid ? 'You' : memberName(m)}</strong>
-                      <span className="muted small">
-                        {m.finished_at ? `finished ${formatDay(m.finished_at)}` : m.page != null ? `page ${m.page}${pages ? ` of ${pages}` : ''}` : pct ? `${pct}%` : 'not started'}
-                      </span>
-                    </span>
-                    <span className="progress-bar"><i style={{ width: `${pct}%` }} /></span>
-                  </span>
-                </li>
-              );
-            })}
-            {invited.map((m) => (
-              <li key={m.user_id} className="buddy-invited">
-                <Avatar p={m} size={32} />
-                <span className="muted small">{memberName(m)} hasn't joined yet</span>
-              </li>
-            ))}
-          </ul>
+          {allDone && <BuddyDone joined={joined} uid={uid} />}
+          <BuddyProgress joined={joined} invited={invited} pages={pages} uid={uid} onOpenProfile={onOpenProfile} />
 
-          {local && myReading && myReading.status === 'reading' && <QuickProgress book={local} reading={myReading} onChange={props.onSaveReading} />}
+          {local && myReading?.status === 'reading' && <QuickProgress book={local} reading={myReading} onChange={props.onSaveReading} />}
           {local && (!myReading || myReading.status === 'want') && (
             <p className="muted small">Open the book and press “Reading” to start. Your progress shows here as you update it.</p>
           )}
 
-          <div className="buddy-actions">
-            <button className={`btn small-btn ${chat ? '' : 'primary'}`} onClick={() => setChat(!chat)}>{chat ? 'Hide chat' : 'Chat'}</button>
-            {owner && !props.club && notIn.length > 0 && !inviting && <button className="btn ghost small-btn" onClick={() => setInviting(true)}>Invite more</button>}
-            {confirm ? (
-              <>
-                <button className="btn danger small-btn" disabled={busy} onClick={() => act(() => (confirm === 'delete' ? deleteBuddyRead(read.id) : leaveBuddyRead(read.id, uid)))}>
-                  {confirm === 'delete' ? 'Delete for everyone' : 'Leave'}
-                </button>
-                <button className="link small" onClick={() => setConfirm(undefined)}>Keep it</button>
-              </>
-            ) : (
-              <button className="link small muted" onClick={() => setConfirm(owner ? 'delete' : 'leave')}>{owner ? 'Delete' : 'Leave'}</button>
-            )}
-          </div>
-          {inviting && (
-            <div className="buddy-friends">
-              {notIn.map((f) => (
-                <button key={f.id} className="buddy-friend" disabled={busy} onClick={() => act(() => inviteMore(read.id, [f.id])).then(() => setInviting(false))}>
-                  <Avatar p={f} size={28} /> <span>Invite {f.display_name || `@${f.username}`}</span>
-                </button>
-              ))}
-              <button className="link small" onClick={() => setInviting(false)}>Cancel</button>
-            </div>
-          )}
-          {chat && <Chat read={read} uid={uid} myPage={myPage === Infinity ? 1e9 : myPage} finished={!!me?.finished_at} onOpenProfile={onOpenProfile} />}
+          <BuddyActions read={read} uid={uid} owner={owner} club={props.club} notIn={notIn} busy={busy} act={act} chat={chat} setChat={setChat} />
+          {chat && <Chat read={read} uid={uid} myPage={pageOf(me, myReading)} finished={!!me?.finished_at} onOpenProfile={onOpenProfile} />}
         </>
       )}
     </li>
   );
 }
 
-export function BuddyView(props: Props) {
+function BuddyList({ title, reads, props, all }: Readonly<{ title?: string; reads: BuddyRead[]; props: Props; all: BuddyRead[] }>) {
+  const list = <ul className="buddy-list">{reads.map((r) => <ReadCard key={r.id} {...props} reads={all} read={r} />)}</ul>;
+  if (!title) return list;
+  return (
+    <>
+      <h3 className="section-label">{title}</h3>
+      {list}
+    </>
+  );
+}
+
+export function BuddyView(props: Readonly<Props>) {
   const [starting, setStarting] = useState(false);
   const { friends } = props;
   // Book club books live on the Book clubs page.
@@ -361,15 +426,16 @@ export function BuddyView(props: Props) {
   const invites = reads.filter((r) => r.members.find((m) => m.user_id === props.uid)?.status === 'invited');
   const mine = reads.filter((r) => !invites.includes(r));
   const hasFriends = friends.some((f) => f.status === 'accepted');
+  const startButton = hasFriends ? (
+    <button className="btn primary" onClick={() => setStarting(true)}>Start a buddy read</button>
+  ) : (
+    <button className="btn" onClick={props.onFindFriends}>Add friends first</button>
+  );
   return (
     <div className="buddy">
       <div className="buddy-intro">
         <p className="muted">Read a book together: see each other's progress and talk about it without spoilers.</p>
-        {!starting && (hasFriends ? (
-          <button className="btn primary" onClick={() => setStarting(true)}>Start a buddy read</button>
-        ) : (
-          <button className="btn" onClick={props.onFindFriends}>Add friends first</button>
-        ))}
+        {!starting && startButton}
       </div>
       {props.error && <p className="account-error">{props.error}</p>}
       {starting && (
@@ -384,17 +450,9 @@ export function BuddyView(props: Props) {
           }}
         />
       )}
-      {invites.length > 0 && (
-        <>
-          <h3 className="section-label">Invites</h3>
-          <ul className="buddy-list">{invites.map((r) => <ReadCard key={r.id} {...props} reads={reads} read={r} />)}</ul>
-        </>
-      )}
-      {mine.length > 0 ? (
-        <ul className="buddy-list">{mine.map((r) => <ReadCard key={r.id} {...props} reads={reads} read={r} />)}</ul>
-      ) : (
-        !starting && !invites.length && <p className="muted">No buddy reads yet.</p>
-      )}
+      {invites.length > 0 && <BuddyList title="Invites" reads={invites} props={props} all={reads} />}
+      {mine.length > 0 && <BuddyList reads={mine} props={props} all={reads} />}
+      {!mine.length && !starting && !invites.length && <p className="muted">No buddy reads yet.</p>}
     </div>
   );
 }

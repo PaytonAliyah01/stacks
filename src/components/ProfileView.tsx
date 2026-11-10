@@ -23,7 +23,7 @@ interface Props {
   onLoansChanged?: () => void;
 }
 
-function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]; square?: boolean }) {
+function Shelf({ title, items, square }: Readonly<{ title: string; items?: ShowcaseItem[]; square?: boolean }>) {
   if (!items?.length) return null;
   return (
     <section className="profile-shelf">
@@ -46,7 +46,7 @@ function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]
   );
 }
 
-export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn, uid, friends, onFriendsChanged, loans, onLoansChanged }: Props) {
+export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn, uid, friends, onFriendsChanged, loans, onLoansChanged }: Readonly<Props>) {
   const own = mine?.username === username;
   const [p, setP] = useState<Profile | null | undefined>(own ? mine : undefined);
   const [failed, setFailed] = useState(false);
@@ -63,14 +63,25 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
     setP(undefined);
     setFailed(false);
     setCard(undefined);
-    loadProfileByUsername(username).then(
-      (x) => {
-        if (!live) return;
-        setP(x);
-        if (!x && signedIn) findUser(username).then((c) => live && setCard(c), () => live && setCard(null));
-      },
-      () => live && setFailed(true),
-    );
+    const load = async () => {
+      let x: Awaited<ReturnType<typeof loadProfileByUsername>>;
+      try {
+        x = await loadProfileByUsername(username);
+      } catch {
+        if (live) setFailed(true);
+        return;
+      }
+      if (!live) return;
+      setP(x);
+      if (x || !signedIn) return;
+      try {
+        const c = await findUser(username);
+        if (live) setCard(c);
+      } catch {
+        if (live) setCard(null);
+      }
+    };
+    load().catch(() => undefined);
     return () => {
       live = false;
     };
@@ -94,14 +105,12 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
 
   if (p === undefined && !failed) return <div className="profile-page">{back}<p className="muted">Loading @{username}…</p></div>;
   // What lets you become friends with someone, whatever state you're in.
-  const addFriend = (them: Found) =>
-    !signedIn ? (
-      <button className="btn primary" onClick={onSignIn}>Sign in to add as a friend</button>
-    ) : !mine ? (
-      <button className="btn primary" onClick={onEdit}>Make your profile to add friends</button>
-    ) : uid && friends && onFriendsChanged ? (
-      <FriendButton uid={uid} them={them} friends={friends} onChanged={onFriendsChanged} />
-    ) : null;
+  const addFriend = (them: Found) => {
+    if (!signedIn) return <button className="btn primary" onClick={onSignIn}>Sign in to add as a friend</button>;
+    if (!mine) return <button className="btn primary" onClick={onEdit}>Make your profile to add friends</button>;
+    if (uid && friends && onFriendsChanged) return <FriendButton uid={uid} them={them} friends={friends} onChanged={onFriendsChanged} />;
+    return null;
+  };
 
   if (!p && card && !own)
     return (
@@ -123,13 +132,7 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
         <div className="profile-missing">
           <h2>@{username}</h2>
           <p>
-            {failed
-              ? 'Stacks couldn’t load this profile. Check your connection and try again.'
-              : signedIn
-                ? card === undefined
-                  ? 'Looking…'
-                  : 'There’s nobody with that username. Check the spelling with your friend.'
-                : 'Sign in to see this profile and add them as a friend.'}
+            {missingText(failed, signedIn, card === undefined)}
           </p>
           {!signedIn && !failed && <button className="btn primary" onClick={onSignIn}>Sign in</button>}
         </div>
@@ -194,4 +197,10 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
       )}
     </div>
   );
+}
+
+function missingText(failed: boolean, signedIn: boolean, stillLooking: boolean): string {
+  if (failed) return 'Stacks couldn’t load this profile. Check your connection and try again.';
+  if (!signedIn) return 'Sign in to see this profile and add them as a friend.';
+  return stillLooking ? 'Looking…' : 'There’s nobody with that username. Check the spelling with your friend.';
 }

@@ -1,3 +1,5 @@
+import { insideParens } from './text';
+
 /** Goldmine grades, written the way Discogs writes them, best first. */
 export const MEDIA_GRADES = [
   'Mint (M)',
@@ -25,8 +27,8 @@ export const GRADE_HELP: Record<string, string> = {
 /** "Near Mint (NM or M-)" → "NM", "Very Good Plus (VG+)" → "VG+". */
 export const gradeShort = (g?: string) => {
   if (!g) return '';
-  const m = g.match(/\(([^)]+)\)/);
-  return m ? m[1].replace(/ or M-$/, '') : g;
+  const inner = insideParens(g);
+  return inner ? inner.replace(/ or M-$/, '') : g;
 };
 
 /** A grade from the CSV of another app ("VG+", "nm", "near mint") in Discogs' words. */
@@ -71,7 +73,8 @@ export function discBackground(color?: string): string | undefined {
     const i = c.search(re);
     if (i >= 0) found.push(`${i}|${css}`);
   }
-  const cols = found.sort((a, b) => Number(a.split('|')[0]) - Number(b.split('|')[0])).map((x) => x.split('|')[1]);
+  found.sort((a, b) => Number(a.split('|')[0]) - Number(b.split('|')[0]));
+  const cols = found.map((x) => x.split('|')[1]);
   if (!cols.length || (cols.length === 1 && cols[0] === '#151515')) return;
   const [a, b = /marble|swirl|smoke|galaxy|splatter|haze/.test(c) ? '#151515' : a] = cols;
   if (/splatter|splash|speckle/.test(c)) {

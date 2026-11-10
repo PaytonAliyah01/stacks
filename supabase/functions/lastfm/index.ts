@@ -19,10 +19,16 @@ async function md5(s: string) {
   return encodeHex(await crypto.subtle.digest('MD5', new TextEncoder().encode(s)));
 }
 
+/** Plain code-unit order, the way Last.fm sorts parameter names (not locale order). */
+function byCodeUnit(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
 /** A signed call to Last.fm, as their API asks: params sorted by name, then the secret. */
 async function lastfm(params: Record<string, string>, post = false) {
   const p: Record<string, string> = { ...params, api_key: KEY };
-  const sig = await md5(Object.keys(p).sort().map((k) => k + p[k]).join('') + SECRET);
+  const sig = await md5(Object.keys(p).sort(byCodeUnit).map((k) => k + p[k]).join('') + SECRET);
   const body = new URLSearchParams({ ...p, api_sig: sig, format: 'json' });
   const res = post ? await fetch(API, { method: 'POST', body }) : await fetch(`${API}?${body}`);
   const data = await res.json();
@@ -37,6 +43,50 @@ interface Scrobble {
   albumArtist?: string;
   timestamp: number;
   duration?: number;
+}
+
+/** Last.fm's numbered fields for a batch of scrobbles: artist[0], track[0], ... */
+function scrobbleParams(list: Scrobble[], sk: string): Record<string, string> {
+  const p: Record<string, string> = { method: 'track.scrobble', sk };
+  list.forEach((t, i) => {
+    const fields: Record<string, string | undefined> = {
+      artist: t.artist,
+      track: t.track,
+      timestamp: String(Math.floor(t.timestamp)),
+      album: t.album || undefined,
+      albumArtist: t.albumArtist || undefined,
+      duration: t.duration ? String(Math.round(t.duration)) : undefined,
+    };
+    for (const [k, v] of Object.entries(fields)) if (v !== undefined) p[`${k}[${i}]`] = v;
+  });
+  return p;
+}
+
+type Admin = ReturnType<typeof createClient>;
+
+async function sessionKey(admin: Admin, uid: string): Promise<string | undefined> {
+  const { data } = await admin.from('lastfm_links').select('session_key').eq('user_id', uid).maybeSingle();
+  return (data as { session_key?: string } | null)?.session_key;
+}
+
+async function scrobble(admin: Admin, uid: string, tracks: Scrobble[]) {
+  const sk = await sessionKey(admin, uid);
+  if (!sk) return reply({ error: 'Connect Last.fm first.', unlinked: true }, 400);
+  const list = tracks.slice(0, 50);
+  if (!list.length) return reply({ accepted: 0, ignored: 0 });
+  const r = await lastfm(scrobbleParams(list, sk), true);
+  const attr = r.scrobbles?.['@attr'] ?? {};
+  return reply({ accepted: Number(attr.accepted ?? 0), ignored: Number(attr.ignored ?? 0) });
+}
+
+async function nowPlaying(admin: Admin, uid: string, t: Scrobble) {
+  const sk = await sessionKey(admin, uid);
+  if (!sk) return reply({ ok: false });
+  await lastfm(
+    { method: 'track.updateNowPlaying', sk, artist: t.artist, track: t.track, ...(t.album ? { album: t.album } : {}), ...(t.duration ? { duration: String(Math.round(t.duration)) } : {}) },
+    true,
+  );
+  return reply({ ok: true });
 }
 
 Deno.serve(async (req) => {
@@ -69,34 +119,10 @@ Deno.serve(async (req) => {
         await admin.from('lastfm_links').delete().eq('user_id', uid);
         return reply({ ok: true });
       }
-      case 'scrobble': {
-        const { data } = await admin.from('lastfm_links').select('session_key').eq('user_id', uid).maybeSingle();
-        if (!data) return reply({ error: 'Connect Last.fm first.', unlinked: true }, 400);
-        const list: Scrobble[] = (body.tracks ?? []).slice(0, 50);
-        if (!list.length) return reply({ accepted: 0, ignored: 0 });
-        const p: Record<string, string> = { method: 'track.scrobble', sk: data.session_key };
-        list.forEach((t, i) => {
-          p[`artist[${i}]`] = t.artist;
-          p[`track[${i}]`] = t.track;
-          p[`timestamp[${i}]`] = String(Math.floor(t.timestamp));
-          if (t.album) p[`album[${i}]`] = t.album;
-          if (t.albumArtist) p[`albumArtist[${i}]`] = t.albumArtist;
-          if (t.duration) p[`duration[${i}]`] = String(Math.round(t.duration));
-        });
-        const r = await lastfm(p, true);
-        const attr = r.scrobbles?.['@attr'] ?? {};
-        return reply({ accepted: Number(attr.accepted ?? 0), ignored: Number(attr.ignored ?? 0) });
-      }
-      case 'nowplaying': {
-        const { data } = await admin.from('lastfm_links').select('session_key').eq('user_id', uid).maybeSingle();
-        if (!data) return reply({ ok: false });
-        const t = body.track as Scrobble;
-        await lastfm(
-          { method: 'track.updateNowPlaying', sk: data.session_key, artist: t.artist, track: t.track, ...(t.album ? { album: t.album } : {}), ...(t.duration ? { duration: String(Math.round(t.duration)) } : {}) },
-          true,
-        );
-        return reply({ ok: true });
-      }
+      case 'scrobble':
+        return await scrobble(admin, uid, body.tracks ?? []);
+      case 'nowplaying':
+        return await nowPlaying(admin, uid, body.track as Scrobble);
       default:
         return reply({ error: 'Unknown action' }, 400);
     }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Book } from '../types';
+import type { Book, VinylSize } from '../types';
 import { COLOR_SUGGESTIONS, GRADE_HELP, MEDIA_GRADES, SLEEVE_GRADES, discBackground } from '../lib/pressing';
 import { discogsIdFrom, fetchDiscogsRelease, getDiscogsToken, searchPressings, type PressingHit } from '../lib/lookup';
 import { discogsReleaseUrl } from '../lib/value';
@@ -10,7 +10,7 @@ interface Props {
 }
 
 /** Which pressing you own and what state it's in. Not a <form>: it sits inside the drawer's form. */
-export function PressingPanel({ draft, onChange }: Props) {
+export function PressingPanel({ draft, onChange }: Readonly<Props>) {
   const vinyl = draft.kind === 'vinyl';
   const [finding, setFinding] = useState(false);
   const [hits, setHits] = useState<PressingHit[] | null>(null);
@@ -29,7 +29,7 @@ export function PressingPanel({ draft, onChange }: Props) {
       onChange({
         discogsId: id,
         kind: r.kind ?? draft.kind,
-        vinylSize: r.kind === 'vinyl' ? r.vinylSize ?? draft.vinylSize ?? 12 : r.kind === 'cd' ? undefined : draft.vinylSize,
+        vinylSize: pressingSize(r.kind, r.vinylSize, draft.vinylSize),
         discCount: r.discCount ?? draft.discCount,
         vinylColor: r.vinylColor,
         edition: r.edition,
@@ -179,4 +179,9 @@ export function PressingPanel({ draft, onChange }: Props) {
       </div>
     </section>
   );
+}
+
+function pressingSize(kind: string | undefined, found: VinylSize | undefined, current: VinylSize | undefined): VinylSize | undefined {
+  if (kind === 'vinyl') return found ?? current ?? 12;
+  return kind === 'cd' ? undefined : current;
 }

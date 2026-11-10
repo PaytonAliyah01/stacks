@@ -1,4 +1,5 @@
 import type { Book, Track } from '../types';
+import { splitTrailingDuration } from './text';
 
 /** "4:12" → 252 seconds. */
 export const seconds = (d?: string) => {
@@ -20,11 +21,12 @@ export function groupTracks(tracks: Track[]): TrackGroup[] {
   const groups: TrackGroup[] = [];
   tracks.forEach((t, i) => {
     const pos = t.position?.trim() ?? '';
-    const side = pos.match(/^([A-Za-z])\d*/)?.[1]?.toUpperCase();
-    const disc = pos.match(/^(\d+)[-.](\d+)$/)?.[1];
-    const label = side ? `Side ${side}` : disc ? `Disc ${disc}` : '';
+    const side = /^([A-Za-z])\d*/.exec(pos)?.[1]?.toUpperCase();
+    const disc = /^(\d+)[-.](\d+)$/.exec(pos)?.[1];
+    let label = disc ? `Disc ${disc}` : '';
+    if (side) label = `Side ${side}`;
     let g = groups[groups.length - 1];
-    if (!g || g.label !== label) {
+    if (g?.label !== label) {
       g = { label, tracks: [], seconds: 0 };
       groups.push(g);
     }
@@ -46,15 +48,10 @@ export function parseTrackText(text: string): Track[] {
     .map((l) => l.trim())
     .filter(Boolean)
     .map((line) => {
-      let rest = line;
-      let duration: string | undefined;
-      const d = rest.match(/[\s(\[–-]*\(?(\d{1,2}:\d{2}(?::\d{2})?)\)?\s*$/);
-      if (d) {
-        duration = d[1];
-        rest = rest.slice(0, d.index).trim();
-      }
+      const [beforeDuration, duration] = splitTrailingDuration(line);
+      let rest = beforeDuration;
       let position: string | undefined;
-      const p = rest.match(/^([A-Za-z]?\d{1,2}(?:[-.]\d{1,2})?|[A-Z])[.):\s-]+\s*/);
+      const p = /^([A-Za-z]?\d{1,2}(?:[-.]\d{1,2})?|[A-Z])[.):\s-]+\s*/.exec(rest);
       if (p && rest.length > p[0].length) {
         position = p[1].replace(/\.$/, '');
         rest = rest.slice(p[0].length).trim();

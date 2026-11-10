@@ -13,7 +13,7 @@ interface Props {
   onChange: (r: Reading) => void;
 }
 
-export function QuickProgress({ book, reading, onChange }: { book: Book; reading: Reading; onChange: (r: Reading) => void }) {
+export function QuickProgress({ book, reading, onChange }: Readonly<{ book: Book; reading: Reading; onChange: (r: Reading) => void }>) {
   const [value, setValue] = useState('');
   const pages = book.pageCount;
   return (
@@ -50,7 +50,7 @@ export function QuickProgress({ book, reading, onChange }: { book: Book; reading
   );
 }
 
-export function ReadingView({ books, readings, onOpen, onChange }: Props) {
+export function ReadingView({ books, readings, onOpen, onChange }: Readonly<Props>) {
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   const thisYear = String(new Date().getFullYear());
 
@@ -62,7 +62,7 @@ export function ReadingView({ books, readings, onOpen, onChange }: Props) {
     const done = readings
       .filter((r) => (r.status === 'read' || r.status === 'dnf') && byId.has(r.bookId))
       .sort((a, b) => (b.finishedOn ?? '').localeCompare(a.finishedOn ?? ''));
-    const ys = [...new Set(done.map((r) => r.finishedOn?.slice(0, 4) ?? 'No date'))].sort().reverse();
+    const ys = [...new Set(done.map((r) => r.finishedOn?.slice(0, 4) ?? 'No date'))].sort((a, b) => b.localeCompare(a));
     return {
 
       want: current.filter((x) => x.r.status === 'want').sort((a, b) => queueKey(a.r) - queueKey(b.r)),
@@ -127,7 +127,7 @@ export function NowReading({
   onChange,
   active,
   onStartTimer,
-}: Props & { active: ActiveSession | null; onStartTimer: (r: Reading, b: Book) => void }) {
+}: Readonly<Props & { active: ActiveSession | null; onStartTimer: (r: Reading, b: Book) => void }>) {
   const [logging, setLogging] = useState<string | null>(null);
   const reading = books
     .filter((b) => !b.kind || b.kind === 'book')

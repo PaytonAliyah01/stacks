@@ -152,7 +152,7 @@ export const friendName = (f: Pick<Found, 'display_name' | 'username'>) => f.dis
 export function daysLeft(due: string | null, today = new Date()): number | undefined {
   if (!due) return undefined;
   const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  return Math.round((Date.parse(`${due}T00:00:00Z`) - t) / 86400_000);
+  return Math.round((Date.parse(`${due}T00:00:00Z`) - t) / 86_400_000);
 }
 
 export function dueLabel(due: string | null): string {
@@ -163,7 +163,8 @@ export function dueLabel(due: string | null): string {
   if (d === 0) return 'Due today';
   if (d === 1) return 'Due tomorrow';
   if (d < 14) return `Due in ${d} days`;
-  return `Due ${new Date(`${due}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
+  const day = new Date(`${due}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return `Due ${day}`;
 }
 
 /** A date some weeks from today, as YYYY-MM-DD. */

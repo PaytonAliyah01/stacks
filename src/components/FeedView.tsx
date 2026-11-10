@@ -23,7 +23,7 @@ function when(iso: string): string {
 
 const stars = (n: number) => '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '');
 
-function Post({ e, mine, onOpenProfile, onChange, onGone }: { e: FeedEntry; mine: boolean; onOpenProfile: (u: string) => void; onChange: (e: FeedEntry) => void; onGone: () => void }) {
+function Post({ e, mine, onOpenProfile, onChange, onGone }: Readonly<{ e: FeedEntry; mine: boolean; onOpenProfile: (u: string) => void; onChange: (e: FeedEntry) => void; onGone: () => void }>) {
   const [menu, setMenu] = useState(false);
   const first = e.items[0];
   const many = e.kind === 'added' && e.items.length > 1;
@@ -57,8 +57,8 @@ function Post({ e, mine, onOpenProfile, onChange, onGone }: { e: FeedEntry; mine
         {e.extra.review && <blockquote className="post-review">{e.extra.review}</blockquote>}
         {many ? (
           <div className="post-covers">
-            {e.items.map((x, i) => (
-              <Cover key={i} url={x.cover} title={x.title} author={x.by} size="sm" square={x.kind !== 'book'} />
+            {e.items.map((x) => (
+              <Cover key={`${x.title}|${x.by ?? ''}`} url={x.cover} title={x.title} author={x.by} size="sm" square={x.kind !== 'book'} />
             ))}
             {(e.extra.count ?? 0) > e.items.length && <span className="muted small">+{(e.extra.count ?? 0) - e.items.length} more</span>}
           </div>
@@ -88,7 +88,7 @@ function Post({ e, mine, onOpenProfile, onChange, onGone }: { e: FeedEntry; mine
   );
 }
 
-export function FeedView({ uid, onOpenProfile, hasFriends, onFindFriends, limit }: Props) {
+export function FeedView({ uid, onOpenProfile, hasFriends, onFindFriends, limit }: Readonly<Props>) {
   const [entries, setEntries] = useState<FeedEntry[]>();
   const [error, setError] = useState<string>();
   const [more, setMore] = useState(true);

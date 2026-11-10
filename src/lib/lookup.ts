@@ -1,7 +1,11 @@
-import type { Track } from '../types';
-import type { BookMetadata } from '../types';
+import type { BookMetadata, Track } from '../types';
+import { firstInTurn, pause } from './inTurn';
+import { dropDiscogsNumber } from './text';
 
 const TIMEOUT_MS = 8000;
+
+/** No value: missing, an empty string or an empty list. */
+const isBlank = (v: unknown) => v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
 
 export async function getJson(url: string): Promise<unknown> {
   const ctrl = new AbortController();
@@ -57,15 +61,17 @@ async function fromOpenLibraryEdition(isbn13: string): Promise<Partial<BookMetad
     throw err;
   }
   if (!e?.title) return null;
-  const authors: string[] = [];
-  for (const a of (e.authors ?? []).slice(0, 4)) {
-    try {
-      const au = (await getJson(`https://openlibrary.org${a.key}.json`)) as any;
-      if (au?.name) authors.push(au.name);
-    } catch {
-      /* author names are a nice-to-have */
-    }
-  }
+  const names = await Promise.all(
+    (e.authors ?? []).slice(0, 4).map(async (a: any) => {
+      try {
+        const au = (await getJson(`https://openlibrary.org${a.key}.json`)) as any;
+        return au?.name as string | undefined;
+      } catch {
+        return undefined; // author names are a nice-to-have
+      }
+    }),
+  );
+  const authors = names.filter((n): n is string => !!n);
   return {
     title: e.title,
     subtitle: e.subtitle,
@@ -129,22 +135,19 @@ const isServerError = (err: unknown) => err instanceof Error && (/^HTTP 5\d\d$/.
  * Google Books often answers 503 ("try again") for a moment even when the key is fine,
  * so ask up to three times before giving up.
  */
-export async function getGoogle(url: string): Promise<unknown> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await getJson(url);
-    } catch (err) {
-      // The shared key only works on the Stacks website. If Google turns it down
-      // (opened from a file, a preview address, key switched off), carry on without it.
-      if (refusesBuiltInKey(url, err)) {
-        builtInKeyRefused = true;
-        url = url.replace(`&key=${encodeURIComponent(BUILT_IN_GOOGLE_KEY)}`, '');
-        attempt--;
-        continue;
-      }
-      if (attempt >= 2 || !isServerError(err)) throw err;
-      await new Promise((r) => setTimeout(r, attempt ? 1800 : 700));
+export async function getGoogle(url: string, attempt = 0): Promise<unknown> {
+  try {
+    return await getJson(url);
+  } catch (err) {
+    // The shared key only works on the Stacks website. If Google turns it down
+    // (opened from a file, a preview address, key switched off), carry on without it.
+    if (refusesBuiltInKey(url, err)) {
+      builtInKeyRefused = true;
+      return getGoogle(url.replace(`&key=${encodeURIComponent(BUILT_IN_GOOGLE_KEY)}`, ''), attempt);
     }
+    if (attempt >= 2 || !isServerError(err)) throw err;
+    await pause(attempt ? 1800 : 700);
+    return getGoogle(url, attempt + 1);
   }
 }
 
@@ -187,7 +190,8 @@ function fromGoogleVolume(item: any): Partial<BookMetadata> | null {
  */
 async function fromGoogleBooks(isbn13: string, isbn10?: string): Promise<Partial<BookMetadata> | null> {
   const queries = [`isbn:${isbn13}`, ...(isbn10 ? [`isbn:${isbn10}`] : []), isbn13];
-  for (const q of queries) {
+  // One query at a time, stopping at the first hit, to spare Google's daily limit.
+  return firstInTurn(queries, async (q) => {
     const data = (await getGoogle(googleUrl(q))) as any;
     // A bare-number search can match other books; only accept one that lists this ISBN.
     const items: any[] = data.items ?? [];
@@ -195,10 +199,8 @@ async function fromGoogleBooks(isbn13: string, isbn10?: string): Promise<Partial
       q.startsWith('isbn:')
         ? items[0]
         : items.find((it) => (it.volumeInfo?.industryIdentifiers ?? []).some((i: any) => i.identifier === isbn13 || i.identifier === isbn10));
-    const meta = fromGoogleVolume(match);
-    if (meta) return meta;
-  }
-  return null;
+    return fromGoogleVolume(match);
+  });
 }
 
 /**
@@ -230,6 +232,35 @@ export interface SearchHit {
   metadata: Partial<BookMetadata>;
 }
 
+function googleHits(value: unknown): SearchHit[] {
+  const items = ((value as any).items ?? []) as any[];
+  return items.flatMap((it) => {
+    const m = fromGoogleVolume(it);
+    return m ? [{ id: `gb:${it.id}`, source: 'googlebooks' as const, metadata: m }] : [];
+  });
+}
+
+function openLibraryHits(value: unknown): SearchHit[] {
+  const docs = ((value as any).docs ?? []) as any[];
+  return docs
+    .filter((d) => d.title)
+    .map((d) => ({
+      id: `ol:${d.key}`,
+      source: 'openlibrary' as const,
+      metadata: {
+        title: d.title,
+        subtitle: d.subtitle,
+        authors: d.author_name ?? [],
+        publisher: d.publisher?.[0],
+        publishedDate: d.first_publish_year ? String(d.first_publish_year) : undefined,
+        pageCount: d.number_of_pages_median,
+        subjects: [],
+        coverUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : undefined,
+        openLibraryKey: d.key,
+      },
+    }));
+}
+
 /** Search both databases by title and/or author, for when a barcode isn't found. */
 export async function searchBooks(query: string): Promise<{ hits: SearchHit[]; problem?: string; problemKind?: 'quota' | 'server' | 'other' }> {
   const [gb, ol] = await Promise.allSettled([
@@ -242,42 +273,18 @@ export async function searchBooks(query: string): Promise<{ hits: SearchHit[]; p
       `https://openlibrary.org/search.json?limit=12&fields=key,title,subtitle,author_name,publisher,first_publish_year,number_of_pages_median,cover_i,isbn&q=${encodeURIComponent(query)}`,
     ),
   ]);
-  const hits: SearchHit[] = [];
-  if (gb.status === 'fulfilled') {
-    for (const it of ((gb.value as any).items ?? []) as any[]) {
-      const m = fromGoogleVolume(it);
-      if (m) hits.push({ id: `gb:${it.id}`, source: 'googlebooks', metadata: m });
-    }
-  }
-  if (ol.status === 'fulfilled') {
-    for (const d of ((ol.value as any).docs ?? []) as any[]) {
-      if (!d.title) continue;
-      hits.push({
-        id: `ol:${d.key}`,
-        source: 'openlibrary',
-        metadata: {
-          title: d.title,
-          subtitle: d.subtitle,
-          authors: d.author_name ?? [],
-          publisher: d.publisher?.[0],
-          publishedDate: d.first_publish_year ? String(d.first_publish_year) : undefined,
-          pageCount: d.number_of_pages_median,
-          subjects: [],
-          coverUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : undefined,
-          openLibraryKey: d.key,
-        },
-      });
-    }
-  }
-  const problem =
-    gb.status === 'rejected' && ol.status === 'rejected'
-      ? "Couldn't reach Google Books or Open Library. Check your internet connection."
-      : gb.status === 'rejected'
-        ? `Google Books didn't answer (${describe(gb.reason)}), so these results are from Open Library only.`
-        : undefined;
-  const problemKind =
-    gb.status !== 'rejected' ? undefined : ['HTTP 429', 'HTTP 403'].includes((gb.reason as Error)?.message) ? 'quota' : isServerError(gb.reason) ? 'server' : 'other';
-  return { hits, problem, problemKind };
+  const hits: SearchHit[] = [
+    ...(gb.status === 'fulfilled' ? googleHits(gb.value) : []),
+    ...(ol.status === 'fulfilled' ? openLibraryHits(ol.value) : []),
+  ];
+  if (gb.status !== 'rejected') return { hits };
+  if (ol.status === 'rejected') return { hits, problem: "Couldn't reach Google Books or Open Library. Check your internet connection.", problemKind: googleProblemKind(gb.reason) };
+  return { hits, problem: `Google Books didn't answer (${describe(gb.reason)}), so these results are from Open Library only.`, problemKind: googleProblemKind(gb.reason) };
+}
+
+function googleProblemKind(reason: unknown): 'quota' | 'server' | 'other' {
+  if (['HTTP 429', 'HTTP 403'].includes((reason as Error)?.message)) return 'quota';
+  return isServerError(reason) ? 'server' : 'other';
 }
 
 function describe(reason: unknown): string {
@@ -297,6 +304,31 @@ export type LookupResult =
   | { status: 'not-found' }
   | { status: 'error'; message: string };
 
+const whyFailed = (r: PromiseRejectedResult) => {
+  if (!(r.reason instanceof Error)) return String(r.reason);
+  return r.reason.name === 'AbortError' ? 'timed out' : r.reason.message;
+};
+
+/** Neither database had the book: not found, or one of them never answered. */
+function nothingFound(ol: PromiseSettledResult<unknown>, gb: PromiseSettledResult<unknown>): LookupResult {
+  if (ol.status === 'rejected' && gb.status === 'rejected') {
+    const message = navigator.onLine
+      ? `Couldn't reach the book databases (Open Library: ${whyFailed(ol)}; Google Books: ${whyFailed(gb)}). ` +
+        'Make sure Stacks is open in Chrome or Edge, not a preview window, then press Retry.'
+      : 'This computer is offline. Connect to the internet and press Retry.';
+    return { status: 'error', message };
+  }
+  // Open Library had nothing, but Google never answered: that isn't "not found".
+  if (gb.status !== 'rejected') return { status: 'not-found' };
+  const limited = gb.reason instanceof Error && ['HTTP 429', 'HTTP 403'].includes(gb.reason.message);
+  return {
+    status: 'error',
+    message: limited
+      ? "Open Library doesn't have this book and Google Books is limiting free lookups right now. Press Retry later, use “Search by title”, or add your own free Google Books key (Backup menu → Lookup keys)."
+      : `Open Library doesn't have this book and Google Books didn't answer (${describe(gb.reason)}). Press Retry.`,
+  };
+}
+
 /**
  * Ask Open Library and Google Books at the same time. Open Library wins on
  * fields both have; Google Books fills the gaps (it usually has descriptions).
@@ -309,33 +341,11 @@ export async function lookupIsbn(isbn13: string, isbn10?: string): Promise<Looku
   const a = ol.status === 'fulfilled' ? ol.value : null;
   const b = gb.status === 'fulfilled' ? gb.value : null;
 
-  if (!a && !b) {
-    if (ol.status === 'rejected' && gb.status === 'rejected') {
-      const why = (r: PromiseRejectedResult) =>
-        r.reason instanceof Error ? (r.reason.name === 'AbortError' ? 'timed out' : r.reason.message) : String(r.reason);
-      const message = !navigator.onLine
-        ? 'This computer is offline. Connect to the internet and press Retry.'
-        : `Couldn't reach the book databases (Open Library: ${why(ol)}; Google Books: ${why(gb)}). ` +
-          'Make sure Stacks is open in Chrome or Edge, not a preview window, then press Retry.';
-      return { status: 'error', message };
-    }
-    // Open Library had nothing, but Google never answered: that isn't "not found".
-    if (gb.status === 'rejected') {
-      const limited = gb.reason instanceof Error && ['HTTP 429', 'HTTP 403'].includes(gb.reason.message);
-      return {
-        status: 'error',
-        message: limited
-          ? "Open Library doesn't have this book and Google Books is limiting free lookups right now. Press Retry later, use “Search by title”, or add your own free Google Books key (Backup menu → Lookup keys)."
-          : `Open Library doesn't have this book and Google Books didn't answer (${describe(gb.reason)}). Press Retry.`,
-      };
-    }
-    return { status: 'not-found' };
-  }
+  if (!a && !b) return nothingFound(ol, gb);
 
   const pick = <K extends keyof BookMetadata>(k: K) => {
     const av = a?.[k];
-    const empty = av === undefined || av === '' || (Array.isArray(av) && av.length === 0);
-    return (empty ? b?.[k] : av) as BookMetadata[K];
+    return (isBlank(av) ? b?.[k] : av) as BookMetadata[K];
   };
 
   return {
@@ -373,9 +383,9 @@ function queuedMusicBrainz(code: string): Promise<Partial<BookMetadata> | null> 
 const barcodeVariants = (code: string) => [...new Set([code, code.length === 13 && code.startsWith('0') ? code.slice(1) : '0' + code])];
 
 export const vinylSizeOf = (text: string) => {
-  const m = text.match(/(\d{1,2})"/);
+  const m = /(\d{1,2})"/.exec(text);
   const size = m ? Number(m[1]) : 12;
-  return size === 7 ? 7 : size === 10 ? 10 : 12;
+  return size === 7 || size === 10 ? size : 12;
 };
 
 async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | null> {
@@ -390,7 +400,7 @@ async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | nu
     kind: vinyl ? 'vinyl' : 'cd',
     title: rel.title,
     authors: (rel['artist-credit'] ?? []).map((a: any) => a.name ?? a.artist?.name).filter(Boolean),
-    publisher: (rel['label-info'] ?? []).map((l: any) => l.label?.name).filter(Boolean)[0],
+    publisher: (rel['label-info'] ?? []).map((l: any) => l.label?.name).find(Boolean),
     publishedDate: rel.date,
     trackCount: rel['track-count'] || undefined,
     discCount: rel.media?.length || undefined,
@@ -401,6 +411,13 @@ async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | nu
 
 const DISCOGS_TOKEN_PREF = 'stacks.discogsToken';
 
+const tokenQuery = (token: string) => (token ? `?token=${encodeURIComponent(token)}` : '');
+
+function titleQuery(title: string, author?: string): string {
+  const by = author ? `&author=${encodeURIComponent(author)}` : '';
+  return `title=${encodeURIComponent(title)}${by}`;
+}
+
 /** A free personal Discogs token the person can add in Settings. */
 export function getDiscogsToken(): string {
   try {
@@ -410,8 +427,10 @@ export function getDiscogsToken(): string {
   }
 }
 export function setDiscogsToken(token: string) {
+  // Discogs tokens are letters and digits; drop anything else (stray spaces, quotes).
+  const clean = token.replace(/[^A-Za-z0-9]/g, '');
   try {
-    if (token.trim()) localStorage.setItem(DISCOGS_TOKEN_PREF, token.trim());
+    if (/^[A-Za-z0-9]{10,80}$/.test(clean)) localStorage.setItem(DISCOGS_TOKEN_PREF, clean);
     else localStorage.removeItem(DISCOGS_TOKEN_PREF);
   } catch {
     /* preference only */
@@ -422,12 +441,12 @@ export function setDiscogsToken(token: string) {
 async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> {
   const token = getDiscogsToken();
   if (!token) return null;
-  for (const v of barcodeVariants(code)) {
+  return firstInTurn(barcodeVariants(code), async (v) => {
     const data = (await getJson(
       `https://api.discogs.com/database/search?type=release&per_page=5&barcode=${encodeURIComponent(v)}&token=${encodeURIComponent(token)}`,
     )) as any;
     const r = data.results?.[0];
-    if (!r?.title) continue;
+    if (!r?.title) return null;
     // Search titles read "Artist - Album".
     const [artist, ...rest] = String(r.title).split(' - ');
     const formats: string[] = r.format ?? [];
@@ -456,8 +475,7 @@ async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> 
       /* the search result is enough */
     }
     return meta;
-  }
-  return null;
+  });
 }
 
 /**
@@ -493,9 +511,9 @@ export function jsonp(url: string, param = 'callback'): Promise<any> {
 }
 
 async function fromDeezer(code: string): Promise<Partial<BookMetadata> | null> {
-  for (const v of barcodeVariants(code)) {
+  return firstInTurn(barcodeVariants(code), async (v): Promise<Partial<BookMetadata> | null> => {
     const a = await jsonp(`https://api.deezer.com/album/upc:${v}?output=jsonp`);
-    if (!a?.title || a.error) continue;
+    if (!a?.title || a.error) return null;
     return {
       title: a.title,
       authors: a.artist?.name ? [a.artist.name] : [],
@@ -505,15 +523,14 @@ async function fromDeezer(code: string): Promise<Partial<BookMetadata> | null> {
       subjects: (a.genres?.data ?? []).map((g: any) => g.name).filter(Boolean),
       coverUrl: a.cover_xl || a.cover_big,
     };
-  }
-  return null;
+  });
 }
 
 async function fromItunes(code: string): Promise<Partial<BookMetadata> | null> {
-  for (const v of barcodeVariants(code)) {
+  return firstInTurn(barcodeVariants(code), async (v): Promise<Partial<BookMetadata> | null> => {
     const data = await jsonp(`https://itunes.apple.com/lookup?upc=${v}&entity=album`);
     const a = (data?.results ?? []).find((r: any) => r.wrapperType === 'collection');
-    if (!a?.collectionName) continue;
+    if (!a?.collectionName) return null;
     return {
       title: a.collectionName.replace(/ - (Single|EP)$/, ''),
       authors: a.artistName ? [a.artistName] : [],
@@ -522,8 +539,7 @@ async function fromItunes(code: string): Promise<Partial<BookMetadata> | null> {
       subjects: a.primaryGenreName ? [a.primaryGenreName] : [],
       coverUrl: a.artworkUrl100?.replace('100x100bb', '600x600bb'),
     };
-  }
-  return null;
+  });
 }
 
 /**
@@ -559,7 +575,7 @@ export async function lookupBarcode(code: string): Promise<LookupResult> {
   const pick = <K extends keyof BookMetadata>(k: K) => {
     for (const { m } of found) {
       const v = m![k];
-      if (v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)) return v as BookMetadata[K];
+      if (!isBlank(v)) return v as BookMetadata[K];
     }
     return undefined;
   };
@@ -586,7 +602,6 @@ export async function lookupBarcode(code: string): Promise<LookupResult> {
     },
   };
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Every subject Open Library knows for a book, found by ISBN or else by title
@@ -595,7 +610,7 @@ export async function lookupBarcode(code: string): Promise<LookupResult> {
 export async function fetchSubjects(book: { isbn13?: string; title: string; authors: string[] }): Promise<string[]> {
   const q = book.isbn13
     ? `isbn=${book.isbn13}`
-    : `title=${encodeURIComponent(book.title)}${book.authors[0] ? `&author=${encodeURIComponent(book.authors[0])}` : ''}`;
+    : titleQuery(book.title, book.authors[0]);
   const data = (await getJson(`https://openlibrary.org/search.json?${q}&fields=subject&limit=1`)) as { docs?: { subject?: string[] }[] };
   return data.docs?.[0]?.subject ?? [];
 }
@@ -613,6 +628,17 @@ export async function fetchSeries(isbn13: string): Promise<string[]> {
 
 const FORMAT_WORDS = /^(lp|album|ep|single|compilation|reissue|repress|remastered|stereo|mono|vinyl|cd|12"|10"|7"|33 ⅓ rpm|45 rpm|78 rpm|gatefold|mini-album|maxi-single)$/i;
 
+function formatKind(vinyl: boolean, cd: boolean): 'vinyl' | 'cd' | undefined {
+  if (vinyl) return 'vinyl';
+  return cd ? 'cd' : undefined;
+}
+
+/** Discogs' release date ("1977-02-04", "1977-00-00" or "0"), else its year. */
+function releasedOn(rel: { released?: string; year?: number }): string | undefined {
+  if (rel.released && rel.released !== '0') return rel.released.replace(/-00/g, '');
+  return rel.year ? String(rel.year) : undefined;
+}
+
 /** Color, edition and the rest of a Discogs release's pressing details. */
 export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: string; edition?: string; pressingCountry?: string; matrix?: string; catalogNumber?: string } {
   const formats: any[] = rel.formats ?? [];
@@ -624,7 +650,7 @@ export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: s
   const matrix = (rel.identifiers ?? []).filter((x: any) => /matrix|runout/i.test(x.type)).map((x: any) => x.value).slice(0, 2).join(' / ');
   const qty = formats.reduce((n, f) => n + (Number(f.qty) || 0), 0);
   return {
-    kind: vinyl ? 'vinyl' : cd ? 'cd' : undefined,
+    kind: formatKind(vinyl, cd),
     vinylSize: vinyl ? vinylSizeOf(descriptions.join(' ')) : undefined,
     discCount: qty || undefined,
     vinylColor: vinyl && color ? color : undefined,
@@ -632,14 +658,14 @@ export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: s
     pressingCountry: rel.country || undefined,
     matrix: matrix || undefined,
     catalogNumber: rel.labels?.[0]?.catno && rel.labels[0].catno !== 'none' ? rel.labels[0].catno : undefined,
-    publisher: rel.labels?.[0]?.name?.replace(/\s*\(\d+\)$/, ''),
+    publisher: dropDiscogsNumber(rel.labels?.[0]?.name ?? '') || undefined,
   };
 }
 
 /** Details from a Discogs release page: barcode, track count, genres, pressing, and the cover when Discogs shares it. */
 export async function fetchDiscogsRelease(id: number): Promise<ReturnType<typeof pressingFrom>> {
   const token = getDiscogsToken();
-  const rel = (await getJson(`https://api.discogs.com/releases/${id}${token ? `?token=${encodeURIComponent(token)}` : ''}`)) as any;
+  const rel = (await getJson(`https://api.discogs.com/releases/${id}${tokenQuery(token)}`)) as any;
   const tracks = (rel.tracklist ?? []).filter((t: any) => !t.type_ || t.type_ === 'track');
   const barcode = (rel.identifiers ?? []).find((x: any) => x.type === 'Barcode')?.value?.replace(/\D/g, '');
   const img = rel.images?.find((i: any) => i.type === 'primary') ?? rel.images?.[0];
@@ -651,7 +677,7 @@ export async function fetchDiscogsRelease(id: number): Promise<ReturnType<typeof
     barcode: barcode && barcode.length >= 8 ? barcode : undefined,
     subjects: [...(rel.genres ?? []), ...(rel.styles ?? [])].slice(0, 8),
     coverUrl: img?.uri && !/spacer\.gif/.test(img.uri) ? img.uri : rel.thumb || undefined,
-    publishedDate: rel.released && rel.released !== '0' ? rel.released.replace(/-00/g, '') : rel.year ? String(rel.year) : undefined,
+    publishedDate: releasedOn(rel),
     discogsId: id,
   };
 }
@@ -689,7 +715,7 @@ export async function searchPressings(q: { barcode?: string; artist?: string; ti
 
 /** "https://www.discogs.com/release/1873013-Fleetwood-Mac-Rumours" or "r1873013" or "1873013" → 1873013. */
 export const discogsIdFrom = (s: string) => {
-  const m = s.trim().match(/release\/(\d+)|^\[?r?(\d+)\]?$/i);
+  const m = /release\/(\d+)|^\[?r?(\d+)\]?$/i.exec(s.trim());
   return m ? Number(m[1] ?? m[2]) : undefined;
 };
 
@@ -738,55 +764,64 @@ const msToClock = (ms?: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-/** The track list from Discogs, else MusicBrainz, else Deezer (by artist and title). */
-export async function fetchTrackList(b: { discogsId?: number; musicBrainzId?: string; authors: string[]; title: string }): Promise<Track[] | undefined> {
-  const strip = (a: string) => a.replace(/ \(\d+\)$/, '').replace(/\*$/, '');
-  if (b.discogsId) {
-    try {
-      const token = getDiscogsToken();
-      const rel = (await getJson(`https://api.discogs.com/releases/${b.discogsId}${token ? `?token=${encodeURIComponent(token)}` : ''}`)) as any;
-      const main = (rel.artists ?? []).map((a: any) => strip(a.name)).join(', ');
-      const tracks: Track[] = (rel.tracklist ?? [])
-        .filter((t: any) => (!t.type_ || t.type_ === 'track') && t.title)
-        .map((t: any) => {
-          const artist = (t.artists ?? []).map((a: any) => strip(a.name)).join(', ');
-          return { position: t.position || undefined, title: t.title, duration: t.duration || undefined, artist: artist && artist !== main ? artist : undefined };
-        });
-      if (tracks.length) return tracks;
-    } catch {
-      /* try the next source */
-    }
-  }
-  if (b.musicBrainzId) {
-    try {
-      const rel = (await getJson(`https://musicbrainz.org/ws/2/release/${b.musicBrainzId}?inc=recordings&fmt=json`)) as any;
-      const media: any[] = rel.media ?? [];
-      const many = media.length > 1;
-      const tracks: Track[] = media.flatMap((m, i) =>
-        (m.tracks ?? []).map((t: any) => ({
-          position: many ? `${i + 1}-${String(t.position ?? t.number).padStart(2, '0')}` : String(t.number ?? t.position ?? ''),
-          title: t.title,
-          duration: msToClock(t.length),
-        })),
-      );
-      if (tracks.length) return tracks;
-    } catch {
-      /* try the next source */
-    }
-  }
-  if (b.authors[0] && b.title) {
-    const q = `artist:"${b.authors[0].replace(/"/g, '')}" album:"${b.title.replace(/"/g, '')}"`;
-    const found = await jsonp(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}&limit=1&output=jsonp`);
-    const id = found?.data?.[0]?.id;
-    if (id) {
-      const list = await jsonp(`https://api.deezer.com/album/${id}/tracks?limit=100&output=jsonp`);
-      const tracks: Track[] = (list?.data ?? []).map((t: any, i: number) => ({
-        position: t.disk_number > 1 ? `${t.disk_number}-${String(t.track_position ?? i + 1).padStart(2, '0')}` : String(t.track_position ?? i + 1),
+const stripArtist = (a: string) => a.replace(/ \(\d+\)$/, '').replace(/\*$/, '');
+const nonEmptyTracks = (tracks: Track[]) => (tracks.length ? tracks : undefined);
+
+async function discogsTracks(id: number): Promise<Track[] | undefined> {
+  const rel = (await getJson(`https://api.discogs.com/releases/${id}${tokenQuery(getDiscogsToken())}`)) as any;
+  const main = (rel.artists ?? []).map((a: any) => stripArtist(a.name)).join(', ');
+  return nonEmptyTracks(
+    (rel.tracklist ?? [])
+      .filter((t: any) => (!t.type_ || t.type_ === 'track') && t.title)
+      .map((t: any) => {
+        const artist = (t.artists ?? []).map((a: any) => stripArtist(a.name)).join(', ');
+        return { position: t.position || undefined, title: t.title, duration: t.duration || undefined, artist: artist && artist !== main ? artist : undefined };
+      }),
+  );
+}
+
+async function musicBrainzTracks(id: string): Promise<Track[] | undefined> {
+  const rel = (await getJson(`https://musicbrainz.org/ws/2/release/${id}?inc=recordings&fmt=json`)) as any;
+  const media: any[] = rel.media ?? [];
+  const many = media.length > 1;
+  return nonEmptyTracks(
+    media.flatMap((m, i) =>
+      (m.tracks ?? []).map((t: any) => ({
+        position: many ? `${i + 1}-${String(t.position ?? t.number).padStart(2, '0')}` : String(t.number ?? t.position ?? ''),
+        title: t.title,
+        duration: msToClock(t.length),
+      })),
+    ),
+  );
+}
+
+async function deezerTracks(artist: string, title: string): Promise<Track[] | undefined> {
+  const q = `artist:"${artist.replace(/"/g, '')}" album:"${title.replace(/"/g, '')}"`;
+  const found = await jsonp(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}&limit=1&output=jsonp`);
+  const id = found?.data?.[0]?.id;
+  if (!id) return undefined;
+  const list = await jsonp(`https://api.deezer.com/album/${id}/tracks?limit=100&output=jsonp`);
+  return nonEmptyTracks(
+    (list?.data ?? []).map((t: any, i: number) => {
+      const pos = String(t.track_position ?? i + 1);
+      return {
+        position: t.disk_number > 1 ? `${t.disk_number}-${pos.padStart(2, '0')}` : pos,
         title: t.title,
         duration: t.duration ? msToClock(t.duration * 1000) : undefined,
-      }));
-      if (tracks.length) return tracks;
-    }
-  }
-  return undefined;
+      };
+    }),
+  );
+}
+
+/** A source that fails just means trying the next one. */
+const quietly = (get: () => Promise<Track[] | undefined>) => get().catch(() => undefined);
+
+/** The track list from Discogs, else MusicBrainz, else Deezer (by artist and title). */
+export async function fetchTrackList(b: { discogsId?: number; musicBrainzId?: string; authors: string[]; title: string }): Promise<Track[] | undefined> {
+  const { discogsId, musicBrainzId } = b;
+  const fromDiscogsList = discogsId ? await quietly(() => discogsTracks(discogsId)) : undefined;
+  if (fromDiscogsList) return fromDiscogsList;
+  const fromMusicBrainz = musicBrainzId ? await quietly(() => musicBrainzTracks(musicBrainzId)) : undefined;
+  if (fromMusicBrainz) return fromMusicBrainz;
+  return b.authors[0] && b.title ? deezerTracks(b.authors[0], b.title) : undefined;
 }

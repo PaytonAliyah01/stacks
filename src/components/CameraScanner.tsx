@@ -36,7 +36,8 @@ async function makeDetector(): Promise<Detect> {
   reader.setHints(hints);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-  return async (v) => {
+  return (v) => Promise.resolve(readBand(v));
+  function readBand(v: HTMLVideoElement): string | undefined {
     // Read a band across the middle of the picture, where the guide box is. Smaller is faster.
     const w = Math.min(v.videoWidth, 960);
     const scale = w / v.videoWidth;
@@ -56,7 +57,7 @@ async function makeDetector(): Promise<Detect> {
     } finally {
       reader.reset();
     }
-  };
+  }
 }
 
 function cameraError(e: unknown): string {
@@ -69,7 +70,7 @@ function cameraError(e: unknown): string {
 }
 
 /** Full-screen camera view. Keeps scanning until you close it, so you can do a whole stack in a row. */
-export function CameraScanner({ onCode, onClose }: Props) {
+export function CameraScanner({ onCode, onClose }: Readonly<Props>) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string>();
   const [starting, setStarting] = useState(true);
@@ -89,7 +90,7 @@ export function CameraScanner({ onCode, onClose }: Props) {
     let lastAt = 0;
     let n = 0;
 
-    (async () => {
+    void (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
@@ -126,7 +127,7 @@ export function CameraScanner({ onCode, onClose }: Props) {
           }
           timer = window.setTimeout(tick, 120);
         };
-        tick();
+        void tick();
       } catch (e) {
         if (!stopped) {
           setError(cameraError(e));
@@ -168,7 +169,7 @@ export function CameraScanner({ onCode, onClose }: Props) {
 
   // Straight under <body>, so nothing on the page can sit on top of the camera.
   return createPortal(
-    <div className="camera-scan" role="dialog" aria-modal="true" aria-label="Scan with camera">
+    <dialog open className="camera-scan" aria-modal="true" aria-label="Scan with camera">
       <video ref={videoRef} className="camera-video" playsInline muted autoPlay />
       <div className="camera-guide" aria-hidden="true">
         <span className={last ? 'hit' : ''} key={last?.n} />
@@ -183,19 +184,20 @@ export function CameraScanner({ onCode, onClose }: Props) {
         <div aria-live="polite">
         {error ? (
           <p className="camera-error">{error}</p>
-        ) : starting ? (
+        ) : null}
+        {!error && starting ? (
           <p>Starting the camera…</p>
-        ) : last ? (
+        ) : null}
+        {!error && !starting && last ? (
           <p>
             <strong>Got {last.code}</strong> · {last.n} scanned. Point at the next one, or press Done scanning.
           </p>
-        ) : (
-          <p>Hold the barcode inside the box, about a hand’s width away.</p>
-        )}
+        ) : null}
+        {!error && !starting && !last ? <p>Hold the barcode inside the box, about a hand’s width away.</p> : null}
         </div>
         <button className="camera-done" onClick={onClose}>{last ? 'Done scanning' : 'Close camera'}</button>
       </div>
-    </div>,
+    </dialog>,
     document.body,
   );
 }

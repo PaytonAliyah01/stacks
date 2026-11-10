@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { SCHEMA_VERSION, type Book, type BookNote, type Bookcase, type Challenge, type Reading, type Spin } from '../types';
+import { without } from './omit';
 
 /**
  * Everything the app needs from storage. The browser (IndexedDB) version is
@@ -68,15 +69,12 @@ export function onLocalChange(fn: ChangeListener | undefined) {
 const changed = (store: SyncStore, ...ids: string[]) => ids.length && changeListener?.(store, ids);
 
 
-class IndexedDbStore implements LibraryStore {
-  private db: Promise<IDBPDatabase>;
-
-  constructor() {
+function openLibrary(): Promise<IDBPDatabase> {
     // Started inside a promise so a browser with no storage at all fails here, not at startup.
     const opening: Promise<IDBPDatabase> = Promise.resolve().then(() => openDB(DB_NAME, SCHEMA_VERSION, {
       // An older Stacks tab must let go so this one can upgrade the library.
       blocking() {
-        opening.then((db) => db.close());
+        opening.then((db) => db.close()).catch(() => undefined);
       },
       upgrade(db, oldVersion, _newVersion, transaction) {
         if (oldVersion < 1) {
@@ -107,7 +105,7 @@ class IndexedDbStore implements LibraryStore {
     }));
     // If the browser never answers (storage blocked, or another Stacks tab won't
     // let go), fail with a reason instead of waiting forever.
-    this.db = Promise.race([
+    const ready = Promise.race([
       opening,
       new Promise<never>((_, reject) =>
         setTimeout(
@@ -122,6 +120,16 @@ class IndexedDbStore implements LibraryStore {
       ),
     ]);
     opening.catch(() => undefined);
+    return ready;
+}
+
+class IndexedDbStore implements LibraryStore {
+  private opened?: Promise<IDBPDatabase>;
+
+  /** Opened on first use, then shared. */
+  private get db(): Promise<IDBPDatabase> {
+    this.opened ??= openLibrary();
+    return this.opened;
   }
 
   async list() {
@@ -150,18 +158,18 @@ class IndexedDbStore implements LibraryStore {
   }
   async putMany(books: Book[]) {
     const tx = (await this.db).transaction('books', 'readwrite');
-    for (const b of books) await tx.store.put(b);
+    await Promise.all(books.map((b) => tx.store.put(b)));
     await tx.done;
     changed('books', ...books.map((b) => b.id));
   }
   async importMany(books: Book[], bookcases: Bookcase[] = [], readings: Reading[] = [], challenges: Challenge[] = [], notes: BookNote[] = [], spins: Spin[] = []) {
     const tx = (await this.db).transaction(['books', 'bookcases', 'readings', 'challenges', 'notes', 'spins'], 'readwrite');
-    for (const x of spins) await tx.objectStore('spins').put(x);
-    for (const n of notes) await tx.objectStore('notes').put(n);
-    for (const c of challenges) await tx.objectStore('challenges').put(c);
-    for (const b of books) await tx.objectStore('books').put(b);
-    for (const c of bookcases) await tx.objectStore('bookcases').put(c);
-    for (const r of readings) await tx.objectStore('readings').put(r);
+    await Promise.all(spins.map((x) => tx.objectStore('spins').put(x)));
+    await Promise.all(notes.map((n) => tx.objectStore('notes').put(n)));
+    await Promise.all(challenges.map((c) => tx.objectStore('challenges').put(c)));
+    await Promise.all(books.map((b) => tx.objectStore('books').put(b)));
+    await Promise.all(bookcases.map((c) => tx.objectStore('bookcases').put(c)));
+    await Promise.all(readings.map((r) => tx.objectStore('readings').put(r)));
     await tx.done;
     changed('spins', ...spins.map((x) => x.id));
     changed('notes', ...notes.map((x) => x.id));
@@ -182,15 +190,10 @@ class IndexedDbStore implements LibraryStore {
   async removeBookcase(id: string) {
     const tx = (await this.db).transaction(['books', 'bookcases'], 'readwrite');
     const books = tx.objectStore('books');
-    const moved: string[] = [];
-    for (const b of (await books.getAll()) as Book[]) {
-      if (b.placement?.bookcaseId === id) {
-        moved.push(b.id);
-        const { placement: _gone, ...rest } = b;
-        void _gone;
-        await books.put({ ...rest, updatedAt: new Date().toISOString() });
-      }
-    }
+    const toMove = ((await books.getAll()) as Book[]).filter((b) => b.placement?.bookcaseId === id);
+    const now = new Date().toISOString();
+    await Promise.all(toMove.map((b) => books.put({ ...without(b, 'placement'), updatedAt: now })));
+    const moved = toMove.map((b) => b.id);
     await tx.objectStore('bookcases').delete(id);
     await tx.done;
     changed('books', ...moved);
@@ -232,7 +235,7 @@ class IndexedDbStore implements LibraryStore {
   async removeNotesOf(bookId: string) {
     const tx = (await this.db).transaction('notes', 'readwrite');
     const keys = await tx.store.index('bookId').getAllKeys(bookId);
-    for (const key of keys) await tx.store.delete(key);
+    await Promise.all(keys.map((key) => tx.store.delete(key)));
     await tx.done;
     changed('notes', ...keys.map(String));
   }
@@ -250,14 +253,14 @@ class IndexedDbStore implements LibraryStore {
   async removeSpinsOf(bookId: string) {
     const tx = (await this.db).transaction('spins', 'readwrite');
     const keys = await tx.store.index('bookId').getAllKeys(bookId);
-    for (const key of keys) await tx.store.delete(key);
+    await Promise.all(keys.map((key) => tx.store.delete(key)));
     await tx.done;
     changed('spins', ...keys.map(String));
   }
   async removeReadingsOf(bookId: string) {
     const tx = (await this.db).transaction('readings', 'readwrite');
     const keys = await tx.store.index('bookId').getAllKeys(bookId);
-    for (const key of keys) await tx.store.delete(key);
+    await Promise.all(keys.map((key) => tx.store.delete(key)));
     await tx.done;
     changed('readings', ...keys.map(String));
   }
@@ -271,14 +274,14 @@ class IndexedDbStore implements LibraryStore {
   }
   async rawApply(name: SyncStore, puts: { id: string }[], deletes: string[]) {
     const tx = (await this.db).transaction(name, 'readwrite');
-    for (const x of puts) await tx.store.put(x);
-    for (const id of deletes) await tx.store.delete(id);
+    await Promise.all(puts.map((x) => tx.store.put(x)));
+    await Promise.all(deletes.map((id) => tx.store.delete(id)));
     await tx.done;
   }
   /** Empties every store, e.g. when someone signs out of a shared phone. */
   async rawClearAll() {
     const tx = (await this.db).transaction([...SYNC_STORES], 'readwrite');
-    for (const n of SYNC_STORES) await tx.objectStore(n).clear();
+    await Promise.all(SYNC_STORES.map((n) => tx.objectStore(n).clear()));
     await tx.done;
   }
 }
@@ -312,9 +315,18 @@ export function parseBackup(text: string): { books: Book[]; bookcases: Bookcase[
 }
 
 const csvCell = (v: unknown) => {
-  const s = v === undefined || v === null ? '' : String(v);
+  const s = cellText(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
+
+/** A CSV cell's text: plain values as they are, lists joined, anything else as JSON. */
+function cellText(v: unknown): string {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(cellText).join('; ');
+  return JSON.stringify(v);
+}
 
 export function toCsv(books: Book[], placeLabel: (b: Book) => string = () => ''): string {
   const cols: [string, (b: Book) => unknown][] = [

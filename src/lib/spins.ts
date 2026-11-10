@@ -96,7 +96,7 @@ export function spinsPerMonth(spins: Spin[], now = new Date()): [string, number]
 
 /** Spins per weekday, Monday first. */
 export function spinsPerWeekday(spins: Spin[]): [string, number][] {
-  const counts = Array(7).fill(0) as number[];
+  const counts = new Array(7).fill(0) as number[];
   for (const s of spins) counts[(new Date(s.at).getDay() + 6) % 7]++;
   return counts.map((n, i) => [new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' }), n]);
 }

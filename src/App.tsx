@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FORMAT_LABELS, KIND_LABELS, STATUS_LABELS, guessCurrency, type BookNote, type Spin, type BookSeries, type Challenge, type ReadStatus, type Reading, isMusic, kindOf, type ItemKind, type Book, type BookFormat, type BookMetadata, type Bookcase } from './types';
 import { formatIsbn13, parseScan } from './lib/isbn';
 import { fetchDiscogsRelease, fetchSeries, fetchSubjects, findAlbumCover, fetchTrackList, getDiscogsToken, fetchMarketPrices, discogsIdForBarcode, lookupBarcode, lookupIsbn, type SearchHit } from './lib/lookup';
@@ -58,6 +58,8 @@ import { YearWrap } from './components/YearWrap';
 import { SERIES_FINDER_VERSION, isPublisherSeries, parseSeries, seriesFromTitle, seriesKey, seriesLabel } from './lib/series';
 import { TimerBar } from './components/ReadingTimer';
 import { loadActive, saveActive, startSession, type ActiveSession } from './lib/sessions';
+import { countOf } from './lib/labels';
+import { eachInTurn, pause } from './lib/inTurn';
 import { guessVibe, matchesVibe } from './lib/moods';
 import { ReadingStats } from './components/ReadingStats';
 import { AchievementsView } from './components/AchievementsView';
@@ -198,8 +200,108 @@ export default function App() {
   return token ? <SharedShelf key={token} token={token} /> : <StacksApp />;
 }
 
+function ownedMessage(toWishlist: boolean, copies: number): string | undefined {
+  const several = copies > 1;
+  const count = several ? ` (${copies} copies)` : '';
+  if (toWishlist) return `You already own this${count}. No need to buy it.`;
+  return several ? `You have ${copies} copies.` : undefined;
+}
+
+function recordLine(b: Book, plays?: number): string {
+  const grades = b.mediaCondition && [gradeShort(b.mediaCondition), gradeShort(b.sleeveCondition)].filter(Boolean).join('/');
+  const playText = plays ? countOf(plays, 'play') : undefined;
+  return [KIND_LABELS[kindOf(b)].one, b.trackCount && `${b.trackCount} tracks`, b.publishedDate?.slice(0, 4), grades, playText].filter(Boolean).join(' · ');
+}
+
+const pagesLine = (b: Book) => (b.pageCount ? `${b.pageCount.toLocaleString()} pages` : 'Pages unknown');
+
+function wantlistImportText(added: number, alreadyOwned: number): string {
+  const left = alreadyOwned ? `. ${alreadyOwned} you already own were left off` : '';
+  return `Added ${countOf(added, 'record')} to your wantlist${left}.`;
+}
+
+function collectionImportText(added: number, updated: number): string {
+  const also = updated ? ` and updated ${updated} you already had` : '';
+  return `Imported ${countOf(added, 'record')} from Discogs${also}.`;
+}
+
+function noMatchText(view: string, sectionCount: number): string {
+  if (view === 'music') return 'Nothing matches these filters.';
+  return sectionCount === 0 ? 'No books yet. Your records and CDs are under Music.' : 'No books match these filters.';
+}
+
+/** Series a book's own title and subjects name. */
+function localSeriesCandidates(b: Book): BookSeries[] {
+  const out: BookSeries[] = [];
+  const fromTitle = seriesFromTitle(b.title);
+  if (fromTitle) out.push(fromTitle);
+  for (const x of b.subjects.filter((x) => /^series\s*:/i.test(x))) {
+    const p = parseSeries(x);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+/** Series Open Library knows for an ISBN, leaving out publisher lines. */
+async function remoteSeriesCandidates(isbn13: string): Promise<BookSeries[]> {
+  const out: BookSeries[] = [];
+  for (const raw of await fetchSeries(isbn13)) {
+    const p = parseSeries(raw);
+    if (p && !isPublisherSeries(p.name)) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Keeps the series the book already has and just adds its number, when one turns up.
+ * A publisher line picked up by an older version isn't a real series.
+ */
+function bestSeries(current: BookSeries | undefined, candidates: BookSeries[]): BookSeries | undefined {
+  const old = current && !isPublisherSeries(current.name) ? current : undefined;
+  const same = old && candidates.find((c) => c.number !== undefined && seriesKey(c.name) === seriesKey(old.name));
+  if (old && same) return { ...old, number: same.number };
+  return old ?? candidates.find((c) => c.number !== undefined) ?? candidates[0];
+}
+
+/** What a scan that no service knows says. */
+function notFoundMessage(type: 'isbn' | 'barcode'): string {
+  return type === 'isbn'
+    ? "Open Library and Google Books don't know this ISBN. Add the details yourself."
+    : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (More → Lookup keys) and press Retry.";
+}
+
+/** The book already in the library with the same ISBN or barcode, if any. */
+async function existingCopy(book: Book): Promise<Book | undefined> {
+  if (book.isbn13) return (await store.findByIsbn(book.isbn13)) ?? undefined;
+  if (book.barcode) return (await store.findByBarcode(book.barcode)) ?? undefined;
+  return undefined;
+}
+
+/** Discogs market prices for a release, waiting once when Discogs asks us to slow down. */
+async function marketPrices(...args: Parameters<typeof fetchMarketPrices>) {
+  try {
+    return await fetchMarketPrices(...args);
+  } catch (err) {
+    if (!/HTTP 429/.test(String(err))) throw err;
+    await pause(15000);
+    return fetchMarketPrices(...args);
+  }
+}
+
+/** Whole days since a date, or Infinity when there is none. */
+function daysSince(iso: string | null | undefined): number {
+  return iso ? Math.floor((Date.now() - Date.parse(iso)) / 86_400_000) : Infinity;
+}
+
+/** A library worth losing that hasn't been backed up for two weeks, unless you said "later". */
+function backupOverdue(count: number, days: number, snoozedUntil: number): boolean {
+  return count >= 5 && days >= 14 && Date.now() > snoozedUntil;
+}
+
 function StacksApp() {
-  const [allBooks, setBooks] = useState<Book[]>([]);
+  const [allBooks, setAllBooks] = useState<Book[]>([]);
+  /** Puts a changed book in place of its old version. */
+  const replaceBook = (next: Book) => setAllBooks((l) => l.map((x) => (x.id === next.id ? next : x)));
   // The library is what you own; books you've only read (e.g. imported) live in Reading.
   const books = useMemo(() => allBooks.filter((b) => b.owned !== false), [allBooks]);
   const [includeUnowned, setIncludeUnowned] = useState(false);
@@ -210,18 +312,18 @@ function StacksApp() {
   const plays = useMemo(() => playsByRecord(spins), [spins]);
   const [musicTab, setMusicTab] = useState<'collection' | 'foryou' | 'new' | 'listening' | 'value' | 'wantlist' | 'wrap'>('collection');
   const [discogsWants, setDiscogsWants] = useState(false);
-  const [styluses, setStylusList] = useState<Stylus[]>(loadStyluses);
-  const setStyluses = (list: Stylus[]) => {
+  const [styluses, setStyluses] = useState<Stylus[]>(loadStyluses);
+  const changeStyluses = (list: Stylus[]) => {
     saveStyluses(list);
     prefChanged('styluses');
-    setStylusList(list);
+    setStyluses(list);
   };
   const [priceRun, setPriceRun] = useState<PriceRun | null>(null);
   const stopPrices = useRef(false);
-  const [activeSession, setActive] = useState<ActiveSession | null>(loadActive);
-  const setActiveSession = (a: ActiveSession | null) => {
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(loadActive);
+  const changeActiveSession = (a: ActiveSession | null) => {
     saveActive(a);
-    setActive(a);
+    setActiveSession(a);
   };
   const [loaded, setLoaded] = useState(false);
   const [scans, setScans] = useState<ScanItem[]>([]);
@@ -310,7 +412,7 @@ function StacksApp() {
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileName, setProfileName] = useState(usernameFromHash);
   const [friendsOpen, setFriendsOpen] = useState(() => location.hash === '#friends' || location.hash === '#lending' || location.hash === '#gifts');
-  const [friendsTab, setFriendsTab] = useState<'feed' | 'people' | 'lending' | 'gifts' | undefined>(() => (location.hash === '#lending' ? 'lending' : location.hash === '#gifts' ? 'gifts' : undefined));
+  const [friendsTab, setFriendsTab] = useState<'feed' | 'people' | 'lending' | 'gifts' | undefined>(() => ({ '#lending': 'lending', '#gifts': 'gifts' } as const)[location.hash as '#lending' | '#gifts']);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendsError, setFriendsError] = useState<string>();
 
@@ -318,7 +420,7 @@ function StacksApp() {
     await clearAutoPurchaseDates();
     const [b, c, r, ch, n, sp] = await Promise.all([store.list(), store.listBookcases(), store.listReadings(), store.listChallenges(), store.listNotes(), store.listSpins()]);
     setSpins(sp);
-    setBooks(b);
+    setAllBooks(b);
     setBookcases(c);
     setReadings(r);
     setChallenges(ch);
@@ -329,7 +431,7 @@ function StacksApp() {
   useEffect(() => {
     onRemote(() => {
       void reload();
-      setStylusList(loadStyluses());
+      setStyluses(loadStyluses());
     });
     const unwatch = watchSync(setSync);
     // If the sign-in check hangs (offline), don't keep the page blank.
@@ -448,7 +550,7 @@ function StacksApp() {
   // Lending: your loans both ways, refreshed like friends.
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loansError, setLoansError] = useState<string>();
-  const [lendOpen, setLendOpenState] = useState<boolean>();
+  const [lendOpen, setLendOpen] = useState<boolean>();
   const refreshLoans = useCallback(() => {
     listLoans().then(
       (l) => {
@@ -461,11 +563,11 @@ function StacksApp() {
   useEffect(() => {
     if (!user || !profile) {
       setLoans([]);
-      setLendOpenState(undefined);
+      setLendOpen(undefined);
       return;
     }
     refreshLoans();
-    getLendOpen(user.id).then(setLendOpenState, () => setLendOpenState(false));
+    getLendOpen(user.id).then(setLendOpen, () => setLendOpen(false));
     const t = window.setInterval(() => !document.hidden && refreshLoans(), 60_000);
     window.addEventListener('focus', refreshLoans);
     return () => {
@@ -475,12 +577,12 @@ function StacksApp() {
   }, [user, profile?.id, refreshLoans]);
   const changeLendOpen = async (open: boolean) => {
     if (!user) return;
-    setLendOpenState(open);
+    setLendOpen(open);
     try {
       await saveLendOpen(user.id, open);
       setToast(open ? 'Friends can now browse your shelves and ask to borrow.' : 'Your shelves are closed for borrowing.');
     } catch (e) {
-      setLendOpenState(!open);
+      setLendOpen(!open);
       setToast((e as Error).message);
     }
   };
@@ -498,7 +600,9 @@ function StacksApp() {
       }
     }
     if (!fixes.length) return;
-    store.putMany(fixes).then(() => setBooks((l) => l.map((b) => fixes.find((f) => f.id === b.id) ?? b)));
+    const fixed = new Map(fixes.map((f) => [f.id, f]));
+    const applyFixes = (l: Book[]) => l.map((b) => fixed.get(b.id) ?? b);
+    store.putMany(fixes).then(() => setAllBooks(applyFixes)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loans, user, loaded]);
   const loanAsks = user ? loans.filter((l) => l.owner === user.id && l.status === 'requested').length : 0;
@@ -511,14 +615,14 @@ function StacksApp() {
       b.placement = undefined;
       b.notes = `Borrowed from ${loanFriendName(l.other)}`;
       await store.put(b);
-      setBooks((x) => [...x, b!]);
+      setAllBooks((x) => [...x, b!]);
     }
     await ensureReading(b);
     setToast(`Enjoy “${l.item.title}”. It's under Currently reading.`);
   };
   const onPage = !!profileName || (friendsOpen && !!user);
   const goView = (v: View) => {
-    if (onPage) showProfile(undefined);
+    if (onPage) showProfile();
     setView(v);
   };
   const goHome = (where: HomeTarget) => {
@@ -597,7 +701,8 @@ function StacksApp() {
   const wishRelease = async (r: Release) => {
     if (r.kind === 'music') return wantRecord(r);
     await bookForRec(r, { wishlist: true, ...(r.isbn13 ? { isbn13: r.isbn13 } : {}), publishedDate: r.date });
-    setToast(`Added “${r.title}” to your wishlist${r.upcoming ? `. It comes out ${dateLabel(r.date).replace(/^Out /, '')}` : ''}.`);
+    const comesOut = r.upcoming ? `. It comes out ${dateLabel(r.date).replace(/^Out /, '')}` : '';
+    setToast(`Added “${r.title}” to your wishlist${comesOut}.`);
     reload();
   };
   const releasesView = (kind: 'book' | 'music') => (
@@ -685,14 +790,14 @@ function StacksApp() {
     if (!user || !loaded || !groups.length) return;
     const t = setTimeout(() => {
       const byId = new Map(allBooks.map((b) => [b.id, b]));
-      const cutoff = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+      const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
       const sends = groups.flatMap((g) => {
         const me = g.members.find((m) => m.user_id === user.id);
         if (me?.status !== 'joined' || g.end_on < cutoff) return [];
         const p = myProgress(g, readings, byId);
         return p.progress !== me.progress || p.latest !== me.latest ? [sendGroupProgress(g.id, user.id, p)] : [];
       });
-      if (sends.length) Promise.allSettled(sends).then(refreshGroups);
+      if (sends.length) void Promise.allSettled(sends).then(refreshGroups);
     }, 2500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -737,7 +842,7 @@ function StacksApp() {
       b.owned = false;
       b.placement = undefined;
       await store.put(b);
-      setBooks((l) => [...l, b!]);
+      setAllBooks((l) => [...l, b!]);
     }
     const r = await ensureReading(b);
     await joinBuddyRead(read.id, user.id, b.id, progressOfReading(r, b));
@@ -766,30 +871,30 @@ function StacksApp() {
     vibeBusy.current = true;
     (async () => {
       let filled = 0;
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
+        if (!b || !needs(b)) return;
         let g = guessVibe([...b.subjects, ...b.tags]);
         if (!g.moods.length) {
           try {
             g = guessVibe([...b.subjects, ...b.tags, ...(await fetchSubjects(b))]);
           } catch {
-            break; // offline or rate-limited: try again next time
+            return 'stop'; // offline or rate-limited: try again next time
           }
-          await new Promise((r) => setTimeout(r, 800));
+          await pause(800);
         }
         const latest = await store.get(id);
-        if (!latest || !needs(latest)) continue;
+        if (!latest || !needs(latest)) return;
         const found = g.moods.length > 0;
         const next: Book = {
           ...latest,
           vibeChecked: true,
-          ...(found ? { moods: g.moods, pace: g.pace, contentWarnings: latest.contentWarnings?.length ? latest.contentWarnings : g.contentWarnings.length ? g.contentWarnings : undefined, vibeGuessed: true } : {}),
+          ...(found ? { moods: g.moods, pace: g.pace, contentWarnings: [latest.contentWarnings, g.contentWarnings].find((w) => w?.length), vibeGuessed: true } : {}),
         };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        replaceBook(next);
         if (found) filled++;
-      }
+      });
       vibeBusy.current = false;
       if (filled) setToast(`Added moods to ${filled} book${filled === 1 ? '' : 's'}. Open a book to adjust them.`);
     })().catch(() => {
@@ -808,14 +913,14 @@ function StacksApp() {
     discogsBusy.current = true;
     (async () => {
       let filled = 0;
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
+        if (!b || !needs(b)) return;
         let found: Awaited<ReturnType<typeof fetchDiscogsRelease>> = {};
         try {
           found = await fetchDiscogsRelease(b.discogsId!);
         } catch (err) {
-          if (!/HTTP 404/.test(String(err))) break; // offline or too many requests: try again next time
+          if (!/HTTP 404/.test(String(err))) return 'stop'; // offline or too many requests: try again next time
         }
         if (!b.coverUrl && !found.coverUrl && b.authors[0]) {
           try {
@@ -825,7 +930,7 @@ function StacksApp() {
           }
         }
         const latest = await store.get(id);
-        if (!latest) continue;
+        if (!latest) return;
         const next: Book = {
           ...latest,
           discogsChecked: true,
@@ -843,10 +948,10 @@ function StacksApp() {
           updatedAt: new Date().toISOString(),
         };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        replaceBook(next);
         if (next.coverUrl !== latest.coverUrl || next.trackCount !== latest.trackCount) filled++;
-        await new Promise((r) => setTimeout(r, getDiscogsToken() ? 1100 : 2600));
-      }
+        await pause(getDiscogsToken() ? 1100 : 2600);
+      });
       discogsBusy.current = false;
       setDiscogsDone((n) => n + 1);
       if (filled) setToast(`Added covers and details for ${filled} record${filled === 1 ? '' : 's'} from Discogs.`);
@@ -863,22 +968,22 @@ function StacksApp() {
     if (!loaded || tracksBusy.current || discogsBusy.current || !allBooks.some(needs)) return;
     tracksBusy.current = true;
     (async () => {
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
+        if (!b || !needs(b)) return;
         let tracks: Book['tracks'];
         try {
           tracks = await fetchTrackList(b);
         } catch {
-          break; // offline: try again next time
+          return 'stop'; // offline: try again next time
         }
         const latest = await store.get(id);
-        if (!latest || !needs(latest)) continue;
+        if (!latest || !needs(latest)) return;
         const next: Book = { ...latest, tracks, tracksChecked: true, trackCount: latest.trackCount ?? tracks?.length, updatedAt: new Date().toISOString() };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
-        await new Promise((r) => setTimeout(r, 2600));
-      }
+        replaceBook(next);
+        await pause(2600);
+      });
       tracksBusy.current = false;
     })().catch(() => {
       tracksBusy.current = false;
@@ -891,45 +996,32 @@ function StacksApp() {
   const seriesBusy = useRef(false);
   useEffect(() => {
     const needs = (b: Book) =>
-      !isMusic(b) && !b.seriesManual && (b.seriesV ?? 0) < SERIES_FINDER_VERSION && (!b.series || b.series.number === undefined);
+      !isMusic(b) && !b.seriesManual && (b.seriesV ?? 0) < SERIES_FINDER_VERSION && b.series?.number === undefined;
     if (!loaded || seriesBusy.current || !allBooks.some(needs)) return;
     seriesBusy.current = true;
     (async () => {
       let found = 0;
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
-        const candidates: BookSeries[] = [];
-        const fromTitle = seriesFromTitle(b.title);
-        if (fromTitle) candidates.push(fromTitle);
-        for (const x of b.subjects.filter((x) => /^series\s*:/i.test(x))) {
-          const p = parseSeries(x);
-          if (p) candidates.push(p);
-        }
+        if (!b || !needs(b)) return;
+        const candidates = localSeriesCandidates(b);
         if (!candidates.some((c) => c.number !== undefined) && b.isbn13) {
           try {
-            for (const raw of await fetchSeries(b.isbn13)) {
-              const p = parseSeries(raw);
-              if (p && !isPublisherSeries(p.name)) candidates.push(p);
-            }
+            candidates.push(...(await remoteSeriesCandidates(b.isbn13)));
           } catch {
-            break; // offline: try again next time
+            return 'stop'; // offline: try again next time
           }
-          await new Promise((r) => setTimeout(r, 800));
+          await pause(800);
         }
         const latest = await store.get(id);
-        if (!latest || !needs(latest)) continue;
-        // Keep the series the book already has and just add its number, when one turns up.
-        // A publisher line picked up by an older version isn't a real series.
-        const old = latest.series && !isPublisherSeries(latest.series.name) ? latest.series : undefined;
-        const same = old && candidates.find((c) => c.number !== undefined && seriesKey(c.name) === seriesKey(old.name));
-        const best = same ? { ...old!, number: same.number } : old ?? candidates.find((c) => c.number !== undefined) ?? candidates[0];
+        if (!latest || !needs(latest)) return;
+        const best = bestSeries(latest.series, candidates);
         const changed = best?.name !== latest.series?.name || best?.number !== latest.series?.number;
         const next: Book = { ...latest, seriesChecked: true, seriesV: SERIES_FINDER_VERSION, series: best };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        replaceBook(next);
         if (changed) found++;
-      }
+      });
       seriesBusy.current = false;
       if (found) setToast(`Updated the series for ${found} book${found === 1 ? '' : 's'}. See Books → Series.`);
     })().catch(() => {
@@ -941,12 +1033,12 @@ function StacksApp() {
   const patchBook = async (b: Book) => {
     const next = { ...b, updatedAt: new Date().toISOString() };
     await store.put(next);
-    setBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
+    replaceBook(next);
   };
 
   // A timer for a reading that's since been deleted can't be finished, so drop it.
   useEffect(() => {
-    if (loaded && activeSession && readings.length && !readings.some((r) => r.id === activeSession.readingId)) setActiveSession(null);
+    if (loaded && activeSession && readings.length && !readings.some((r) => r.id === activeSession.readingId)) changeActiveSession(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, readings]);
 
@@ -1009,12 +1101,7 @@ function StacksApp() {
         title: b.title,
         author: b.authors[0],
         coverUrl: b.coverUrl,
-        message:
-          scanTarget === 'wishlist'
-            ? `You already own this${b.copies > 1 ? ` (${b.copies} copies)` : ''}. No need to buy it.`
-            : b.copies > 1
-              ? `You have ${b.copies} copies.`
-              : undefined,
+        message: ownedMessage(scanTarget === 'wishlist', b.copies),
       });
       // A book Stacks knows but you don't own (wishlist or read elsewhere): scanning it changes that.
       const fromUnowned = async (b: Book) => {
@@ -1039,6 +1126,25 @@ function StacksApp() {
       };
       const known = (b: Book) => (b.owned === false ? fromUnowned(b) : patchScan(key, asDuplicate(b)));
 
+      // Saves an item a lookup found, to the library or the wishlist.
+      const addFound = async (metadata: BookMetadata) => {
+        const book = await freshBook(metadata);
+        if (scanTarget === 'wishlist') {
+          book.owned = false;
+          book.wishlist = true;
+          book.placement = undefined;
+        }
+        await store.put(book);
+        if (scanTarget !== 'wishlist') postAdded(book);
+        // Deezer and iTunes can't tell vinyl from CD; only MusicBrainz and Discogs can.
+        const guessedKind = isMusic(book) && !book.sources.some((x) => x === 'musicbrainz' || x === 'discogs');
+        patchScan(key, {
+          state: 'added', bookId: book.id, kind: kindOf(book), title: book.title, author: book.authors[0], coverUrl: book.coverUrl,
+          message: scanTarget === 'wishlist' ? 'Added to your wishlist.' : guessedKind && 'Saved as a CD. If it’s vinyl, open it and switch to Vinyl.' || undefined,
+        });
+        reload();
+      };
+
       // Show the scan straight away, so a scan never seems to vanish.
       setScans((l) => [{ key, raw, ...ids, state: 'looking' }, ...l]);
       try {
@@ -1050,33 +1156,9 @@ function StacksApp() {
         const again = await find();
         if (again) return known(again);
 
-        if (result.status === 'found') {
-          const book = await freshBook(result.metadata);
-          if (scanTarget === 'wishlist') {
-            book.owned = false;
-            book.wishlist = true;
-            book.placement = undefined;
-          }
-          await store.put(book);
-          if (scanTarget !== 'wishlist') postAdded(book);
-          // Deezer and iTunes can't tell vinyl from CD; only MusicBrainz and Discogs can.
-          const guessedKind = isMusic(book) && !book.sources.some((x) => x === 'musicbrainz' || x === 'discogs');
-          patchScan(key, {
-            state: 'added', bookId: book.id, kind: kindOf(book), title: book.title, author: book.authors[0], coverUrl: book.coverUrl,
-            message: scanTarget === 'wishlist' ? 'Added to your wishlist.' : guessedKind ? 'Saved as a CD. If it’s vinyl, open it and switch to Vinyl.' : undefined,
-          });
-          reload();
-        } else if (result.status === 'not-found') {
-          patchScan(key, {
-            state: 'not-found',
-            message:
-              parsed.type === 'isbn'
-                ? "Open Library and Google Books don't know this ISBN. Add the details yourself."
-                : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (More → Lookup keys) and press Retry.",
-          });
-        } else {
-          patchScan(key, { state: 'error', message: result.message });
-        }
+        if (result.status === 'found') await addFound(result.metadata);
+        else if (result.status === 'not-found') patchScan(key, { state: 'not-found', message: notFoundMessage(parsed.type) });
+        else patchScan(key, { state: 'error', message: result.message });
       } catch (err) {
         patchScan(key, { state: 'error', message: `Couldn't save this scan: ${err instanceof Error ? err.message : String(err)}` });
       }
@@ -1196,8 +1278,8 @@ function StacksApp() {
   };
 
   const saveBook = async (book: Book) => {
-    if (open?.isNew && (book.isbn13 || book.barcode)) {
-      const dup = book.isbn13 ? await store.findByIsbn(book.isbn13) : await store.findByBarcode(book.barcode!);
+    if (open?.isNew) {
+      const dup = await existingCopy(book);
       if (dup) {
         setToast(`“${dup.title}” is already in your library.`);
         setOpen({ book: dup });
@@ -1255,7 +1337,7 @@ function StacksApp() {
     try {
       const incoming = parseBackup(await file.text());
       const n = await store.importMany(incoming.books, incoming.bookcases, incoming.readings, incoming.challenges, incoming.notes, incoming.spins);
-      if (incoming.styluses.length && !styluses.length) setStyluses(incoming.styluses as Stylus[]);
+      if (incoming.styluses.length && !styluses.length) changeStyluses(incoming.styluses as Stylus[]);
       setToast(`Restored ${n} book${n === 1 ? '' : 's'}.`);
       reload();
     } catch (err) {
@@ -1299,35 +1381,29 @@ function StacksApp() {
     const cur = marketCurrency(currency);
     let priced = 0;
     let problem = '';
-    for (let i = 0; i < todo.length && !stopPrices.current; i++) {
-      const b = await store.get(todo[i].id);
-      if (!b) continue;
+    await eachInTurn(todo, async (item, i) => {
+      if (stopPrices.current) return 'stop';
+      const b = await store.get(item.id);
+      if (!b) return;
       let id = b.discogsId;
       try {
         if (!id && b.barcode) id = await discogsIdForBarcode(b.barcode);
         if (id) {
-          let m;
-          try {
-            m = await fetchMarketPrices(id, cur, b.mediaCondition);
-          } catch (err) {
-            if (!/HTTP 429/.test(String(err))) throw err;
-            await new Promise((r) => setTimeout(r, 15000)); // Discogs asked us to slow down
-            m = await fetchMarketPrices(id, cur, b.mediaCondition);
-          }
+          const m = await marketPrices(id, cur, b.mediaCondition);
           const latest = (await store.get(b.id)) ?? b;
           const next: Book = { ...latest, discogsId: id, market: { ...m, checkedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() };
           await store.put(next);
-          setBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
+          replaceBook(next);
           if (m.lowest !== undefined || m.suggested !== undefined) priced++;
         }
       } catch (err) {
-        if (/HTTP 404/.test(String(err))) continue;
+        if (/HTTP 404/.test(String(err))) return;
         problem = "Couldn't reach Discogs, so prices stopped updating. Try again later.";
-        break;
+        return 'stop';
       }
       setPriceRun({ done: i + 1, total: todo.length });
-      await new Promise((r) => setTimeout(r, token ? 2200 : 2600));
-    }
+      await pause(token ? 2200 : 2600);
+    });
     setPriceRun(null);
     setToast(problem || `Updated prices for ${priced} record${priced === 1 ? '' : 's'}.`);
   };
@@ -1355,7 +1431,7 @@ function StacksApp() {
         const latest = (await store.get(b.id)) ?? b;
         const next: Book = { ...latest, tracks, tracksChecked: true, trackCount: latest.trackCount ?? tracks.length, updatedAt: new Date().toISOString() };
         await store.put(next);
-        setBooks((l) => l.map((y) => (y.id === b.id ? next : y)));
+        setAllBooks((l) => l.map((y) => (y.id === b.id ? next : y)));
       }
     }
     if (!tracks?.length) {
@@ -1386,13 +1462,14 @@ function StacksApp() {
     const owned: Book = { ...b, owned: undefined, wishlist: undefined, acquiredOn: todayIsoDate(), updatedAt: new Date().toISOString() };
     if (scanSpot && !isMusic(b)) owned.placement = { ...scanSpot, position: nextPosition(await store.list(), scanSpot) };
     await store.put(owned);
-    setToast(`“${b.title}” is now in your ${isMusic(b) ? 'collection' : 'library'}${owned.placement ? `, on ${label(owned)}` : ''}.`);
+    const where = owned.placement ? `, on ${label(owned)}` : '';
+    setToast(`“${b.title}” is now in your ${isMusic(b) ? 'collection' : 'library'}${where}.`);
     reload();
   };
   const removeFromWishlist = async (b: Book) => {
     const mine = readings.filter((r) => r.bookId === b.id);
     const want = mine.filter((r) => r.status === 'want');
-    for (const r of want) await store.removeReading(r.id);
+    await Promise.all(want.map((r) => store.removeReading(r.id)));
     // Nothing else to remember about it: drop the book altogether.
     if (mine.length === want.length) await store.remove(b.id);
     else await store.put({ ...b, wishlist: undefined, updatedAt: new Date().toISOString() });
@@ -1486,7 +1563,7 @@ function StacksApp() {
     for (const c of challenges) {
       const { challenge, earned } = awardBadges(c, progressOf(c, readings, byId));
       if (earned.length) {
-        saveChallenge(challenge);
+        void saveChallenge(challenge);
         won.push(...earned.map((b) => b.name));
       }
     }
@@ -1519,7 +1596,8 @@ function StacksApp() {
     const orphans = all.filter(
       (b) => b.placement?.bookcaseId === bc.id && (b.placement.shelf > bc.shelves || b.placement.section > bc.sections),
     );
-    for (const o of orphans) await moveTo(o.id, null);
+    // One at a time: each move renumbers the shelf it leaves.
+    await eachInTurn(orphans, (o) => moveTo(o.id, null));
     if (editingCase?.isNew && !scanSpot) setDefaultSpot({ bookcaseId: bc.id, shelf: 1, section: 1 });
     setToast(editingCase?.isNew ? `Added ${bc.name}.` : 'Saved.');
     setEditingCase(null);
@@ -1602,8 +1680,8 @@ function StacksApp() {
     writePref(PREF_LAST_BACKUP, today);
     setBackupNote(today);
   };
-  const daysSinceBackup = backupNote ? Math.floor((Date.now() - Date.parse(backupNote)) / 86_400_000) : Infinity;
-  const backupDue = !user && books.length >= 5 && daysSinceBackup >= 14 && Date.now() > snoozedUntil;
+  const daysSinceBackup = daysSince(backupNote);
+  const backupDue = !user && backupOverdue(books.length, daysSinceBackup, snoozedUntil);
 
   const inBooks = BOOK_PAGES.some(([k]) => k === view);
   const booksNav = (
@@ -1634,7 +1712,14 @@ function StacksApp() {
   );
   const sectionCount = books.filter((b) => (view === 'music') === isMusic(b)).length;
   const sessionAdded = scans.filter((s) => s.state === 'added').length;
-  const filtersOn = (view === 'music' ? kindFilter !== 'all' : formatFilter !== 'all' || statusFilter !== 'all' || vibeFilter !== 'any') || shelfFilter !== 'all' || lentOnly || query;
+  /** Why the library grid is empty, if it is, and whether any filter is on. */
+  const libraryState = () => {
+    const noMusicYet = loaded && view === 'music' && sectionCount === 0;
+    const noBooksYet = !noMusicYet && loaded && books.length === 0;
+    const noMatches = !noMusicYet && !noBooksYet && shown.length === 0;
+    const filtersOn = (view === 'music' ? kindFilter !== 'all' : formatFilter !== 'all' || statusFilter !== 'all' || vibeFilter !== 'any') || shelfFilter !== 'all' || lentOnly || query;
+    return { noMusicYet, noBooksYet, noMatches, filtersOn };
+  };
 
   const accountDialog = accountOpen && (
         <AccountDialog
@@ -1656,7 +1741,7 @@ function StacksApp() {
             setAccountOpen(false);
             chooseLocalOnly(false);
             void reload();
-            setStylusList(loadStyluses());
+            setStyluses(loadStyluses());
             setToast('Signed out.');
           }}
         />
@@ -1675,121 +1760,124 @@ function StacksApp() {
     );
   }
 
-  return (
-    <div className="app">
-      <header className="topbar">
-        <button className="brand" onClick={() => { goView('home'); window.scrollTo(0, 0); }} aria-label="Stacks, go home" title="Home">
-          <span className="brand-mark" aria-hidden="true">
-            <i /><i /><i /><i />
-          </span>
-          <span className="brand-name">Stacks</span>
+  /** The Home, Books, Music, Reading and Friends tabs. */
+  const viewTabs = () => (
+    <nav className="tabs" aria-label="Views">
+      <button className={view === 'home' && !onPage ? 'active' : ''} onClick={() => goView('home')}>Home</button>
+      <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
+      <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
+      <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>
+        Reading{buddyInvites + groupInvites + clubInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites + groupInvites + clubInvites} invites`}>{buddyInvites + groupInvites + clubInvites}</span>}
+      </button>
+      {user && (
+        <button className={friendsOpen ? 'active' : ''} onClick={() => showFriends()}>
+          Friends{friendRequests + loanAsks > 0 && <span className="tab-badge" aria-label={`${friendRequests + loanAsks} new`}>{friendRequests + loanAsks}</span>}
         </button>
-        <nav className="tabs" aria-label="Views">
-          <button className={view === 'home' && !onPage ? 'active' : ''} onClick={() => goView('home')}>Home</button>
-          <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
-          <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
-          <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>
-            Reading{buddyInvites + groupInvites + clubInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites + groupInvites + clubInvites} invites`}>{buddyInvites + groupInvites + clubInvites}</span>}
-          </button>
-          {user && (
-            <button className={friendsOpen ? 'active' : ''} onClick={() => showFriends()}>
-              Friends{friendRequests + loanAsks > 0 && <span className="tab-badge" aria-label={`${friendRequests + loanAsks} new`}>{friendRequests + loanAsks}</span>}
-            </button>
-          )}
-        </nav>
-        <dl className="totals" aria-label="Library totals">
-          <div><dt>Books</dt><dd>{totals.titles.toLocaleString()}</dd></div>
-          {totals.vinyl + totals.cds > 0 ? (
-            <>
-              <div><dt>Vinyl</dt><dd>{totals.vinyl.toLocaleString()}</dd></div>
-              <div><dt>CDs</dt><dd>{totals.cds.toLocaleString()}</dd></div>
-            </>
-          ) : (
-            <>
-              <div><dt>Copies</dt><dd>{totals.copies.toLocaleString()}</dd></div>
-              <div><dt>Authors</dt><dd>{totals.authors.toLocaleString()}</dd></div>
-            </>
-          )}
-          <div><dt>Pages</dt><dd>{totals.pages.toLocaleString()}</dd></div>
-        </dl>
-        <div className="topbar-actions">
-          {user && <NotificationBell notifs={notifs} onGo={(t: NotifTarget) => goHome(t === 'people' ? 'friends' : t)} />}
-          <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => openAccount('signin')} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
-            {user ? (
-              <>
-                {profile ? <Avatar p={profile} size={22} /> : null}
-                <span className={`sync-dot ${sync.kind}`} aria-hidden="true" /> {profile ? `@${profile.username}` : 'Account'}
-              </>
-            ) : (
-              'Sign in'
-            )}
-          </button>
-          <details className="menu" ref={menuRef}>
-            <summary className="btn ghost" aria-label="More">More ▾</summary>
-            <div className="menu-pop">
-              <button onClick={async () => { closeMenu(); setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true }); }}>
-                Add {view === 'music' ? 'a record or CD' : 'a book'} by hand…
-              </button>
-              <button onClick={() => { closeMenu(); if (user) setShareOpen(true); else openAccount('signin'); }}>
-                Share my shelves…
-              </button>
-              <hr className="menu-sep" />
-              <button onClick={() => { closeMenu(); downloadBackup(); }}>
-                Download backup (.json)
-              </button>
-              <button onClick={() => { closeMenu(); downloadFile(`stacks-library-${today}.csv`, toCsv(allBooks, label), 'text/csv'); }}>
-                Export spreadsheet (.csv)
-              </button>
-              <button onClick={() => { closeMenu(); importRef.current?.click(); }}>Restore from backup…</button>
-              <button onClick={() => { closeMenu(); setImportOpen(true); }}>Import from Goodreads or StoryGraph…</button>
-              <button onClick={() => { closeMenu(); setDiscogsOpen(true); }}>Import from Discogs…</button>
-              <button onClick={() => { closeMenu(); setSettingsOpen(true); }}>Lookup keys…</button>
-            </div>
-          </details>
-          <input
-            ref={importRef}
-            id="import-file"
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onImport(f);
-              e.target.value = '';
-            }}
-          />
-        </div>
-      </header>
-
-      {backupDue && (
-        <div className="backup-nudge" role="note">
-          <p>
-            <strong>{backupNote ? `Your last backup was ${daysSinceBackup} days ago.` : "You haven't backed up your library yet."}</strong>{' '}
-            Your {books.length} items are stored only in this browser. Clearing browsing data or switching browsers would lose them.
-          </p>
-          <div className="backup-nudge-actions">
-            <button className="btn primary" onClick={downloadBackup}>Download backup</button>
-            <button
-              className="btn ghost"
-              onClick={() => {
-                const until = Date.now() + 3 * 86_400_000;
-                writePref(PREF_BACKUP_SNOOZE, String(until));
-                setSnoozedUntil(until);
-              }}
-            >
-              Remind me in 3 days
-            </button>
-          </div>
-        </div>
       )}
+    </nav>
+  );
 
+  const totalsList = () => (
+    <dl className="totals" aria-label="Library totals">
+      <div><dt>Books</dt><dd>{totals.titles.toLocaleString()}</dd></div>
+      {totals.vinyl + totals.cds > 0 ? (
+        <>
+          <div><dt>Vinyl</dt><dd>{totals.vinyl.toLocaleString()}</dd></div>
+          <div><dt>CDs</dt><dd>{totals.cds.toLocaleString()}</dd></div>
+        </>
+      ) : (
+        <>
+          <div><dt>Copies</dt><dd>{totals.copies.toLocaleString()}</dd></div>
+          <div><dt>Authors</dt><dd>{totals.authors.toLocaleString()}</dd></div>
+        </>
+      )}
+      <div><dt>Pages</dt><dd>{totals.pages.toLocaleString()}</dd></div>
+    </dl>
+  );
+
+  /** Notifications, the account button and the More menu. */
+  const topActions = () => (
+    <div className="topbar-actions">
+      {user && <NotificationBell notifs={notifs} onGo={(t: NotifTarget) => goHome(t === 'people' ? 'friends' : t)} />}
+      <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => openAccount('signin')} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
+        {user ? (
+          <>
+            {profile ? <Avatar p={profile} size={22} /> : null}
+            <span className={`sync-dot ${sync.kind}`} aria-hidden="true" /> {profile ? `@${profile.username}` : 'Account'}
+          </>
+        ) : (
+          'Sign in'
+        )}
+      </button>
+      <details className="menu" ref={menuRef}>
+        <summary className="btn ghost" aria-label="More">More ▾</summary>
+        <div className="menu-pop">
+          <button onClick={async () => { closeMenu(); setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true }); }}>
+            Add {view === 'music' ? 'a record or CD' : 'a book'} by hand…
+          </button>
+          <button onClick={() => { closeMenu(); if (user) setShareOpen(true); else openAccount('signin'); }}>
+            Share my shelves…
+          </button>
+          <hr className="menu-sep" />
+          <button onClick={() => { closeMenu(); downloadBackup(); }}>
+            Download backup (.json)
+          </button>
+          <button onClick={() => { closeMenu(); downloadFile(`stacks-library-${today}.csv`, toCsv(allBooks, label), 'text/csv'); }}>
+            Export spreadsheet (.csv)
+          </button>
+          <button onClick={() => { closeMenu(); importRef.current?.click(); }}>Restore from backup…</button>
+          <button onClick={() => { closeMenu(); setImportOpen(true); }}>Import from Goodreads or StoryGraph…</button>
+          <button onClick={() => { closeMenu(); setDiscogsOpen(true); }}>Import from Discogs…</button>
+          <button onClick={() => { closeMenu(); setSettingsOpen(true); }}>Lookup keys…</button>
+        </div>
+      </details>
+      <input
+        ref={importRef}
+        id="import-file"
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onImport(f);
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+
+  const backupNudge = () => (
+    <div className="backup-nudge" role="note">
+      <p>
+        <strong>{backupNote ? `Your last backup was ${daysSinceBackup} days ago.` : "You haven't backed up your library yet."}</strong>{' '}
+        Your {books.length} items are stored only in this browser. Clearing browsing data or switching browsers would lose them.
+      </p>
+      <div className="backup-nudge-actions">
+        <button className="btn primary" onClick={downloadBackup}>Download backup</button>
+        <button
+          className="btn ghost"
+          onClick={() => {
+            const until = Date.now() + 3 * 86_400_000;
+            writePref(PREF_BACKUP_SNOOZE, String(until));
+            setSnoozedUntil(until);
+          }}
+        >
+          Remind me in 3 days
+        </button>
+      </div>
+    </div>
+  );
+
+  /** Someone’s profile, or the Friends page. */
+  const peoplePage = () => (
+    <>
       {profileName && (
         <ProfileView
           username={profileName}
           mine={profile}
           signedIn={!!user}
           onEdit={() => setProfileEditing(true)}
-          onBack={() => showProfile(undefined)}
+          onBack={() => showProfile()}
           onSignIn={() => openAccount('signin')}
           uid={user?.id}
           friends={friends}
@@ -1807,7 +1895,7 @@ function StacksApp() {
           onChanged={refreshFriends}
           onOpenProfile={(n) => showProfile(n)}
           onEditProfile={() => setProfileEditing(true)}
-          onBack={() => showProfile(undefined)}
+          onBack={() => showProfile()}
           key={friendsTab ?? 'friends'}
           initialTab={friendsTab}
           lendingBadge={loanAsks}
@@ -1829,670 +1917,795 @@ function StacksApp() {
           }
         />
       )}
-      <main className={`layout ${view === 'home' ? 'on-home' : ''}`} hidden={!!profileName || (friendsOpen && !!user)}>
-        {view === 'reading' && (
-          <aside className="scan-panel" aria-label="Currently reading">
-            <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => setActiveSession(startSession(r, b))} />
-          </aside>
-        )}
-        <section className="scan-panel" aria-label="Scan books" hidden={view === 'reading'}>
-          {storageProblem && (
-            <div className="setup-callout storage-problem" role="alert">
-              <h2>Your library couldn't open</h2>
-              <p>{storageProblem}</p>
-            </div>
-          )}
-          {loaded && !storageProblem && bookcases.length === 0 && (
-            <div className="setup-callout" role="note">
-              <h2>Start by adding your bookcase</h2>
-              <p>Tell Stacks what bookcase you have, like a black IKEA Billy, and every book you scan goes straight onto the shelf you pick, in order.</p>
-              <button className="btn primary" onClick={() => setEditingCase({ bc: newBookcase('billy-80', 0), isNew: true })}>
-                Add a bookcase
-              </button>
-              <p className="muted small">You can still scan without one. Those books wait in “Not on a bookcase”.</p>
-            </div>
-          )}
-          <input
-            ref={sinkRef}
-            id="scanner-sink"
-            className="scanner-sink"
-            aria-label="Barcode scanner"
-            tabIndex={-1}
-            autoComplete="off"
-            inputMode="none"
-            onKeyDown={onSinkKey}
-          />
-          <form className={`scan-field ${flash ? 'flash' : ''}`} onSubmit={submitEntry}>
-            <div className="scan-head">
-              <div className="barcode" aria-hidden="true">
-                {[1, 3, 1, 2, 1, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 1, 1, 4, 2, 1].map((w, i) => (
-                  <i key={i} style={{ width: w * 2 }} />
-                ))}
-              </div>
-              <div>
-                {open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false ? (
-                  <>
-                    <p className="scan-status paused"><span className="dot" /> Scanner paused</p>
-                    <p className="scan-hint">Close the panel on the right to scan again.</p>
-                  </>
-                ) : pageFocused ? (
-                  <>
-                    <p className="scan-status"><span className="dot" /> Scanner ready</p>
-                    <p className="scan-hint">Scan the barcode on the back of a book, record or CD. You don't need to click anything first.</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="scan-status paused"><span className="dot" /> Click this page to scan</p>
-                    <p className="scan-hint">Your scanner types into whichever window is active. Click anywhere on Stacks first, then scan.</p>
-                  </>
-                )}
-              </div>
-            </div>
-            <label className="sr-only" htmlFor="scan-input">ISBN</label>
-            <div className="scan-input-row">
-              <input
-                ref={scanFieldRef}
-                id="scan-input"
-                data-scan-input=""
-                value={entry}
-                onChange={(e) => setEntry(e.target.value)}
-                onKeyDown={(e) => {
-                  // Some scanners end with Tab instead of Enter.
-                  if (e.key === 'Tab' && entry.trim()) {
-                    e.preventDefault();
-                    e.currentTarget.form?.requestSubmit();
-                    return;
-                  }
-                  // Keyboard layouts like AZERTY type é, &, " on the number row; read the digit instead.
-                  const d = digitOf(e);
-                  if (d && d !== e.key && !e.ctrlKey && !e.metaKey) {
-                    e.preventDefault();
-                    setEntry((v) => v + d);
-                  }
-                }}
-                placeholder="Or type an ISBN, then Enter"
-                inputMode="numeric"
-                autoComplete="off"
-              />
-              <button className="btn primary" type="submit">Add</button>
-            </div>
-            <button
-              type="button"
-              className="btn camera-btn"
-              onClick={() => (cameraSupported() && !cameraNeedsHttps() ? setCameraOpen(true) : setCameraNote(!cameraNote))}
-            >
-              <span aria-hidden="true">📷</span> Scan with camera
-            </button>
-            {cameraNote && (
-              <p className="muted small camera-note">
-                {cameraNeedsHttps()
-                  ? 'Phones only let a web page use the camera when it’s opened from an https:// web address. Open Stacks from its web link instead of a saved file.'
-                  : 'This browser can’t use a camera. Try Chrome or Safari.'}
-              </p>
-            )}
-          </form>
-          {cameraOpen && <CameraScanner onCode={handleCode} onClose={() => setCameraOpen(false)} />}
+    </>
+  );
 
-          <div className={`scan-target ${scanTarget}`} role="radiogroup" aria-label="Scans go to">
-            <span className="scan-target-label">Scans go to</span>
-            {(['library', 'wishlist'] as const).map((t) => (
-              <button key={t} type="button" role="radio" aria-checked={scanTarget === t} className={`status-option ${scanTarget === t ? 'on' : ''}`} onClick={() => setScanTarget(t)}>
-                {t === 'library' ? 'My library' : 'My wishlist'}
-              </button>
+  const setupCallouts = () => (
+    <>
+      {storageProblem && (
+        <div className="setup-callout storage-problem" role="alert">
+          <h2>Your library couldn't open</h2>
+          <p>{storageProblem}</p>
+        </div>
+      )}
+      {loaded && !storageProblem && bookcases.length === 0 && (
+        <div className="setup-callout" role="note">
+          <h2>Start by adding your bookcase</h2>
+          <p>Tell Stacks what bookcase you have, like a black IKEA Billy, and every book you scan goes straight onto the shelf you pick, in order.</p>
+          <button className="btn primary" onClick={() => setEditingCase({ bc: newBookcase('billy-80', 0), isNew: true })}>
+            Add a bookcase
+          </button>
+          <p className="muted small">You can still scan without one. Those books wait in “Not on a bookcase”.</p>
+        </div>
+      )}
+    </>
+  );
+
+  const scannerStatus = () => (
+    <>
+      {(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) ? (
+        <>
+          <p className="scan-status paused"><span className="dot" /> Scanner paused</p>
+          <p className="scan-hint">Close the panel on the right to scan again.</p>
+        </>
+      ) : null}
+      {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && pageFocused ? (
+        <>
+          <p className="scan-status"><span className="dot" /> Scanner ready</p>
+          <p className="scan-hint">Scan the barcode on the back of a book, record or CD. You don't need to click anything first.</p>
+        </>
+      ) : null}
+      {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && !pageFocused ? <>
+          <p className="scan-status paused"><span className="dot" /> Click this page to scan</p>
+          <p className="scan-hint">Your scanner types into whichever window is active. Click anywhere on Stacks first, then scan.</p>
+        </> : null}
+    </>
+  );
+
+  const scanForm = () => (
+    <form className={`scan-field ${flash ? 'flash' : ''}`} onSubmit={submitEntry}>
+      <div className="scan-head">
+        <div className="barcode" aria-hidden="true">
+          {[1, 3, 1, 2, 1, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 1, 1, 4, 2, 1].map((w, i) => (
+            <i key={i} style={{ width: w * 2 }} />
+          ))}
+        </div>
+        <div>
+          {scannerStatus()}
+        </div>
+      </div>
+      <label className="sr-only" htmlFor="scan-input">ISBN</label>
+      <div className="scan-input-row">
+        <input
+          ref={scanFieldRef}
+          id="scan-input"
+          data-scan-input=""
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          onKeyDown={(e) => {
+            // Some scanners end with Tab instead of Enter.
+            if (e.key === 'Tab' && entry.trim()) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+              return;
+            }
+            // Keyboard layouts like AZERTY type é, &, " on the number row; read the digit instead.
+            const d = digitOf(e);
+            if (d && d !== e.key && !e.ctrlKey && !e.metaKey) {
+              e.preventDefault();
+              setEntry((v) => v + d);
+            }
+          }}
+          placeholder="Or type an ISBN, then Enter"
+          inputMode="numeric"
+          autoComplete="off"
+        />
+        <button className="btn primary" type="submit">Add</button>
+      </div>
+      <button
+        type="button"
+        className="btn camera-btn"
+        onClick={() => (cameraSupported() && !cameraNeedsHttps() ? setCameraOpen(true) : setCameraNote(!cameraNote))}
+      >
+        <span aria-hidden="true">📷</span> Scan with camera
+      </button>
+      {cameraNote && (
+        <p className="muted small camera-note">
+          {cameraNeedsHttps()
+            ? 'Phones only let a web page use the camera when it’s opened from an https:// web address. Open Stacks from its web link instead of a saved file.'
+            : 'This browser can’t use a camera. Try Chrome or Safari.'}
+        </p>
+      )}
+    </form>
+  );
+
+  const scanTargetPicker = () => (
+    <>
+      {cameraOpen && <CameraScanner onCode={handleCode} onClose={() => setCameraOpen(false)} />}
+
+      <div className={`scan-target ${scanTarget}`} role="radiogroup" aria-label="Scans go to">
+        <span className="scan-target-label">Scans go to</span>
+        {(['library', 'wishlist'] as const).map((t) => (
+          <button key={t} type="button" role="radio" aria-checked={scanTarget === t} className={`status-option ${scanTarget === t ? 'on' : ''}`} onClick={() => setScanTarget(t)}>
+            {t === 'library' ? 'My library' : 'My wishlist'}
+          </button>
+        ))}
+      </div>
+      {scanTarget === 'wishlist' ? (
+        <p className="muted small wish-note">Scanned books go on your wishlist. If you already own one, Stacks tells you instead.</p>
+      ) : (
+      <div className="scan-defaults">
+        <label className="field">
+          <span>New books are</span>
+          <select id="default-format" value={defaultFormat} onChange={(e) => setDefaultFormat(e.target.value as BookFormat)}>
+            {Object.entries(FORMAT_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
             ))}
-          </div>
-          {scanTarget === 'wishlist' ? (
-            <p className="muted small wish-note">Scanned books go on your wishlist. If you already own one, Stacks tells you instead.</p>
-          ) : (
-          <div className="scan-defaults">
-            <label className="field">
-              <span>New books are</span>
-              <select id="default-format" value={defaultFormat} onChange={(e) => setDefaultFormat(e.target.value as BookFormat)}>
-                {Object.entries(FORMAT_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>And go on</span>
+          <select
+            id="default-spot"
+            value={scanSpot ? `${scanSpot.bookcaseId}|${scanSpot.shelf}|${scanSpot.section}` : ''}
+            onChange={(e) => {
+              const [bookcaseId, shelf, section] = e.target.value.split('|');
+              setDefaultSpot(bookcaseId ? { bookcaseId, shelf: Number(shelf), section: Number(section) } : null);
+            }}
+          >
+            <option value="">No shelf yet</option>
+            {bookcases.map((bc) => (
+              <optgroup key={bc.id} label={bc.name}>
+                {allSpotsOf(bc).map((sp) => (
+                  <option key={`${sp.shelf}|${sp.section}`} value={`${bc.id}|${sp.shelf}|${sp.section}`}>
+                    {bc.name}: {spotName(bc, sp)}
+                  </option>
                 ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>And go on</span>
-              <select
-                id="default-spot"
-                value={scanSpot ? `${scanSpot.bookcaseId}|${scanSpot.shelf}|${scanSpot.section}` : ''}
-                onChange={(e) => {
-                  const [bookcaseId, shelf, section] = e.target.value.split('|');
-                  setDefaultSpot(bookcaseId ? { bookcaseId, shelf: Number(shelf), section: Number(section) } : null);
-                }}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+      </div>
+      )}
+
+      {scanTarget === 'library' && bookcases.length > 0 && !scanSpot && (
+        <p className="spot-hint">Pick a shelf under <strong>And go on</strong> so the books you scan are put on it.</p>
+      )}
+
+    </>
+  );
+
+  const sessionList = () => (
+    <>
+      <div className="session-head">
+        <h2>This session</h2>
+        <span className="muted">{sessionAdded ? `${sessionAdded} added` : null}
+        {!sessionAdded && scans.length ? '' : null}
+        {!sessionAdded && !scans.length ? 'Nothing scanned yet' : null}</span>
+        {scans.length > 0 && <button className="link" onClick={() => setScans([])}>Clear</button>}
+      </div>
+      {scans.length === 0 ? (
+        <p className="empty-small">Each book you scan shows up here so you can check it, fix it or undo it.</p>
+      ) : (
+        <ol className="scan-list">
+          {scans.map((s) => (
+            <li key={s.key} className={`scan-item state-${s.state}`}>
+              <button
+                className="scan-thumb"
+                onClick={() => openScan(s)}
+                disabled={s.state === 'undone' || s.state === 'invalid' || s.state === 'looking'}
+                aria-label={`Open ${s.title ?? s.raw}`}
               >
-                <option value="">No shelf yet</option>
-                {bookcases.map((bc) => (
-                  <optgroup key={bc.id} label={bc.name}>
-                    {allSpotsOf(bc).map((sp) => (
-                      <option key={`${sp.shelf}|${sp.section}`} value={`${bc.id}|${sp.shelf}|${sp.section}`}>
-                        {bc.name}: {spotName(bc, sp)}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-          </div>
-          )}
+                {s.title ? <Cover url={s.coverUrl} title={s.title} size="sm" /> : <span className="cover cover-sm cover-pending" />}
+              </button>
+              <div className="scan-body">
+                <p className="scan-title">{s.title ?? (s.isbn13 ? formatIsbn13(s.isbn13) : s.raw)}</p>
+                <p className="scan-meta">
+                  <span className={`pill pill-${s.state}`}>{STATE_LABEL[s.state]}</span>
+                  {s.kind && s.kind !== 'book' && <span className="kind-tag">{KIND_LABELS[s.kind].one}</span>}
+                  {s.author && <span className="muted">{s.author}</span>}
+                </p>
+                {s.message && <p className="scan-msg">{s.message}</p>}
+              </div>
+              <div className="scan-actions">
+                {s.state === 'added' && <button className="link" onClick={() => undoScan(s)}>Undo</button>}
+                {s.state === 'duplicate' && <button className="link" onClick={() => addCopy(s)}>Add a copy</button>}
+                {(s.state === 'not-found' || s.state === 'error') && s.isbn13 && (
+                  <button className="link" onClick={() => setSearchFor(s)}>Search by title</button>
+                )}
+                {s.state === 'not-found' && <button className="link" onClick={() => openScan(s)}>Enter details</button>}
+                {(s.state === 'error' || (s.state === 'not-found' && s.barcode)) && <button className="link" onClick={() => retryScan(s)}>Retry</button>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
+  );
 
-          {scanTarget === 'library' && bookcases.length > 0 && !scanSpot && (
-            <p className="spot-hint">Pick a shelf under <strong>And go on</strong> so the books you scan are put on it.</p>
-          )}
+  const scanPanel = () => (
+    <section className="scan-panel" aria-label="Scan books" hidden={view === 'reading'}>
+      {setupCallouts()}
+      <input
+        ref={sinkRef}
+        id="scanner-sink"
+        className="scanner-sink"
+        aria-label="Barcode scanner"
+        tabIndex={-1}
+        autoComplete="off"
+        inputMode="none"
+        onKeyDown={onSinkKey}
+      />
+      {scanForm()}
+      {scanTargetPicker()}
+      {sessionList()}
+    </section>
+  );
 
-          <div className="session-head">
-            <h2>This session</h2>
-            <span className="muted">{sessionAdded ? `${sessionAdded} added` : scans.length ? '' : 'Nothing scanned yet'}</span>
-            {scans.length > 0 && <button className="link" onClick={() => setScans([])}>Clear</button>}
-          </div>
-          {scans.length === 0 ? (
-            <p className="empty-small">Each book you scan shows up here so you can check it, fix it or undo it.</p>
-          ) : (
-            <ol className="scan-list">
-              {scans.map((s) => (
-                <li key={s.key} className={`scan-item state-${s.state}`}>
-                  <button
-                    className="scan-thumb"
-                    onClick={() => openScan(s)}
-                    disabled={s.state === 'undone' || s.state === 'invalid' || s.state === 'looking'}
-                    aria-label={`Open ${s.title ?? s.raw}`}
-                  >
-                    {s.title ? <Cover url={s.coverUrl} title={s.title} size="sm" /> : <span className="cover cover-sm cover-pending" />}
-                  </button>
-                  <div className="scan-body">
-                    <p className="scan-title">{s.title ?? (s.isbn13 ? formatIsbn13(s.isbn13) : s.raw)}</p>
-                    <p className="scan-meta">
-                      <span className={`pill pill-${s.state}`}>{STATE_LABEL[s.state]}</span>
-                      {s.kind && s.kind !== 'book' && <span className="kind-tag">{KIND_LABELS[s.kind].one}</span>}
-                      {s.author && <span className="muted">{s.author}</span>}
-                    </p>
-                    {s.message && <p className="scan-msg">{s.message}</p>}
-                  </div>
-                  <div className="scan-actions">
-                    {s.state === 'added' && <button className="link" onClick={() => undoScan(s)}>Undo</button>}
-                    {s.state === 'duplicate' && <button className="link" onClick={() => addCopy(s)}>Add a copy</button>}
-                    {(s.state === 'not-found' || s.state === 'error') && s.isbn13 && (
-                      <button className="link" onClick={() => setSearchFor(s)}>Search by title</button>
-                    )}
-                    {s.state === 'not-found' && <button className="link" onClick={() => openScan(s)}>Enter details</button>}
-                    {(s.state === 'error' || (s.state === 'not-found' && s.barcode)) && <button className="link" onClick={() => retryScan(s)}>Retry</button>}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+  const bookYearNudge = () => (
+    <div className="wrap-nudge">
+      <span>
+        <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in books is ready.</strong> See your highlights and save a picture to share.
+      </span>
+      <button className="btn primary small-btn" onClick={() => setReadingTab('wrap')}>See your year</button>
+    </div>
+  );
 
-        {view === 'home' ? (
-          <HomeView
-            allBooks={allBooks}
+  /** What a Together page shows before you sign in and make a profile. */
+  const profileNeeded = (intro: string) => (
+    <div className="profile-missing">
+      <p>{intro} {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
+      <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
+    </div>
+  );
+
+  /** Reading > Overview: the year nudge, challenges and what you are reading. */
+  const readingOverview = () => (
+    <>
+      {[11, 0].includes(new Date().getMonth()) && bookYearNudge()}
+      <ChallengesPanel challenges={challenges} books={allBooks} readings={readings} onSave={saveChallenge} onRemove={removeChallenge} />
+      <ReadingView books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} />
+    </>
+  );
+
+  /** Reading > For you. */
+  const bookRecsPage = () => (
+    <RecsView
+      books={allBooks}
+      readings={readings}
+      uid={user?.id}
+      social={!!(user && profile)}
+      onOpen={(b) => setOpen({ book: b })}
+      onWant={wantRec}
+      onWish={wishRec}
+      onRead={readRec}
+      onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
+    />
+  );
+
+  /** The page under the Reading tab. */
+  const readingTabContent = () => {
+    switch (readingTab) {
+      case 'overview':
+        return readingOverview();
+      case 'new':
+        return releasesView('book');
+      case 'foryou':
+        return bookRecsPage();
+      case 'groups':
+        if (!user || !profile) return profileNeeded('Race your friends to a reading goal, like 24 books this year.');
+        return (
+          <GroupChallengesView
+            uid={user.id}
+            books={allBooks}
             readings={readings}
-            challenges={challenges}
-            spins={spins}
-            profile={profile}
-            uid={user?.id}
-            active={activeSession}
+            friends={friends}
+            groups={groups}
+            error={groupsError}
+            onChanged={refreshGroups}
+            onOpenProfile={(n) => showProfile(n)}
+            onFindFriends={() => showFriends()}
+          />
+        );
+      case 'clubs':
+        if (!user || !profile) return profileNeeded('Book clubs are for reading with friends.');
+        return (
+          <ClubsView
+            uid={user.id}
+            books={allBooks}
+            readings={readings}
+            friends={friends}
+            clubs={clubs}
+            reads={buddyReads}
+            error={clubsError}
+            onRefresh={refreshBuddy}
             onOpen={(b) => setOpen({ book: b })}
             onSaveReading={saveReading}
-            onStartTimer={(r, b) => setActiveSession(startSession(r, b))}
-            onSpin={(b) => void spinRecord(b)}
-            onGo={goHome}
+            onJoinRead={joinBuddy}
             onOpenProfile={(n) => showProfile(n)}
-            onSignIn={() => openAccount('signin')}
-            clubs={
-              user
-                ? clubs.map((c) => {
-                    const now = c.books[0];
-                    const upcoming = now?.meet_at && meetingSoon(now.meet_at) !== 'past' ? now.meet_at : undefined;
-                    return { name: c.name, book: now?.book.title, meet: upcoming ? `${meetingSoon(upcoming)}, ${new Date(upcoming).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : undefined, invite: c.members.find((m) => m.user_id === user.id)?.status === 'invited' };
-                  })
-                : undefined
-            }
-            releases={{ ...visibleReleases, unseen: new Set([...visibleReleases.books, ...visibleReleases.music].map((r) => r.key).filter((k) => !releasesSeen.has(k))) }}
-            groups={
-              user
-                ? groups
-                    .filter((g) => g.end_on >= todayIsoDate() && g.members.some((m) => m.user_id === user.id))
-                    .map((g) => {
-                      const joined = g.members.filter((m) => m.status === 'joined').sort((a, b) => b.progress - a.progress);
-                      const me = g.members.find((m) => m.user_id === user.id)!;
-                      return { name: g.name, goal: g.goal, measure: g.measure, mine: me.progress, invite: me.status === 'invited', place: joined.findIndex((m) => m.progress === me.progress) + 1, of: joined.length };
-                    })
-                : undefined
-            }
-            lending={
-              user
-                ? {
-                    asks: loanAsks,
-                    items: loans
-                      .filter((l) => l.status === 'lent' && (l.borrower === user.id ? (daysLeft(l.due_on) ?? 99) <= 7 : (daysLeft(l.due_on) ?? 0) < 0))
-                      .map((l) => ({ title: l.item.title, line: l.borrower === user.id ? `from ${loanFriendName(l.other)}` : `with ${loanFriendName(l.other)}`, due: l.due_on })),
-                  }
-                : undefined
-            }
-            buddy={
-              user
-                ? buddyReads.filter((read) => !read.club_id).map((read) => {
-                    const me = read.members.find((m) => m.user_id === user.id);
-                    const others = read.members.filter((m) => m.user_id !== user.id);
-                    const pctOf = (m: (typeof read.members)[number]) => memberPct(m, read.book.pages);
-                    return {
-                      title: read.book.title,
-                      others: me?.status === 'invited' ? memberName(read.members.find((m) => m.user_id === read.owner) ?? others[0]) : others.map(memberName).join(', '),
-                      invite: me?.status === 'invited',
-                      myPct: me ? pctOf(me) : 0,
-                      leaderPct: Math.max(0, ...others.filter((m) => m.status === 'joined').map(pctOf)),
-                    };
-                  })
-                : undefined
-            }
+            onFindFriends={() => showFriends()}
           />
-        ) : view === 'wishlist' ? (
-          <section className="library" aria-label="Wishlist">
-            <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
-            {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
-            <WishlistView
-              books={allBooks.filter((b) => !isMusic(b))}
-              readings={readings}
-              placeOf={label}
-              onOpen={(b) => setOpen({ book: b })}
-              onBought={buyFromWishlist}
-              onRemove={removeFromWishlist}
-              onAddByTitle={() => {
-                wishSeries.current = undefined;
-                setWishSearch('');
-              }}
-              onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
-              scanningToWishlist={scanTarget === 'wishlist'}
-            />
-          </section>
-        ) : view === 'reading' ? (
-          <section className="library" aria-label="Reading">
-            <div className="library-tools">
-              <h2>Your reading</h2>
-              <GroupedTabs
-                label="Reading pages"
-                current={readingTab}
-                onPick={setReadingTab}
-                groups={[
-                  { label: 'Overview', pages: [['overview', 'Overview']] },
-                  { label: 'Discover', pages: [['foryou', 'For you'], ['new', 'New releases']] },
-                  { label: 'Together', pages: [['buddy', 'Buddy reads', buddyInvites], ['clubs', 'Book clubs', clubInvites], ['groups', 'Challenges', groupInvites]] },
-                  { label: 'Notes', pages: [['notes', 'Quotes and notes']] },
-                  { label: 'Stats', pages: [['stats', 'Reading stats'], ['achievements', 'Achievements'], ['wrap', 'Year in books']] },
-                ]}
-              />
-            </div>
-            {readingTab === 'overview' && (
-              <>
-                {[11, 0].includes(new Date().getMonth()) && (
-                  <div className="wrap-nudge">
-                    <span>
-                      <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in books is ready.</strong> See your highlights and save a picture to share.
-                    </span>
-                    <button className="btn primary small-btn" onClick={() => setReadingTab('wrap')}>See your year</button>
-                  </div>
-                )}
-                <ChallengesPanel challenges={challenges} books={allBooks} readings={readings} onSave={saveChallenge} onRemove={removeChallenge} />
-                <ReadingView books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} />
-              </>
-            )}
-            {readingTab === 'new' && releasesView('book')}
-            {readingTab === 'foryou' && (
-              <RecsView
-                books={allBooks}
-                readings={readings}
-                uid={user?.id}
-                social={!!(user && profile)}
-                onOpen={(b) => setOpen({ book: b })}
-                onWant={wantRec}
-                onWish={wishRec}
-                onRead={readRec}
-                onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
-              />
-            )}
-            {readingTab === 'groups' &&
-              (user && profile ? (
-                <GroupChallengesView
-                  uid={user.id}
-                  books={allBooks}
-                  readings={readings}
-                  friends={friends}
-                  groups={groups}
-                  error={groupsError}
-                  onChanged={refreshGroups}
-                  onOpenProfile={(n) => showProfile(n)}
-                  onFindFriends={() => showFriends()}
-                />
-              ) : (
-                <div className="profile-missing">
-                  <p>Race your friends to a reading goal, like 24 books this year. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
-                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
-                </div>
-              ))}
-            {readingTab === 'stats' && <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />}
-            {readingTab === 'notes' && <NotesView books={allBooks} notes={notes} onOpen={(b) => setOpen({ book: b })} onSave={saveNote} onRemove={removeNote} />}
-            {readingTab === 'wrap' && <YearWrap books={allBooks} readings={readings} notes={notes} challenges={challenges} onOpen={(b) => setOpen({ book: b })} />}
-            {readingTab === 'clubs' &&
-              (user && profile ? (
-                <ClubsView
-                  uid={user.id}
-                  books={allBooks}
-                  readings={readings}
-                  friends={friends}
-                  clubs={clubs}
-                  reads={buddyReads}
-                  error={clubsError}
-                  onRefresh={refreshBuddy}
-                  onOpen={(b) => setOpen({ book: b })}
-                  onSaveReading={saveReading}
-                  onJoinRead={joinBuddy}
-                  onOpenProfile={(n) => showProfile(n)}
-                  onFindFriends={() => showFriends()}
-                />
-              ) : (
-                <div className="profile-missing">
-                  <p>Book clubs are for reading with friends. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
-                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
-                </div>
-              ))}
-            {readingTab === 'buddy' &&
-              (user && profile ? (
-                <BuddyView
-                  uid={user.id}
-                  books={allBooks}
-                  readings={readings}
-                  friends={friends}
-                  reads={buddyReads}
-                  error={buddyError}
-                  onRefresh={refreshBuddy}
-                  onOpen={(b) => setOpen({ book: b })}
-                  onSaveReading={saveReading}
-                  onStart={startBuddy}
-                  onJoin={joinBuddy}
-                  onOpenProfile={(n) => showProfile(n)}
-                  onFindFriends={() => showFriends()}
-                />
-              ) : (
-                <div className="profile-missing">
-                  <p>Buddy reads let you read a book together with friends. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
-                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
-                </div>
-              ))}
-            {readingTab === 'achievements' && (
-              <AchievementsView books={allBooks} readings={readings} challenges={challenges} onGoToChallenges={() => setReadingTab('overview')} />
-            )}
-          </section>
-        ) : view === 'stats' ? (
-          <section className="library" aria-label="Stats">
-            <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
-            <Stats books={books} bookcases={bookcases} onOpen={(b) => setOpen({ book: b })} />
-          </section>
-        ) : view === 'series' ? (
-          <section className="library" aria-label="Series">
-            <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
-            <SeriesView
-              books={allBooks.filter((b) => !isMusic(b))}
-              readings={readings}
-              onOpen={(b) => setOpen({ book: b })}
-              onUpdate={patchBook}
-              onFindMissing={(name, n) => {
-                wishSeries.current = { name, number: n };
-                setWishSearch(`${name} ${n}`);
-              }}
-            />
-          </section>
-        ) : view === 'music' && musicTab === 'listening' ? (
-          <section className="library" aria-label="Listening">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            {[11, 0].includes(new Date().getMonth()) && spins.length > 0 && (
-              <div className="wrap-nudge">
-                <span>
-                  <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in music is ready.</strong> See your most played records and save a picture to share.
-                </span>
-                <button className="btn primary small-btn" onClick={() => setMusicTab('wrap')}>See your year</button>
-              </div>
-            )}
-            <ListeningView
-              records={books.filter(isMusic)}
-              spins={spins}
-              onSpin={(b) => spinRecord(b)}
-              onOpen={(b) => setOpen({ book: b })}
-              onRemoveSpin={removeSpin}
-              allRecords={allBooks.filter(isMusic)}
-              styluses={styluses}
-              onStylusChange={setStyluses}
-              extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
-            />
-          </section>
-        ) : view === 'music' && musicTab === 'new' ? (
-          <section className="library" aria-label="New releases">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            {releasesView('music')}
-          </section>
-        ) : view === 'music' && musicTab === 'foryou' ? (
-          <section className="library" aria-label="Music for you">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            <MusicRecsView
-              records={allBooks.filter(isMusic)}
-              spins={spins}
-              uid={user?.id}
-              social={!!(user && profile)}
-              onOpen={(b) => setOpen({ book: b })}
-              onSpin={(b) => void spinRecord(b)}
-              onWant={wantRecord}
-              onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
-            />
-          </section>
-        ) : view === 'music' && musicTab === 'wrap' ? (
-          <section className="library" aria-label="Year in music">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            <MusicWrap records={allBooks.filter(isMusic)} spins={spins} onOpen={(b) => setOpen({ book: b })} />
-          </section>
-        ) : view === 'music' && musicTab === 'wantlist' ? (
-          <section className="library" aria-label="Wantlist">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
-            <WishlistView
-              music
-              books={allBooks.filter(isMusic)}
-              readings={readings}
-              placeOf={label}
-              onOpen={(b) => setOpen({ book: b })}
-              onBought={buyFromWishlist}
-              onRemove={removeFromWishlist}
-              onAddByTitle={async () => setOpen({ book: { ...(await freshBook({ ...blankMeta(), kind: 'vinyl' })), placement: undefined, owned: false, wishlist: true }, isNew: true })}
-              onImportDiscogs={() => {
-                setDiscogsWants(true);
-                setDiscogsOpen(true);
-              }}
-              onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
-              scanningToWishlist={scanTarget === 'wishlist'}
-            />
-          </section>
-        ) : view === 'music' && musicTab === 'value' ? (
-          <section className="library" aria-label="Value">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            <ValueView
-              records={books.filter(isMusic)}
-              currency={marketCurrency(currency)}
-              hasToken={!!getDiscogsToken()}
-              run={priceRun}
-              onUpdate={updatePrices}
-              onStop={() => {
-                stopPrices.current = true;
-              }}
-              onOpen={(b) => setOpen({ book: b })}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
-          </section>
-        ) : view === 'shelves' ? (
-          <section className="library" aria-label="Shelves">
-            <div className="library-tools">
-              <h2>Your books</h2>
-              {booksNav}
-              <p className="muted small">Drag books to rearrange them. Click a book to see or edit it.</p>
-            </div>
-            <ShelvesView
-              books={books}
-              bookcases={bookcases}
-              highlightId={highlightId}
-              onOpenBook={(b) => setOpen({ book: b })}
-              onMove={moveTo}
-              onAddBookcase={() => setEditingCase({ bc: newBookcase('billy-80', bookcases.length), isNew: true })}
-              onEditBookcase={(bc) => setEditingCase({ bc, isNew: false })}
-            />
-          </section>
-        ) : (
-          <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
-            <div className="library-tools">
-              <h2>{view === 'music' ? 'Your music' : 'Your books'}</h2>
-              {view === 'music' ? musicNav : booksNav}
-              <input
-                id="search"
-                type="search"
-                className="search"
-                placeholder="Search title, author, artist, tag, shelf or barcode"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              {view === 'music' ? (
-                <select id="filter-kind" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as ItemKind | 'all')} aria-label="Type">
-                  <option value="all">Vinyl and CDs</option>
-                  <option value="vinyl">Vinyl</option>
-                  <option value="cd">CDs</option>
-                </select>
-              ) : (
-                <select id="filter-format" value={formatFilter} onChange={(e) => setFormatFilter(e.target.value as BookFormat | 'all')} aria-label="Format">
-                  <option value="all">All book formats</option>
-                  {Object.entries(FORMAT_LABELS).map(([v, l]) => (
-                    <option key={v} value={v}>{l}</option>
-                  ))}
-                </select>
-              )}
-              <select id="filter-shelf" value={shelfFilter} onChange={(e) => setShelfFilter(e.target.value)} aria-label="Shelf">
-                <option value="all">All bookcases</option>
-                {bookcases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                <option value="none">Not on a bookcase</option>
-              </select>
-              {view !== 'music' && (
-                <select id="filter-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ReadStatus | 'none' | 'all')} aria-label="Reading status">
-                  <option value="all">Any reading status</option>
-                  {(Object.keys(STATUS_LABELS) as ReadStatus[]).map((k) => <option key={k} value={k}>{STATUS_LABELS[k]}</option>)}
-                  <option value="none">No status yet</option>
-                </select>
-              )}
-              {view !== 'music' && <VibeSelect id="filter-vibe" value={vibeFilter} onChange={setVibeFilter} />}
-              {view !== 'music' && allBooks.length > books.length && (
-                <label className="check">
-                  <input id="filter-unowned" type="checkbox" checked={includeUnowned} onChange={(e) => setIncludeUnowned(e.target.checked)} />
-                  Read but not owned
-                </label>
-              )}
-              <label className="check">
-                <input id="filter-lent" type="checkbox" checked={lentOnly} onChange={(e) => setLentOnly(e.target.checked)} />
-                Lent out
-              </label>
-              <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">
-                <option value="added">Recently added</option>
-                <option value="title">Title A–Z</option>
-                <option value="author">{view === 'music' ? 'Artist A–Z' : 'Author A–Z'}</option>
-                <option value="published">Newest published</option>
-                {view === 'music' && <option value="played">Most played</option>}
-              </select>
-            </div>
-            {filtersOn && sectionCount > 0 && (
-              <p className="result-count muted">
-                Showing {shown.length} of {sectionCount}
-              </p>
-            )}
+        );
+      case 'buddy':
+        if (!user || !profile) return profileNeeded('Buddy reads let you read a book together with friends.');
+        return (
+          <BuddyView
+            uid={user.id}
+            books={allBooks}
+            readings={readings}
+            friends={friends}
+            reads={buddyReads}
+            error={buddyError}
+            onRefresh={refreshBuddy}
+            onOpen={(b) => setOpen({ book: b })}
+            onSaveReading={saveReading}
+            onStart={startBuddy}
+            onJoin={joinBuddy}
+            onOpenProfile={(n) => showProfile(n)}
+            onFindFriends={() => showFriends()}
+          />
+        );
+      case 'stats':
+        return <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />;
+      case 'notes':
+        return <NotesView books={allBooks} notes={notes} onOpen={(b) => setOpen({ book: b })} onSave={saveNote} onRemove={removeNote} />;
+      case 'wrap':
+        return <YearWrap books={allBooks} readings={readings} notes={notes} challenges={challenges} onOpen={(b) => setOpen({ book: b })} />;
+      case 'achievements':
+        return <AchievementsView books={allBooks} readings={readings} challenges={challenges} onGoToChallenges={() => setReadingTab('overview')} />;
+      default:
+        return null;
+    }
+  };
 
-            {loaded && view === 'music' && sectionCount === 0 ? (
-              <div className="empty">
-                <h3>No records or CDs yet</h3>
-                <p>Scan the barcode on the back of a record or CD, the same way you scan books. Stacks looks it up on MusicBrainz, Deezer and iTunes (and Discogs, if you add a token) and adds it here.</p>
-                <p>
-                  Already keep your records on Discogs?{' '}
-                  <button className="btn primary small-btn" onClick={() => setDiscogsOpen(true)}>Import your Discogs collection</button>
-                </p>
-                <p className="muted">
-                  No barcode, or it isn't found?{' '}
-                  <button className="link" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: 'vinyl' }), isNew: true })}>
-                    Add a record or CD by hand
-                  </button>
-                </p>
-              </div>
-            ) : loaded && books.length === 0 ? (
-              <div className="empty">
-                <div className="empty-shelf" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-                <h3>Your shelves are empty</h3>
-                <p>Plug in your barcode scanner and scan the first book from your stack. It lands here with its cover, author and page count filled in.</p>
-                <p className="muted">No scanner handy? Type the 13-digit ISBN printed above the barcode into the box on the left.</p>
-              </div>
-            ) : shown.length === 0 ? (
-              <div className="empty"><p>{view === 'music' ? 'Nothing matches these filters.' : sectionCount === 0 ? 'No books yet. Your records and CDs are under Music.' : 'No books match these filters.'}</p></div>
-            ) : (
-              <ul className="grid">
-                {shown.map((b) => (
-                  <li key={b.id}>
-                    <button className="book" onClick={() => setOpen({ book: b })}>
-                      <span className={`book-cover${kindOf(b) === 'vinyl' && discBackground(b.vinylColor) ? ' has-disc' : ''}`}>
-                        {kindOf(b) === 'vinyl' && discBackground(b.vinylColor) && (
-                          <span className="card-disc" style={{ background: `radial-gradient(circle, var(--surface) 0 3%, #e9e2cf 4% 15%, transparent 16%), ${discBackground(b.vinylColor)}` }} title={b.vinylColor} />
-                        )}
-                        <Cover url={b.coverUrl} title={b.title} author={b.authors[0]} square={isMusic(b)} />
-                        {b.copies > 1 && <span className="badge">×{b.copies}</span>}
-                      </span>
-                      <span className="book-title">{b.title}</span>
-                      <span className="book-author">{b.authors.join(', ') || 'Unknown author'}</span>
-                      {b.series && <span className="book-series">{seriesLabel(b.series)}</span>}
-                      <span className="book-pages">
-                        {isMusic(b)
-                          ? [KIND_LABELS[kindOf(b)].one, b.trackCount && `${b.trackCount} tracks`, b.publishedDate?.slice(0, 4), b.mediaCondition && [gradeShort(b.mediaCondition), gradeShort(b.sleeveCondition)].filter(Boolean).join('/'), plays.get(b.id) && `${plays.get(b.id)!.count} ${plays.get(b.id)!.count === 1 ? 'play' : 'plays'}`].filter(Boolean).join(' · ')
-                          : b.pageCount ? `${b.pageCount.toLocaleString()} pages` : 'Pages unknown'}
-                      </span>
-                      {(() => {
-                        // Found by a song title: say which song.
-                        const q = query.trim().toLowerCase();
-                        if (q.length < 3 || !b.tracks || b.title.toLowerCase().includes(q) || b.authors.some((a) => a.toLowerCase().includes(q))) return null;
-                        const t = b.tracks.find((x) => x.title.toLowerCase().includes(q));
-                        return t ? <span className="book-track-hit">♪ {t.position ? `${t.position} ` : ''}{t.title}</span> : null;
-                      })()}
-                      {b.placement && label(b) && <span className="book-place">{label(b)}</span>}
-                      {b.loan && <span className="book-loan">Lent to {b.loan.to}</span>}
-                      {(() => {
-                        const r = !isMusic(b) && currentReading(readings, b.id);
-                        if (!r) return null;
-                        const pct = r.status === 'reading' ? progressPct(r, b) : undefined;
-                        return (
-                          <span className={`book-status status-${r.status}`}>
-                            {STATUS_LABELS[r.status]}
-                            {pct !== undefined && ` · ${pct}%`}
-                          </span>
-                        );
-                      })()}
-                    </button>
-                    {isMusic(b) && (
-                      <button className="card-spin" onClick={() => spinRecord(b)} aria-label={`Spin ${b.title}`} title="Spin it: log a play now">
-                        ▶
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+  /** Search, filters and sort above the library grid. */
+  const libraryTools = () => (
+    <div className="library-tools">
+      <h2>{view === 'music' ? 'Your music' : 'Your books'}</h2>
+      {view === 'music' ? musicNav : booksNav}
+      <input
+        id="search"
+        type="search"
+        className="search"
+        placeholder="Search title, author, artist, tag, shelf or barcode"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {view === 'music' ? (
+        <select id="filter-kind" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as ItemKind | 'all')} aria-label="Type">
+          <option value="all">Vinyl and CDs</option>
+          <option value="vinyl">Vinyl</option>
+          <option value="cd">CDs</option>
+        </select>
+      ) : (
+        <select id="filter-format" value={formatFilter} onChange={(e) => setFormatFilter(e.target.value as BookFormat | 'all')} aria-label="Format">
+          <option value="all">All book formats</option>
+          {Object.entries(FORMAT_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      )}
+      <select id="filter-shelf" value={shelfFilter} onChange={(e) => setShelfFilter(e.target.value)} aria-label="Shelf">
+        <option value="all">All bookcases</option>
+        {bookcases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        <option value="none">Not on a bookcase</option>
+      </select>
+      {view !== 'music' && (
+        <select id="filter-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ReadStatus | 'none' | 'all')} aria-label="Reading status">
+          <option value="all">Any reading status</option>
+          {(Object.keys(STATUS_LABELS) as ReadStatus[]).map((k) => <option key={k} value={k}>{STATUS_LABELS[k]}</option>)}
+          <option value="none">No status yet</option>
+        </select>
+      )}
+      {view !== 'music' && <VibeSelect id="filter-vibe" value={vibeFilter} onChange={setVibeFilter} />}
+      {view !== 'music' && allBooks.length > books.length && (
+        <label className="check">
+          <input id="filter-unowned" type="checkbox" checked={includeUnowned} onChange={(e) => setIncludeUnowned(e.target.checked)} />{' '}
+          Read but not owned
+        </label>
+      )}
+      <label className="check">
+        <input id="filter-lent" type="checkbox" checked={lentOnly} onChange={(e) => setLentOnly(e.target.checked)} />{' '}
+        Lent out
+      </label>
+      <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">
+        <option value="added">Recently added</option>
+        <option value="title">Title A–Z</option>
+        <option value="author">{view === 'music' ? 'Artist A–Z' : 'Author A–Z'}</option>
+        <option value="published">Newest published</option>
+        {view === 'music' && <option value="played">Most played</option>}
+      </select>
+    </div>
+  );
+
+  const libraryEmpty = ({ filtersOn, noMusicYet, noBooksYet, noMatches }: ReturnType<typeof libraryState>) => (
+    <>
+      {filtersOn && sectionCount > 0 && (
+        <p className="result-count muted">
+          Showing {shown.length} of {sectionCount}
+        </p>
+      )}
+
+      {noMusicYet && (
+        <div className="empty">
+          <h3>No records or CDs yet</h3>
+          <p>Scan the barcode on the back of a record or CD, the same way you scan books. Stacks looks it up on MusicBrainz, Deezer and iTunes (and Discogs, if you add a token) and adds it here.</p>
+          <p>
+            Already keep your records on Discogs?{' '}
+            <button className="btn primary small-btn" onClick={() => setDiscogsOpen(true)}>Import your Discogs collection</button>
+          </p>
+          <p className="muted">
+            No barcode, or it isn't found?{' '}
+            <button className="link" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: 'vinyl' }), isNew: true })}>
+              Add a record or CD by hand
+            </button>
+          </p>
+        </div>
+      )}
+      {noBooksYet && (
+        <div className="empty">
+          <div className="empty-shelf" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+          <h3>Your shelves are empty</h3>
+          <p>Plug in your barcode scanner and scan the first book from your stack. It lands here with its cover, author and page count filled in.</p>
+          <p className="muted">No scanner handy? Type the 13-digit ISBN printed above the barcode into the box on the left.</p>
+        </div>
+      )}
+      {noMatches && <div className="empty"><p>{noMatchText(view, sectionCount)}</p></div>}
+    </>
+  );
+
+  /** One cover in the library grid. */
+  const bookCard = (b: Book) => (
+    <li key={b.id}>
+      <button className="book" onClick={() => setOpen({ book: b })}>
+        <span className={`book-cover${kindOf(b) === 'vinyl' && discBackground(b.vinylColor) ? ' has-disc' : ''}`}>
+          {kindOf(b) === 'vinyl' && discBackground(b.vinylColor) && (
+            <span className="card-disc" style={{ background: `radial-gradient(circle, var(--surface) 0 3%, #e9e2cf 4% 15%, transparent 16%), ${discBackground(b.vinylColor)}` }} title={b.vinylColor} />
+          )}
+          <Cover url={b.coverUrl} title={b.title} author={b.authors[0]} square={isMusic(b)} />
+          {b.copies > 1 && <span className="badge">×{b.copies}</span>}
+        </span>
+        <span className="book-title">{b.title}</span>
+        <span className="book-author">{b.authors.join(', ') || 'Unknown author'}</span>
+        {b.series && <span className="book-series">{seriesLabel(b.series)}</span>}
+        <span className="book-pages">
+          {isMusic(b) ? recordLine(b, plays.get(b.id)?.count) : pagesLine(b)}
+        </span>
+        {(() => {
+          // Found by a song title: say which song.
+          const q = query.trim().toLowerCase();
+          if (q.length < 3 || !b.tracks || b.title.toLowerCase().includes(q) || b.authors.some((a) => a.toLowerCase().includes(q))) return null;
+          const t = b.tracks.find((x) => x.title.toLowerCase().includes(q));
+          return t ? <span className="book-track-hit">♪ {t.position ? `${t.position} ` : ''}{t.title}</span> : null;
+        })()}
+        {b.placement && label(b) && <span className="book-place">{label(b)}</span>}
+        {b.loan && <span className="book-loan">Lent to {b.loan.to}</span>}
+        {(() => {
+          const r = !isMusic(b) && currentReading(readings, b.id);
+          if (!r) return null;
+          const pct = r.status === 'reading' ? progressPct(r, b) : undefined;
+          return (
+            <span className={`book-status status-${r.status}`}>
+              {STATUS_LABELS[r.status]}
+              {pct !== undefined && ` · ${pct}%`}
+            </span>
+          );
+        })()}
+      </button>
+      {isMusic(b) && (
+        <button className="card-spin" onClick={() => spinRecord(b)} aria-label={`Spin ${b.title}`} title="Spin it: log a play now">
+          ▶
+        </button>
+      )}
+    </li>
+  );
+
+  const homePage = () => (
+    <HomeView
+      allBooks={allBooks}
+      readings={readings}
+      challenges={challenges}
+      spins={spins}
+      profile={profile}
+      uid={user?.id}
+      active={activeSession}
+      onOpen={(b) => setOpen({ book: b })}
+      onSaveReading={saveReading}
+      onStartTimer={(r, b) => changeActiveSession(startSession(r, b))}
+      onSpin={(b) => void spinRecord(b)}
+      onGo={goHome}
+      onOpenProfile={(n) => showProfile(n)}
+      onSignIn={() => openAccount('signin')}
+      clubs={
+        user
+          ? clubs.map((c) => {
+              const now = c.books[0];
+              const upcoming = now?.meet_at && meetingSoon(now.meet_at) !== 'past' ? now.meet_at : undefined;
+              return { name: c.name, book: now?.book.title, meet: upcoming ? `${meetingSoon(upcoming)}, ${new Date(upcoming).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : undefined, invite: c.members.find((m) => m.user_id === user.id)?.status === 'invited' };
+            })
+          : undefined
+      }
+      releases={{ ...visibleReleases, unseen: new Set([...visibleReleases.books, ...visibleReleases.music].map((r) => r.key).filter((k) => !releasesSeen.has(k))) }}
+      groups={
+        user
+          ? groups
+              .filter((g) => g.end_on >= todayIsoDate() && g.members.some((m) => m.user_id === user.id))
+              .map((g) => {
+                const joined = g.members.filter((m) => m.status === 'joined').sort((a, b) => b.progress - a.progress);
+                const me = g.members.find((m) => m.user_id === user.id)!;
+                return { name: g.name, goal: g.goal, measure: g.measure, mine: me.progress, invite: me.status === 'invited', place: joined.findIndex((m) => m.progress === me.progress) + 1, of: joined.length };
+              })
+          : undefined
+      }
+      lending={
+        user
+          ? {
+              asks: loanAsks,
+              items: loans
+                .filter((l) => l.status === 'lent' && (l.borrower === user.id ? (daysLeft(l.due_on) ?? 99) <= 7 : (daysLeft(l.due_on) ?? 0) < 0))
+                .map((l) => ({ title: l.item.title, line: l.borrower === user.id ? `from ${loanFriendName(l.other)}` : `with ${loanFriendName(l.other)}`, due: l.due_on })),
+            }
+          : undefined
+      }
+      buddy={
+        user
+          ? buddyReads.filter((read) => !read.club_id).map((read) => {
+              const me = read.members.find((m) => m.user_id === user.id);
+              const others = read.members.filter((m) => m.user_id !== user.id);
+              const pctOf = (m: (typeof read.members)[number]) => memberPct(m, read.book.pages);
+              return {
+                title: read.book.title,
+                others: me?.status === 'invited' ? memberName(read.members.find((m) => m.user_id === read.owner) ?? others[0]) : others.map(memberName).join(', '),
+                invite: me?.status === 'invited',
+                myPct: me ? pctOf(me) : 0,
+                leaderPct: Math.max(0, ...others.filter((m) => m.status === 'joined').map(pctOf)),
+              };
+            })
+          : undefined
+      }
+    />
+  );
+
+  const wishlistPage = () => (
+    <section className="library" aria-label="Wishlist">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
+      <WishlistView
+        books={allBooks.filter((b) => !isMusic(b))}
+        readings={readings}
+        placeOf={label}
+        onOpen={(b) => setOpen({ book: b })}
+        onBought={buyFromWishlist}
+        onRemove={removeFromWishlist}
+        onAddByTitle={() => {
+          wishSeries.current = undefined;
+          setWishSearch('');
+        }}
+        onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
+        scanningToWishlist={scanTarget === 'wishlist'}
+      />
+    </section>
+  );
+
+  const readingPage = () => (
+    <section className="library" aria-label="Reading">
+      <div className="library-tools">
+        <h2>Your reading</h2>
+        <GroupedTabs
+          label="Reading pages"
+          current={readingTab}
+          onPick={setReadingTab}
+          groups={[
+            { label: 'Overview', pages: [['overview', 'Overview']] },
+            { label: 'Discover', pages: [['foryou', 'For you'], ['new', 'New releases']] },
+            { label: 'Together', pages: [['buddy', 'Buddy reads', buddyInvites], ['clubs', 'Book clubs', clubInvites], ['groups', 'Challenges', groupInvites]] },
+            { label: 'Notes', pages: [['notes', 'Quotes and notes']] },
+            { label: 'Stats', pages: [['stats', 'Reading stats'], ['achievements', 'Achievements'], ['wrap', 'Year in books']] },
+          ]}
+        />
+      </div>
+      <Fragment key={readingTab}>{readingTabContent()}</Fragment>
+    </section>
+  );
+
+  const statsPage = () => (
+    <section className="library" aria-label="Stats">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      <Stats books={books} bookcases={bookcases} onOpen={(b) => setOpen({ book: b })} />
+    </section>
+  );
+
+  const seriesPage = () => (
+    <section className="library" aria-label="Series">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      <SeriesView
+        books={allBooks.filter((b) => !isMusic(b))}
+        readings={readings}
+        onOpen={(b) => setOpen({ book: b })}
+        onUpdate={patchBook}
+        onFindMissing={(name, n) => {
+          wishSeries.current = { name, number: n };
+          setWishSearch(`${name} ${n}`);
+        }}
+      />
+    </section>
+  );
+
+  const listeningPage = () => (
+    <section className="library" aria-label="Listening">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      {[11, 0].includes(new Date().getMonth()) && spins.length > 0 && (
+        <div className="wrap-nudge">
+          <span>
+            <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in music is ready.</strong> See your most played records and save a picture to share.
+          </span>
+          <button className="btn primary small-btn" onClick={() => setMusicTab('wrap')}>See your year</button>
+        </div>
+      )}
+      <ListeningView
+        records={books.filter(isMusic)}
+        spins={spins}
+        onSpin={(b) => spinRecord(b)}
+        onOpen={(b) => setOpen({ book: b })}
+        onRemoveSpin={removeSpin}
+        allRecords={allBooks.filter(isMusic)}
+        styluses={styluses}
+        onStylusChange={changeStyluses}
+        extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
+      />
+    </section>
+  );
+
+  const musicNewPage = () => (
+    <section className="library" aria-label="New releases">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      {releasesView('music')}
+    </section>
+  );
+
+  const musicForYouPage = () => (
+    <section className="library" aria-label="Music for you">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      <MusicRecsView
+        records={allBooks.filter(isMusic)}
+        spins={spins}
+        uid={user?.id}
+        social={!!(user && profile)}
+        onOpen={(b) => setOpen({ book: b })}
+        onSpin={(b) => void spinRecord(b)}
+        onWant={wantRecord}
+        onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
+      />
+    </section>
+  );
+
+  const musicWrapPage = () => (
+    <section className="library" aria-label="Year in music">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      <MusicWrap records={allBooks.filter(isMusic)} spins={spins} onOpen={(b) => setOpen({ book: b })} />
+    </section>
+  );
+
+  const wantlistPage = () => (
+    <section className="library" aria-label="Wantlist">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
+      <WishlistView
+        music
+        books={allBooks.filter(isMusic)}
+        readings={readings}
+        placeOf={label}
+        onOpen={(b) => setOpen({ book: b })}
+        onBought={buyFromWishlist}
+        onRemove={removeFromWishlist}
+        onAddByTitle={async () => setOpen({ book: { ...(await freshBook({ ...blankMeta(), kind: 'vinyl' })), placement: undefined, owned: false, wishlist: true }, isNew: true })}
+        onImportDiscogs={() => {
+          setDiscogsWants(true);
+          setDiscogsOpen(true);
+        }}
+        onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
+        scanningToWishlist={scanTarget === 'wishlist'}
+      />
+    </section>
+  );
+
+  const valuePage = () => (
+    <section className="library" aria-label="Value">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      <ValueView
+        records={books.filter(isMusic)}
+        currency={marketCurrency(currency)}
+        hasToken={!!getDiscogsToken()}
+        run={priceRun}
+        onUpdate={updatePrices}
+        onStop={() => {
+          stopPrices.current = true;
+        }}
+        onOpen={(b) => setOpen({ book: b })}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+    </section>
+  );
+
+  const shelvesPage = () => (
+    <section className="library" aria-label="Shelves">
+      <div className="library-tools">
+        <h2>Your books</h2>
+        {booksNav}
+        <p className="muted small">Drag books to rearrange them. Click a book to see or edit it.</p>
+      </div>
+      <ShelvesView
+        books={books}
+        bookcases={bookcases}
+        highlightId={highlightId}
+        onOpenBook={(b) => setOpen({ book: b })}
+        onMove={moveTo}
+        onAddBookcase={() => setEditingCase({ bc: newBookcase('billy-80', bookcases.length), isNew: true })}
+        onEditBookcase={(bc) => setEditingCase({ bc, isNew: false })}
+      />
+    </section>
+  );
+
+  const libraryPage = () => {
+    const st = libraryState();
+    return (
+      <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
+        {libraryTools()}
+        {libraryEmpty(st)}
+        {!st.noMusicYet && !st.noBooksYet && !st.noMatches && (
+          <ul className="grid">
+            {shown.map((b) => (
+              bookCard(b)
+            ))}
+          </ul>
         )}
-      </main>
+      </section>
+    );
+  };
 
+  /** The page in the main column, keyed so that switching pages starts each one fresh. */
+  const currentPage = () => {
+    if (view === 'home') return <Fragment key="home">{homePage()}</Fragment>;
+    if (view === 'wishlist') return <Fragment key="wishlist">{wishlistPage()}</Fragment>;
+    if (view === 'reading') return <Fragment key="reading">{readingPage()}</Fragment>;
+    if (view === 'stats') return <Fragment key="stats">{statsPage()}</Fragment>;
+    if (view === 'series') return <Fragment key="series">{seriesPage()}</Fragment>;
+    if (view === 'music') {
+      const music = musicPage();
+      if (music) return music;
+    }
+    if (view === 'shelves') return <Fragment key="shelves">{shelvesPage()}</Fragment>;
+    return <Fragment key="library">{libraryPage()}</Fragment>;
+  };
+
+  const musicPage = () => {
+    switch (musicTab) {
+      case 'listening':
+        return <Fragment key="listening">{listeningPage()}</Fragment>;
+      case 'new':
+        return <Fragment key="music-new">{musicNewPage()}</Fragment>;
+      case 'foryou':
+        return <Fragment key="music-foryou">{musicForYouPage()}</Fragment>;
+      case 'wrap':
+        return <Fragment key="music-wrap">{musicWrapPage()}</Fragment>;
+      case 'wantlist':
+        return <Fragment key="wantlist">{wantlistPage()}</Fragment>;
+      case 'value':
+        return <Fragment key="value">{valuePage()}</Fragment>;
+      default:
+        return null;
+    }
+  };
+
+  /** The timer bar, the book drawer and the search dialogs. */
+  const bookDialogs = () => (
+    <>
       {activeSession && (
         <TimerBar
           active={activeSession}
           book={allBooks.find((b) => b.id === activeSession.bookId)}
           reading={readings.find((r) => r.id === activeSession.readingId)}
-          onChange={setActiveSession}
+          onChange={changeActiveSession}
           onSave={saveReading}
         />
       )}
@@ -2522,7 +2735,7 @@ function StacksApp() {
             const cur = await store.get(open.book.id);
             if (cur) await patchBook({ ...cur, ...patch });
           }}
-          seriesNames={[...new Set(allBooks.map((b) => b.series?.name).filter((n): n is string => !!n))].sort()}
+          seriesNames={[...new Set(allBooks.map((b) => b.series?.name).filter((n): n is string => !!n))].sort((a, b) => a.localeCompare(b))}
         />
       )}
 
@@ -2538,7 +2751,11 @@ function StacksApp() {
       {wishSearch !== false && (
         <SearchDialog initialQuery={wishSearch} onPick={addWishFromSearch} onOpenSettings={() => setSettingsOpen(true)} onClose={() => setWishSearch(false)} />
       )}
+    </>
+  );
 
+  const importDialogs = () => (
+    <>
       {importOpen && (
         <ImportDialog
           books={allBooks}
@@ -2548,17 +2765,23 @@ function StacksApp() {
           onClose={() => setImportOpen(false)}
           onImport={async (plan: ImportPlan) => {
             await store.importMany([...plan.newBooks, ...plan.updatedBooks], [], plan.readings, [], plan.notes);
-            for (const id of plan.removedReadings) await store.removeReading(id);
+            await Promise.all(plan.removedReadings.map((id) => store.removeReading(id)));
             // Fold earlier imported copies into the book you own under another edition's title.
-            for (const m of plan.merges) {
-              for (const r of readings) if (r.bookId === m.from && !plan.removedReadings.includes(r.id)) await store.putReading({ ...r, bookId: m.into, updatedAt: new Date().toISOString() });
-              for (const n of notes) if (n.bookId === m.from) await store.putNote({ ...n, bookId: m.into, updatedAt: new Date().toISOString() });
-              await store.remove(m.from);
-            }
+            const now = new Date().toISOString();
+            await Promise.all(
+              plan.merges.map(async (m) => {
+                const moveReadings = readings.filter((r) => r.bookId === m.from && !plan.removedReadings.includes(r.id));
+                await Promise.all(moveReadings.map((r) => store.putReading({ ...r, bookId: m.into, updatedAt: now })));
+                await Promise.all(notes.filter((n) => n.bookId === m.from).map((n) => store.putNote({ ...n, bookId: m.into, updatedAt: now })));
+                await store.remove(m.from);
+              }),
+            );
             await reload();
             setImportOpen(false);
             setView('reading');
-            setToast(`Imported ${plan.readings.length} reads and ${plan.newBooks.length} new books.${plan.removedReadings.length ? ` ${plan.removedReadings.length} book${plan.removedReadings.length === 1 ? '' : 's'} you'd marked “Want to read” now show as read.` : ''}${plan.merges.length ? ` Matched ${plan.merges.length} to copies you own under another title.` : ''}`);
+            const nowRead = plan.removedReadings.length ? ` ${countOf(plan.removedReadings.length, 'book')} you'd marked “Want to read” now show as read.` : '';
+            const matched = plan.merges.length ? ` Matched ${plan.merges.length} to copies you own under another title.` : '';
+            setToast(`Imported ${plan.readings.length} reads and ${plan.newBooks.length} new books.${nowRead}${matched}`);
           }}
         />
       )}
@@ -2580,14 +2803,16 @@ function StacksApp() {
             setView('music');
             setMusicTab(wanted ? 'wantlist' : 'collection');
             setToast(
-              wanted
-                ? `Added ${plan.newBooks.length} record${plan.newBooks.length === 1 ? '' : 's'} to your wantlist${plan.alreadyOwned.length ? `. ${plan.alreadyOwned.length} you already own were left off` : ''}.`
-                : `Imported ${plan.newBooks.length} record${plan.newBooks.length === 1 ? '' : 's'} from Discogs${plan.updated.length ? ` and updated ${plan.updated.length} you already had` : ''}.`,
+              wanted ? wantlistImportText(plan.newBooks.length, plan.alreadyOwned.length) : collectionImportText(plan.newBooks.length, plan.updated.length),
             );
           }}
         />
       )}
+    </>
+  );
 
+  const accountDialogs = () => (
+    <>
       {accountDialog}
 
       {profileEditing && user && (
@@ -2632,6 +2857,42 @@ function StacksApp() {
           onClose={() => setEditingCase(null)}
         />
       )}
+    </>
+  );
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <button className="brand" onClick={() => { goView('home'); window.scrollTo(0, 0); }} aria-label="Stacks, go home" title="Home">
+          <span className="brand-mark" aria-hidden="true">
+            <i /><i /><i /><i />
+          </span>
+          <span className="brand-name">Stacks</span>
+        </button>
+        {viewTabs()}
+        {totalsList()}
+        {topActions()}
+      </header>
+
+      {backupDue && backupNudge()}
+
+      {peoplePage()}
+      <main className={`layout ${view === 'home' ? 'on-home' : ''}`} hidden={!!profileName || (friendsOpen && !!user)}>
+        {view === 'reading' && (
+          <aside className="scan-panel" aria-label="Currently reading">
+            <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => changeActiveSession(startSession(r, b))} />
+          </aside>
+        )}
+        {scanPanel()}
+
+        {currentPage()}
+      </main>
+
+      {bookDialogs()}
+
+      {importDialogs()}
+
+      {accountDialogs()}
 
       <div className="toast" role="status" aria-live="polite" hidden={!toast}>{toast}</div>
     </div>
