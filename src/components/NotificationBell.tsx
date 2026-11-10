@@ -39,7 +39,7 @@ export function NotificationBell({ notifs, onGo }: Readonly<{ notifs: Notif[]; o
         <span aria-hidden="true">🔔</span>
         {unread.length > 0 && <span className="tab-badge">{unread.length > 99 ? '99+' : unread.length}</span>}
       </summary>
-      <div className="menu-pop notif-pop" role="dialog" aria-label="Notifications">
+      <dialog open className="menu-pop notif-pop" aria-label="Notifications">
         <div className="notif-head">
           <strong>Notifications</strong>
           {unread.length > 0 && (
@@ -73,7 +73,7 @@ export function NotificationBell({ notifs, onGo }: Readonly<{ notifs: Notif[]; o
             })}
           </ul>
         )}
-      </div>
+      </dialog>
     </details>
   );
 }

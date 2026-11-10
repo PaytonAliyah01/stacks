@@ -267,7 +267,7 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
               /* preference only */
             }
           }}
-        />
+        />{' '}
         Fit bookcases to the window
       </label>
       <div className="bookcases" ref={casesRef}>

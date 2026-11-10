@@ -147,8 +147,8 @@ export function HomeView(props: Readonly<Props>) {
                 <button className="link small" onClick={() => onGo('clubs')}>Open</button>
               </div>
               <ul className="home-buddy">
-                {props.clubs.slice(0, 3).map((c, i) => (
-                  <li key={i}>
+                {props.clubs.slice(0, 3).map((c) => (
+                  <li key={c.name}>
                     <button className="link-plain" onClick={() => onGo('clubs')}>{c.name}</button>
                     <span className="muted small">
                       {c.invite ? 'You’re invited' : [c.book ? `Reading ${c.book}` : 'No book yet', c.meet && `meets ${c.meet}`].filter(Boolean).join(' · ')}
@@ -166,8 +166,8 @@ export function HomeView(props: Readonly<Props>) {
                 <button className="link small" onClick={() => onGo('buddy')}>Open</button>
               </div>
               <ul className="home-buddy">
-                {props.buddy.slice(0, 3).map((x, i) => (
-                  <li key={i}>
+                {props.buddy.slice(0, 3).map((x) => (
+                  <li key={`${x.title}|${x.others}`}>
                     <button className="link-plain" onClick={() => onGo('buddy')}>{x.title}</button>
                     <span className="muted small">
                       {x.invite ? `${x.others} invited you` : buddyLine(x)}
@@ -193,8 +193,8 @@ export function HomeView(props: Readonly<Props>) {
               )}
               {props.lending.items.length > 0 && (
                 <ul className="home-buddy">
-                  {props.lending.items.slice(0, 3).map((x, i) => (
-                    <li key={i}>
+                  {props.lending.items.slice(0, 3).map((x) => (
+                    <li key={`${x.title}|${x.line}`}>
                       <button className="link-plain" onClick={() => onGo('lending')}>{x.title}</button>
                       <span className={`muted small ${(daysLeft(x.due) ?? 0) < 0 ? 'late-text' : ''}`}>{x.line} · {dueLabel(x.due)}</span>
                     </li>
@@ -231,8 +231,8 @@ export function HomeView(props: Readonly<Props>) {
             ) : (
               !props.groups?.length && <p className="muted">Give yourself something to aim for, like 24 books this year.</p>
             )}
-            {props.groups?.slice(0, 3).map((g, i) => (
-              <div key={i} className="home-goal">
+            {props.groups?.slice(0, 3).map((g) => (
+              <div key={g.name} className="home-goal">
                 <div className="home-goal-line">
                   <button className="link-plain" onClick={() => onGo('groups')}><strong>{g.name}</strong></button>
                   <span className="mono">

@@ -18,6 +18,13 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
   const [q, setQ] = useState('');
   const [shown, setShown] = useState(60);
   const [open, setOpen] = useState<SharedItem>();
+  // Escape closes the book card.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(undefined);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   useEffect(() => {
     fetchSharedShelf(token).then(
@@ -115,10 +122,10 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
       <div className="shared-tools">
         <input className="search" type="search" placeholder={tab === 'music' ? 'Search records and CDs' : 'Search titles, authors, series'} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search" />
         {shelvesOk && (
-          <div className="seg" role="group" aria-label="Show as">
+          <fieldset className="seg" aria-label="Show as">
             <button className={view === 'shelves' ? 'active' : ''} aria-pressed={view === 'shelves'} onClick={() => setView('shelves')}>On the bookcases</button>
             <button className={view === 'covers' ? 'active' : ''} aria-pressed={view === 'covers'} onClick={() => setView('covers')}>Covers</button>
-          </div>
+          </fieldset>
         )}
       </div>
 
@@ -151,8 +158,9 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
         </> : null}
 
       {open && (
-        <div className="shared-overlay" onClick={() => setOpen(undefined)} onKeyDown={(e) => e.key === 'Escape' && setOpen(undefined)}>
-          <div className="shared-card" role="dialog" aria-label={open.title} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className="shared-overlay">
+          <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={() => setOpen(undefined)} />
+          <dialog open className="shared-card" aria-label={open.title}>
             <Cover url={open.cover} title={open.title} author={open.authors?.[0]} size="lg" square={open.kind !== 'book'} />
             <div className="shared-card-body">
               <h2>{open.title}</h2>
@@ -166,7 +174,7 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
               {open.wanted && <p className="small">On {shelf.name}’s wishlist.</p>}
               <button className="btn ghost" onClick={() => setOpen(undefined)}>Close</button>
             </div>
-          </div>
+          </dialog>
         </div>
       )}
     </>,

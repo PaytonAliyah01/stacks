@@ -215,7 +215,7 @@ export function LendingView(props: Readonly<Props>) {
     <div className="lending">
       <section className="panel lend-switch">
         <label className="check">
-          <input type="checkbox" checked={!!props.open} disabled={props.open === undefined} onChange={(e) => props.onSetOpen(e.target.checked)} />
+          <input type="checkbox" aria-label="Let friends browse my shelves and ask to borrow" checked={!!props.open} disabled={props.open === undefined} onChange={(e) => props.onSetOpen(e.target.checked)} />
           <span>
             <strong>Let friends browse my shelves and ask to borrow</strong>
             <span className="muted small">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BOOKCASE_PRESETS, type Bookcase, type BookcaseType } from '../types';
 import { bookcaseName } from '../lib/labels';
+import { focusOnMount } from '../lib/focus';
 
 interface Props {
   bookcase: Bookcase;
@@ -46,8 +47,9 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
   const shrinking = !isNew && (d.shelves < bookcase.shelves || d.sections < bookcase.sections);
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label={isNew ? 'Add a bookcase' : `Edit ${bookcase.name}`}>
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label={isNew ? 'Add a bookcase' : `Edit ${bookcase.name}`}>
         <form
           className="drawer-form"
           onSubmit={(e) => {
@@ -61,7 +63,7 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
           </header>
           <label className="field">
             <span>Name</span>
-            <input id="bc-name" value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="Living room Billy" autoFocus />
+            <input id="bc-name" value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="Living room Billy" ref={focusOnMount} />
           </label>
           <label className="field">
             <span>Type</span>
@@ -117,7 +119,7 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
             <button type="submit" className="btn primary">{isNew ? 'Add bookcase' : 'Save'}</button>
           </footer>
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

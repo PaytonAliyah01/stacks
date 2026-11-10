@@ -71,8 +71,9 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Re
   const cds = p?.newBooks.filter((b) => b.kind === 'cd').length ?? 0;
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Import from Discogs">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Import from Discogs">
         <div className="drawer-form">
           <header className="drawer-head">
             <h2 className="drawer-heading">Import from Discogs</h2>
@@ -150,7 +151,7 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Re
                     <button type="button" className="link small" onClick={() => setShowSkipped(!showSkipped)}>{showSkipped ? 'hide' : 'show'}</button>
                     {showSkipped && (
                       <ul className="skipped-list">
-                        {p.skipped.slice(0, 50).map((x, i) => <li key={i}>{x.title} <span className="muted">({x.format})</span></li>)}
+                        {p.skipped.slice(0, 50).map((x) => <li key={`${x.title}|${x.format}`}>{x.title} <span className="muted">({x.format})</span></li>)}
                       </ul>
                     )}
                   </li>
@@ -179,7 +180,7 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Re
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
           </footer>
         </div>
-      </aside>
+      </dialog>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type { Book, Spin } from '../types';
 import { SHAPES, hoursLabel, newStylus, wear, type Stylus, type StylusShape } from '../lib/stylus';
 import { formatDay, todayIso } from '../lib/reading';
 import { countOf } from '../lib/labels';
+import { focusOnMount } from '../lib/focus';
 
 interface Props {
   records: Book[];
@@ -97,7 +98,7 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
             ) : null}
             {editingLife ? (
               <label className="stylus-life">
-                Replace after
+                Replace after{' '}
                 <input
                   id="stylus-life"
                   type="number"
@@ -109,8 +110,8 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
                     setEditingLife(false);
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                  autoFocus
-                />
+                  ref={focusOnMount}
+                />{' '}
                 hours
               </label>
             ) : (

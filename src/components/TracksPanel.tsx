@@ -102,7 +102,7 @@ export function TracksPanel({ draft, onSave }: Readonly<Props>) {
             )}
             <ol className="track-list">
               {g.tracks.map(({ t, i }) => (
-                <TrackRow key={i} t={t} onStar={() => toggle(i)} />
+                <TrackRow key={`${t.position ?? ''}|${t.title}`} t={t} onStar={() => toggle(i)} />
               ))}
             </ol>
           </div>

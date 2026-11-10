@@ -169,7 +169,7 @@ export function CameraScanner({ onCode, onClose }: Readonly<Props>) {
 
   // Straight under <body>, so nothing on the page can sit on top of the camera.
   return createPortal(
-    <div className="camera-scan" role="dialog" aria-modal="true" aria-label="Scan with camera">
+    <dialog open className="camera-scan" aria-modal="true" aria-label="Scan with camera">
       <video ref={videoRef} className="camera-video" playsInline muted autoPlay />
       <div className="camera-guide" aria-hidden="true">
         <span className={last ? 'hit' : ''} key={last?.n} />
@@ -197,7 +197,7 @@ export function CameraScanner({ onCode, onClose }: Readonly<Props>) {
         </div>
         <button className="camera-done" onClick={onClose}>{last ? 'Done scanning' : 'Close camera'}</button>
       </div>
-    </div>,
+    </dialog>,
     document.body,
   );
 }

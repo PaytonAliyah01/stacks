@@ -67,8 +67,9 @@ export function ShareDialog({ uid, defaultTitle, onClose, onToast }: Readonly<{ 
   const changed = !!link && (Object.keys(DEFAULT_SHARE) as (keyof ShareSettings)[]).some((k) => link[k] !== s[k]);
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Share your shelves">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Share your shelves">
         <div className="drawer-form">
           <header className="drawer-head">
             <h2 className="drawer-heading">Share your shelves</h2>
@@ -104,7 +105,7 @@ export function ShareDialog({ uid, defaultTitle, onClose, onToast }: Readonly<{ 
                 <legend className="section-label">Show</legend>
                 {OPTIONS.map(([k, label, help]) => (
                   <label key={k} className="check share-option">
-                    <input type="checkbox" checked={!!s[k]} onChange={(e) => setS({ ...s, [k]: e.target.checked })} />
+                    <input type="checkbox" aria-label={label} checked={!!s[k]} onChange={(e) => setS({ ...s, [k]: e.target.checked })} />
                     <span>
                       <b>{label}</b>
                       <span className="muted small">{help}</span>
@@ -150,7 +151,7 @@ export function ShareDialog({ uid, defaultTitle, onClose, onToast }: Readonly<{ 
             )}
           </footer>
         </div>
-      </aside>
+      </dialog>
     </div>
   );
 }

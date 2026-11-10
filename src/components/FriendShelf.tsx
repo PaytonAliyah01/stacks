@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Cover } from './Cover';
 import { askToBorrow, friendShelf, lendingOpen, type Loan, type ShelfItem } from '../lib/lending';
+import { focusOnMount } from '../lib/focus';
 
 interface Props {
   uid: string;
@@ -100,7 +101,7 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Rea
           <Cover url={asking.cover ?? undefined} title={asking.title} author={asking.author ?? undefined} size="sm" square={asking.kind !== 'book'} />
           <div>
             <strong>Ask {friendName} to borrow “{asking.title}”</strong>
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional), e.g. when you'll pick it up" maxLength={300} autoFocus />
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note (optional), e.g. when you'll pick it up" maxLength={300} ref={focusOnMount} />
             <span className="loan-actions">
               <button className="btn primary small-btn" disabled={busy} onClick={ask}>{busy ? 'Sending…' : 'Send request'}</button>
               <button className="link small" onClick={() => setAsking(undefined)}>Cancel</button>

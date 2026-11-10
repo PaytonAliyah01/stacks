@@ -56,7 +56,7 @@ export function MoodPanel({ draft, onChange: change }: Readonly<Props>) {
       )}
       <div>
         <div className="mood-label">Mood <span className="muted small">pick any that fit</span></div>
-        <div className="status-pick" role="group" aria-label="Mood">
+        <fieldset className="status-pick" aria-label="Mood">
           {MOODS.map((m) => {
             const on = moods.includes(m);
             return (
@@ -71,11 +71,11 @@ export function MoodPanel({ draft, onChange: change }: Readonly<Props>) {
               </button>
             );
           })}
-        </div>
+        </fieldset>
       </div>
       <div>
         <div className="mood-label">Pace</div>
-        <div className="status-pick" role="group" aria-label="Pace">
+        <fieldset className="status-pick" aria-label="Pace">
           {PACES.map((p) => (
             <button
               key={p}
@@ -87,7 +87,7 @@ export function MoodPanel({ draft, onChange: change }: Readonly<Props>) {
               {cap(p)}
             </button>
           ))}
-        </div>
+        </fieldset>
       </div>
       <div>
         <div className="mood-label">Content warnings</div>

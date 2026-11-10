@@ -34,14 +34,14 @@ export function GroupedTabs<K extends string>({ groups, current, onPick, label, 
   );
   const seg =
     active.pages.length > 1 ? (
-      <div className="seg" role="group" aria-label={`${active.label} pages`}>
+      <fieldset className="seg" aria-label={`${active.label} pages`}>
         {active.pages.map(([k, l, n]) => (
           <button key={k} className={k === current ? 'active' : ''} aria-pressed={k === current} onClick={() => onPick(k)}>
             {l}
             {badge(n)}
           </button>
         ))}
-      </div>
+      </fieldset>
     ) : null;
   return (
     <>

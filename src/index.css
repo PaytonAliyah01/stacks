@@ -1,3 +1,7 @@
+/* <dialog open> and <fieldset> are used for what they mean; how they look comes from their classes. */
+:where(dialog[open]) { position: static; inset: auto; margin: 0; padding: 0; border: 0; width: auto; height: auto; max-width: none; max-height: none; color: inherit; background: none; }
+:where(fieldset) { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+
 /* Layout: a scanning desk on the left (sticky), the shelves on the right. */
 :root {
   --paper: #eef0ec;
@@ -239,7 +243,9 @@ textarea { resize: vertical; }
 
 /* ---------- drawer ---------- */
 .drawer-backdrop { position: fixed; inset: 0; background: rgb(10 16 13 / 0.35); z-index: 20; display: flex; justify-content: flex-end; }
-.drawer { width: min(560px, 100%); height: 100%; background: var(--surface); box-shadow: var(--shadow); overflow-y: auto; animation: slide 0.2s ease-out; }
+/* The see-through area beside a drawer: clicking it closes the drawer. */
+.backdrop-close { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; margin: 0; background: transparent; cursor: default; }
+.drawer { position: relative; width: min(560px, 100%); height: 100%; background: var(--surface); box-shadow: var(--shadow); overflow-y: auto; animation: slide 0.2s ease-out; }
 @keyframes slide { from { transform: translateX(30px); opacity: 0.5; } }
 @media (prefers-reduced-motion: reduce) { .drawer { animation: none; } }
 .drawer-form { display: flex; flex-direction: column; gap: 18px; padding: 24px; min-height: 100%; }
@@ -1517,7 +1523,7 @@ a.rec-title:hover { text-decoration: underline; }
 .shared-msg h2 { font-family: var(--font-display); margin: 0 0 6px; }
 .shared-more { align-self: center; }
 .shared-overlay { position: fixed; inset: 0; z-index: 50; background: rgb(0 0 0 / 0.45); display: grid; place-items: center; padding: 16px; }
-.shared-card { background: var(--surface); color: var(--ink); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; display: flex; gap: 18px; max-width: 520px; width: 100%; max-height: 90vh; overflow: auto; }
+.shared-card { position: relative; background: var(--surface); color: var(--ink); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; display: flex; gap: 18px; max-width: 520px; width: 100%; max-height: 90vh; overflow: auto; }
 .shared-card .cover { flex: none; width: 130px; }
 .shared-card-body { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 0; }
 .shared-card-body h2 { margin: 0; font-family: var(--font-display); font-size: 1.35rem; overflow-wrap: anywhere; }

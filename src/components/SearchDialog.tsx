@@ -46,8 +46,9 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
   };
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Search by title">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Search by title">
         <form
           className="drawer-form"
           onSubmit={(e) => {
@@ -115,7 +116,7 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
             </ul>
           )}
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

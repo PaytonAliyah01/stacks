@@ -5,6 +5,8 @@ import { shortTitle, wrapYear, type Wrap } from '../lib/wrapup';
 import { hoursAndMinutes } from '../lib/sessions';
 import { Cover } from './Cover';
 
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
 interface Props {
   books: Book[];
   readings: Reading[];
@@ -258,7 +260,7 @@ export function YearWrap({ books, readings, notes, challenges, onOpen }: Readonl
             <h3>Month by month</h3>
             <div className="wrap-months" aria-label="Books finished each month">
               {w.perMonth.map((n, i) => (
-                <div key={i} className="wrap-month" title={`${n} book${n === 1 ? '' : 's'}`}>
+                <div key={MONTH_KEYS[i]} className="wrap-month" title={`${n} book${n === 1 ? '' : 's'}`}>
                   <span className="wrap-bar" style={{ height: `${(n / peak) * 100}%` }}>{n > 0 && <b>{n}</b>}</span>
                   <span className="wrap-m">{MONTH_LETTERS[i]}</span>
                 </div>

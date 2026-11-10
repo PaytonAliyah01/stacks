@@ -40,8 +40,9 @@ export function ImportDialog({ books, readings, notes = [], defaultFormat, onImp
   const notOwned = p?.newBooks.filter((b) => b.owned === false).length ?? 0;
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Import reading history">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Import reading history">
         <div className="drawer-form">
           <header className="drawer-head">
             <h2 className="drawer-heading">Import reading history</h2>
@@ -110,7 +111,7 @@ export function ImportDialog({ books, readings, notes = [], defaultFormat, onImp
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
           </footer>
         </div>
-      </aside>
+      </dialog>
     </div>
   );
 }

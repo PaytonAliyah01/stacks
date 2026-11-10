@@ -120,8 +120,9 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
     });
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Account">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Account">
         <form className="drawer-form account-form" onSubmit={submit}>
           <header className="drawer-head">
             <h2 className="drawer-heading">{user ? 'Your account' : HEADINGS[mode]}</h2>
@@ -237,7 +238,7 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
           {error && <p className="account-error" role="alert">{error}</p>}
           {info && <p className="account-info" role="status">{info}</p>}
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

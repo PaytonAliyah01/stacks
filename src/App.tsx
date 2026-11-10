@@ -2436,12 +2436,12 @@ function StacksApp() {
               {view !== 'music' && <VibeSelect id="filter-vibe" value={vibeFilter} onChange={setVibeFilter} />}
               {view !== 'music' && allBooks.length > books.length && (
                 <label className="check">
-                  <input id="filter-unowned" type="checkbox" checked={includeUnowned} onChange={(e) => setIncludeUnowned(e.target.checked)} />
+                  <input id="filter-unowned" type="checkbox" checked={includeUnowned} onChange={(e) => setIncludeUnowned(e.target.checked)} />{' '}
                   Read but not owned
                 </label>
               )}
               <label className="check">
-                <input id="filter-lent" type="checkbox" checked={lentOnly} onChange={(e) => setLentOnly(e.target.checked)} />
+                <input id="filter-lent" type="checkbox" checked={lentOnly} onChange={(e) => setLentOnly(e.target.checked)} />{' '}
                 Lent out
               </label>
               <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">

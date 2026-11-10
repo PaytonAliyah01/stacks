@@ -13,6 +13,7 @@ import { booksAt, sameSpot, spotName } from '../lib/shelving';
 import { formatIsbn13, parseIsbn, parseScan } from '../lib/isbn';
 import { Cover } from './Cover';
 import { spinePhotoToDataUrl } from '../lib/coverColor';
+import { focusOnMount } from '../lib/focus';
 
 interface Props {
   book: Book;
@@ -120,8 +121,9 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
   };
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={isNew ? `Add a ${noun}` : draft.title}>
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer" aria-modal="true" aria-label={isNew ? `Add a ${noun}` : draft.title}>
         <form onSubmit={save} className="drawer-form">
           <header className="drawer-head">
             <Cover url={draft.coverUrl} title={draft.title || 'Untitled'} author={authors} size="lg" square={music} />
@@ -139,11 +141,11 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
                   </div>
                   <label className="field">
                     <span>Title</span>
-                    <input id="f-title" value={draft.title} onChange={(e) => set('title', e.target.value)} autoFocus={isNew} />
+                    <input id="f-title" value={draft.title} onChange={(e) => set('title', e.target.value)} ref={isNew ? focusOnMount : undefined} />
                   </label>
                   <label className="field">
                     <span>{music ? 'Artist(s)' : 'Author(s)'}, separated by commas</span>
-                    <input id="f-authors" value={authors} onChange={(e) => setAuthors(e.target.value)} autoFocus={!isNew && !book.authors.length} />
+                    <input id="f-authors" value={authors} onChange={(e) => setAuthors(e.target.value)} ref={!isNew && !book.authors.length ? focusOnMount : undefined} />
                   </label>
                 </>
               ) : (
@@ -252,14 +254,14 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
           {!isNew && (
             <label className="check own-check">
               <input id="f-owned" type="checkbox" checked={draft.owned !== false}
-                onChange={(e) => setDraft((d) => ({ ...d, owned: e.target.checked ? undefined : false, wishlist: e.target.checked ? undefined : d.wishlist }))} />
+                onChange={(e) => setDraft((d) => ({ ...d, owned: e.target.checked ? undefined : false, wishlist: e.target.checked ? undefined : d.wishlist }))} />{' '}
               I own this {noun}
               {draft.owned === false && <span className="hint"> It's kept with your reading history but stays off your shelves and out of library counts.</span>}
             </label>
           )}
           {!isNew && draft.owned === false && (
             <label className="check own-check">
-              <input id="f-wishlist" type="checkbox" checked={!!draft.wishlist} onChange={(e) => set('wishlist', e.target.checked || undefined)} />
+              <input id="f-wishlist" type="checkbox" checked={!!draft.wishlist} onChange={(e) => set('wishlist', e.target.checked || undefined)} />{' '}
               On my wishlist (I'd like to buy it)
             </label>
           )}
@@ -457,7 +459,7 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
             {!isNew && onDelete && (
               confirmDelete ? (
                 <span className="confirm">
-                  Remove from your library?
+                  Remove from your library?{' '}
                   <button type="button" className="btn danger" onClick={() => onDelete(book.id)}>Remove</button>
                   <button type="button" className="btn ghost" onClick={() => setConfirmDelete(false)}>Keep</button>
                 </span>
@@ -473,7 +475,7 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
             <button type="submit" className="btn primary">{isNew ? `Add ${noun} to library` : 'Save'}</button>
           </footer>
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

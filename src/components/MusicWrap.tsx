@@ -6,6 +6,8 @@ import { wrapMusic, type MusicWrap as Wrap } from '../lib/musicwrap';
 import { hue, loadImage } from './YearWrap';
 import { Cover } from './Cover';
 
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
 interface Props {
   /** Every record and CD, owned or sold. */
   records: Book[];
@@ -254,7 +256,7 @@ export function MusicWrap({ records, spins, onOpen }: Readonly<Props>) {
             <h3>Month by month</h3>
             <div className="wrap-months" aria-label="Spins each month">
               {w.perMonth.map((n, i) => (
-                <div key={i} className="wrap-month" title={`${n} spin${n === 1 ? '' : 's'}`}>
+                <div key={MONTH_KEYS[i]} className="wrap-month" title={`${n} spin${n === 1 ? '' : 's'}`}>
                   <span className="wrap-bar" style={{ height: `${(n / peak) * 100}%` }}>{n > 0 && <b>{n}</b>}</span>
                   <span className="wrap-m">{MONTH_LETTERS[i]}</span>
                 </div>

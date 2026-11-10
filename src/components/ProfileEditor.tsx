@@ -165,8 +165,9 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
   const preview = { avatar_url: avatarUrl, avatar_color: color, display_name: name, username };
 
   return (
-    <div className="drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer narrow" role="dialog" aria-modal="true" aria-label="Edit profile">
+    <div className="drawer-backdrop">
+      <button type="button" className="backdrop-close" aria-label="Close" tabIndex={-1} onClick={onClose} />
+      <dialog open className="drawer narrow" aria-modal="true" aria-label="Edit profile">
         <form className="drawer-form profile-editor" onSubmit={save}>
           <header className="drawer-head">
             <h2 className="drawer-heading">{profile ? 'Edit profile' : 'Set up your profile'}</h2>
@@ -227,7 +228,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             <legend className="section-label">Who can see your profile</legend>
             {VISIBILITY.map((o) => (
               <label key={o.v} className={`visibility-option ${visibility === o.v ? 'on' : ''}`}>
-                <input type="radio" name="visibility" checked={visibility === o.v} onChange={() => setVisibility(o.v)} />
+                <input type="radio" name="visibility" aria-label={o.label} checked={visibility === o.v} onChange={() => setVisibility(o.v)} />
                 <span>
                   <strong>{o.label}</strong>
                   <span className="muted small">{o.help}</span>
@@ -236,7 +237,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             ))}
           </fieldset>
           <label className="check-row">
-            <input id="p-share" type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} />
+            <input id="p-share" type="checkbox" aria-label="Share what I read and spin with friends" checked={share} onChange={(e) => setShare(e.target.checked)} />
             <span>
               <strong>Share what I read and spin with friends</strong>
               <span className="muted small">Starting or finishing a book, your rating, putting on a record, and new additions show up in your friends' feed.</span>
@@ -253,7 +254,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
           </div>
         </form>
-      </aside>
+      </dialog>
     </div>
   );
 }

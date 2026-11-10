@@ -38,13 +38,13 @@ export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: Rea
   };
   return (
     <div className="note-editor">
-      <div className="status-pick" role="group" aria-label="Quote or note">
+      <fieldset className="status-pick" aria-label="Quote or note">
         {(['quote', 'note'] as const).map((k) => (
           <button key={k} type="button" className={`status-option mood-chip${kind === k ? ' on' : ''}`} aria-pressed={kind === k} onClick={() => setKind(k)}>
             {k === 'quote' ? 'Quote' : 'My note'}
           </button>
         ))}
-      </div>
+      </fieldset>
       <textarea
         className="note-text"
         rows={3}
