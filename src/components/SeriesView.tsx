@@ -154,6 +154,36 @@ function AddToSeries({ group, books, onUpdate }: Readonly<{ group: SeriesGroup; 
   );
 }
 
+type Entry = SeriesGroup['entries'][number];
+
+/** What a series book's label says: its reading status, or whether you own it. */
+function entryStatus(e: Entry, withWishlist: boolean) {
+  if (e.status) return STATUS_LABELS[e.status];
+  if (withWishlist && e.book.wishlist) return 'On wishlist';
+  return e.book.owned === false ? 'Not owned' : 'Unread';
+}
+
+function Unnumbered({ entries, onOpen, onUpdate }: Readonly<{ entries: Entry[]; onOpen: (b: Book) => void; onUpdate: (b: Book) => void }>) {
+  const one = entries.length === 1;
+  return (
+    <div className="unnumbered">
+      <p className="small">
+        <strong>Which number {one ? 'is this' : 'are these'}?</strong>{' '}
+        <span className="muted">Set {one ? 'it' : 'them'} so the gaps above are right.</span>
+      </p>
+      <ul>
+        {entries.map((e) => (
+          <li key={e.book.id}>
+            <button className="link" onClick={() => onOpen(e.book)}>{titleWithoutSeries(e.book.title)}</button>
+            <span className="muted small">{entryStatus(e, false)}</span>
+            <NumberFix entry={e} onUpdate={onUpdate} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }: Readonly<Props>) {
   const groups = useMemo(() => groupSeries(books, readings), [books, readings]);
   const [filter, setFilter] = useState<'all' | 'gaps' | 'unfinished'>('all');
@@ -222,10 +252,7 @@ export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }:
                       <Cover url={s.e.book.coverUrl} title={s.e.book.title} author={s.e.book.authors[0]} size="sm" />
                       <span className="series-book-title">{titleWithoutSeries(s.e.book.title)}</span>
                       <span className="series-book-status">
-                        {s.e.status ? STATUS_LABELS[s.e.status] : null}
-                        {!s.e.status && s.e.book.wishlist ? 'On wishlist' : null}
-                        {!s.e.status && !s.e.book.wishlist && (s.e.book.owned === false) ? 'Not owned' : null}
-                        {!s.e.status && !s.e.book.wishlist && s.e.book.owned !== false ? 'Unread' : null}
+                        {entryStatus(s.e, true)}
                       </span>
                     </button>
                   </li>
@@ -240,25 +267,7 @@ export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }:
                 ),
               )}
             </ol>
-            {g.unnumbered.length > 0 && (
-              <div className="unnumbered">
-                <p className="small">
-                  <strong>Which number {g.unnumbered.length === 1 ? 'is this' : 'are these'}?</strong>{' '}
-                  <span className="muted">Set {g.unnumbered.length === 1 ? 'it' : 'them'} so the gaps above are right.</span>
-                </p>
-                <ul>
-                  {g.unnumbered.map((e) => (
-                    <li key={e.book.id}>
-                      <button className="link" onClick={() => onOpen(e.book)}>{titleWithoutSeries(e.book.title)}</button>
-                      <span className="muted small">{e.status ? STATUS_LABELS[e.status] : null}
-                      {!e.status && (e.book.owned === false) ? 'Not owned' : null}
-                      {!e.status && e.book.owned !== false ? 'Unread' : null}</span>
-                      <NumberFix entry={e} onUpdate={onUpdate} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {g.unnumbered.length > 0 && <Unnumbered entries={g.unnumbered} onOpen={onOpen} onUpdate={onUpdate} />}
             <div className="series-tools">
               <AddToSeries group={g} books={books} onUpdate={onUpdate} />
               <MergeSeries group={g} others={groups.filter((x) => x !== g).map((x) => x.name)} onUpdate={onUpdate} />
