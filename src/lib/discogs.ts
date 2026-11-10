@@ -51,7 +51,7 @@ const yearOf = (s?: string | number) => {
 
 /** Discogs' "Export collection" .csv file. */
 export function parseDiscogsCsv(text: string): DiscogsItem[] {
-  const rows = parseCsv(text.replace(/^﻿/, ''));
+  const rows = parseCsv(text.replace(/^\uFEFF/, ''));
   const head = rows[0]?.map((h) => h.trim().toLowerCase()) ?? [];
   const col = (...names: string[]) => head.findIndex((h) => names.includes(h));
   const iArtist = col('artist');
@@ -90,6 +90,7 @@ export function parseDiscogsCsv(text: string): DiscogsItem[] {
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 function checkDiscogsAnswer(res: Response, user: string, list: 'collection' | 'wants') {
   if (res.status === 404) throw new Error(`Discogs has no user called “${user}”.`);
   if (res.status === 401 || res.status === 403)
@@ -163,6 +164,8 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
   await fetchPage(1);
   return items;
 }
+
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const norm = (s: string) => stripBrackets(s.toLowerCase()).replace(/[^a-z0-9]+/g, ' ').trim();
 const key = (artist: string | undefined, title: string, kind: string) => `${norm(artist ?? '')}|${norm(title)}|${kind}`;

@@ -1,3 +1,4 @@
+import type { Book } from '../types';
 /** Strip everything except digits and a trailing X. */
 export function cleanIsbn(raw: string): string {
   return raw.toUpperCase().replace(/[^0-9X]/g, '');
@@ -97,4 +98,18 @@ export function parseScan(raw: string): ParsedScan {
   else if (/^\d{14,15}$/.test(s)) s = s.slice(0, s.length - 2); // 2-digit add-on
   if (!/^97[89]/.test(s) && isValidGtin(s)) return { type: 'barcode', code: s };
   return { type: 'invalid', reason: /^97[89]/.test(s) ? isbn.reason : "That barcode didn't read right. Try scanning again." };
+}
+
+/** The ISBN or barcode typed in the drawer, checked. Returns the fields to save, or what's wrong with it. */
+export function identityFromInput(isbn: string, music: boolean): { patch: Partial<Book> } | { error: string } {
+  const patch: Partial<Book> = { isbn13: undefined, isbn10: undefined, barcode: undefined };
+  if (!isbn.trim()) return { patch };
+  if (!music) {
+    const p = parseIsbn(isbn);
+    if (!p.ok) return { error: p.reason };
+    return { patch: { ...patch, isbn13: p.isbn13, isbn10: p.isbn10 } };
+  }
+  const p = parseScan(isbn);
+  if (p.type !== 'barcode') return { error: "That barcode doesn't look right. Check the numbers under the bars." };
+  return { patch: { ...patch, barcode: p.code } };
 }

@@ -4,7 +4,8 @@ import { shortTitle, wrapYear, type Wrap } from '../lib/wrapup';
 import { hoursAndMinutes } from '../lib/sessions';
 import { drawYearImage } from '../lib/shareImage';
 import { Cover } from './Cover';
-import { MonthBars, ShareButtons, WrapYearPicker, useSharePicture } from './WrapParts';
+import { MonthBars, ShareButtons, WrapYearPicker } from './WrapParts';
+import { useSharePicture } from '../lib/useSharePicture';
 
 interface Props {
   books: Book[];

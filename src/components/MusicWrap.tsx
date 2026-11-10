@@ -4,7 +4,8 @@ import { formatMoney } from '../types';
 import { wrapMusic, type MusicWrap as Wrap } from '../lib/musicwrap';
 import { drawMusicImage, hoursText } from '../lib/shareImage';
 import { Cover } from './Cover';
-import { MonthBars, ShareButtons, WrapYearPicker, useSharePicture } from './WrapParts';
+import { MonthBars, ShareButtons, WrapYearPicker } from './WrapParts';
+import { useSharePicture } from '../lib/useSharePicture';
 
 interface Props {
   /** Every record and CD, owned or sold. */

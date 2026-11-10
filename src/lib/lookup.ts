@@ -600,7 +600,6 @@ export async function lookupBarcode(code: string): Promise<LookupResult> {
     },
   };
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Every subject Open Library knows for a book, found by ISBN or else by title

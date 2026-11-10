@@ -1,6 +1,7 @@
 import type { Book, Spin, Track } from '../types';
 import { SITE_URL, supabase } from './cloud';
 import { eachInTurn } from './inTurn';
+import { without } from './omit';
 
 /**
  * Last.fm scrobbling. The "lastfm" Supabase Edge Function holds the secret
@@ -165,7 +166,7 @@ export async function flush(now = Date.now()): Promise<{ sent: number; error?: s
     const batches: (typeof ready)[] = [];
     for (let i = 0; i < ready.length; i += 50) batches.push(ready.slice(i, i + 50));
     await eachInTurn(batches, async (batch) => {
-      await call('scrobble', { tracks: batch.map(({ spinId: _s, due: _d, ...t }) => t) });
+      await call('scrobble', { tracks: batch.map((x) => without(without(x, 'spinId'), 'due')) });
       sent += batch.length;
       // Take them off the queue as soon as they're in, in case the next batch fails.
       const gone = new Set(batch);

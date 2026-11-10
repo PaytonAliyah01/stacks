@@ -195,81 +195,38 @@ function MeetingForm({ initial, onSave, onCancel, saveLabel }: Readonly<{ initia
   );
 }
 
-function ClubPage(props: Readonly<Props & { club: Club; onBack: () => void }>) {
-  const { club, uid, friends, onRefresh } = props;
-  const host = club.owner === uid;
-  const me = club.members.find((m) => m.user_id === uid);
-  const joined = club.members.filter((m) => m.status === 'joined');
-  const invited = club.members.filter((m) => m.status === 'invited');
-  const now = club.books[0];
-  const read = currentRead(club, props.reads);
-  const past = club.books.slice(1);
-  const notIn = friends.filter((f) => f.status === 'accepted' && !club.members.some((m) => m.user_id === f.id));
-  const suggestions = [...club.suggestions].sort((a, b) => b.votes - a.votes || a.created_at.localeCompare(b.created_at));
+const MEETING_SOON = new Set(['today', 'tomorrow', 'now']);
+type ClubMode = 'invite' | 'edit' | 'meeting' | 'suggest' | 'pick' | 'delete' | 'leave';
 
-  const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<'invite' | 'edit' | 'meeting' | 'suggest' | 'pick' | 'delete' | 'leave'>();
+/** What the parts of a club page share. */
+interface PageCtx {
+  props: Readonly<Props & { club: Club; onBack: () => void }>;
+  club: Club;
+  uid: string;
+  host: boolean;
+  me?: Club['members'][number];
+  now?: Club['books'][number];
+  busy: boolean;
+  mode?: ClubMode;
+  setMode: (m?: ClubMode) => void;
+  act: (fn: () => Promise<unknown>, after?: () => void) => Promise<void>;
+  startPick: (s?: ClubSuggestion) => void;
+  book?: BuddyBook;
+  setBook: (b?: BuddyBook) => void;
+  fromSuggestion?: string;
+  setFromSuggestion: (id?: string) => void;
+  note: string;
+  setNote: (n: string) => void;
+  setError: (e?: string) => void;
+}
+
+function ClubManage({ c, error, notIn }: Readonly<{ c: PageCtx; error?: string; notIn: Friend[] }>) {
+  const { club, uid, mode, setMode, busy, act, props } = c;
   const [chosen, setChosen] = useState<string[]>([]);
-  const [book, setBook] = useState<BuddyBook>();
-  const [fromSuggestion, setFromSuggestion] = useState<string>();
-  const [note, setNote] = useState('');
   const [name, setName] = useState(club.name);
   const [about, setAbout] = useState(club.about);
-
-  const act = async (fn: () => Promise<unknown>, after?: () => void) => {
-    setBusy(true);
-    setError(undefined);
-    try {
-      await fn();
-      setMode(undefined);
-      after?.();
-    } catch (e) {
-      setError((e as Error).message || String(e));
-    } finally {
-      setBusy(false);
-      onRefresh();
-    }
-  };
-  const startPick = (s?: ClubSuggestion) => {
-    setBook(s?.book);
-    setFromSuggestion(s?.id);
-    setMode('pick');
-  };
-  const soon = now?.meet_at ? meetingSoon(now.meet_at) : undefined;
-
   return (
-    <div className="club-page">
-      <button className="link small profile-back" onClick={props.onBack}>← All book clubs</button>
-      <div className="club-head">
-        <div>
-          <h3 className="club-name">{club.name}</h3>
-          {club.about && <p className="muted">{club.about}</p>}
-        </div>
-        <ul className="club-faces" aria-label="Members">
-          {joined.map((m) => (
-            <li key={m.user_id}>
-              <button className="post-who" onClick={() => props.onOpenProfile(m.username)} title={m.user_id === uid ? 'You' : memberName(m)}>
-                <Avatar p={m} size={32} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <p className="muted small">
-        {joined.length} member{joined.length === 1 ? '' : 's'}
-        {invited.length > 0 && ` · ${invited.map(memberName).join(', ')} invited`}
-        {` · hosted by ${host ? 'you' : memberName(club.members.find((m) => m.user_id === club.owner) ?? { display_name: '', username: '?' })}`}
-      </p>
-      <div className="buddy-actions">
-        {me?.status === 'joined' && notIn.length > 0 && <button className="btn ghost small-btn" onClick={() => setMode(mode === 'invite' ? undefined : 'invite')}>Invite friends</button>}
-        {host && <button className="link small" onClick={() => setMode(mode === 'edit' ? undefined : 'edit')}>Edit club</button>}
-        {host ? (
-          <button className="link small muted" onClick={() => setMode('delete')}>Delete club</button>
-        ) : (
-          <button className="link small muted" onClick={() => setMode('leave')}>Leave club</button>
-        )}
-      </div>
+    <>
       {error && <p className="account-error">{error}</p>}
       {(mode === 'delete' || mode === 'leave') && (
         <div className="confirm-row">
@@ -305,143 +262,255 @@ function ClubPage(props: Readonly<Props & { club: Club; onBack: () => void }>) {
           </div>
         </div>
       )}
+    </>
+  );
+}
 
-      <section className="panel club-now">
-        <div className="home-head">
-          <h3>Reading now</h3>
-          {host && now && mode !== 'pick' && <button className="link small" onClick={() => startPick()}>Pick the next book</button>}
-        </div>
-        {now ? (
-          <>
-            <div className={`club-meeting${soon === 'today' || soon === 'tomorrow' || soon === 'now' ? ' soon' : ''}`}>
-              {now.meet_at ? (
-                <>
-                  <span className="stat-label">Next meeting{soon && soon !== 'past' ? ` · ${soon}` : ''}</span>
-                  <strong>{meetingLabel(now.meet_at)}</strong>
-                  {now.meet_where && (/^https?:\/\//.test(now.meet_where) ? <a href={now.meet_where} target="_blank" rel="noreferrer">{now.meet_where}</a> : <span>{now.meet_where}</span>)}
-                  {soon === 'past' && <span className="muted small">That meeting has passed.{host ? ' Set the next one, or pick the next book.' : ''}</span>}
-                </>
-              ) : (
-                <span className="muted">No meeting set yet.</span>
-              )}
-              {host && mode !== 'meeting' && <button className="link small" onClick={() => setMode('meeting')}>{now.meet_at ? 'Change' : 'Set a meeting'}</button>}
-            </div>
-            {mode === 'meeting' && (
-              <MeetingForm initial={now} saveLabel="Save meeting" onCancel={() => setMode(undefined)} onSave={(m) => act(() => setMeeting(now.read_id, m))} />
-            )}
-            {read ? (
-              <ul className="buddy-list">
-                <ReadCard {...props} onJoin={props.onJoinRead} onStart={async () => undefined} read={read} club={club.name} />
-              </ul>
-            ) : (
-              <div className="buddy-chosen">
-                <Cover url={now.book.cover} title={now.book.title} author={now.book.by} size="sm" />
-                <span>
-                  <strong>{now.book.title}</strong>
-                  <span className="muted small">{now.book.by}</span>
-                </span>
-              </div>
-            )}
-          </>
-        ) : null}
-        {!now && host ? (
-          mode !== 'pick' && (
-            <>
-              <p className="muted">Pick the club's first book, or let everyone suggest some and vote first.</p>
-              <button className="btn primary" onClick={() => startPick()}>Pick the first book</button>
-            </>
-          )
-        ) : null}
-        {!now && !host ? <p className="muted">No book yet. Suggest one below; the host picks.</p> : null}
-        {mode === 'pick' && (
-          <div className="club-pick">
-            <h4>{now ? 'Next book' : 'First book'}</h4>
-            <BookPicker books={props.books} readings={props.readings} value={book} onChange={(b) => { setBook(b); setFromSuggestion(undefined); }} />
-            <MeetingForm
-              saveLabel={busy ? 'Starting…' : 'Start reading it'}
-              onCancel={() => setMode(undefined)}
-              onSave={async (m) => {
-                if (!book) return setError('Choose a book first.');
-                await act(() => pickBook(club, uid, book, m, fromSuggestion));
-              }}
-            />
-            <p className="muted small">Everyone in the club gets it as a buddy read, with progress and a spoiler-free chat.</p>
-          </div>
-        )}
-      </section>
-
-      <section className="panel">
-        <div className="home-head">
-          <h3>What next? Vote</h3>
-          {me?.status === 'joined' && mode !== 'suggest' && <button className="link small" onClick={() => { setBook(undefined); setNote(''); setMode('suggest'); }}>Suggest a book</button>}
-        </div>
-        {mode === 'suggest' && (
-          <div className="club-pick">
-            <BookPicker books={props.books} readings={props.readings} value={book} onChange={setBook} />
-            <label className="field">
-              <span>Why this one? (optional)</span>
-              <input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="Short, and everyone's been talking about it" />
-            </label>
-            <div className="account-actions">
-              <button className="btn primary small-btn" disabled={!book || busy} onClick={() => act(() => suggestBook(club, uid, book!, note))}>Suggest it</button>
-              <button className="link small" onClick={() => setMode(undefined)}>Cancel</button>
-            </div>
-          </div>
-        )}
-        {suggestions.length ? (
-          <ul className="club-suggestions">
-            {suggestions.map((s) => (
-              <li key={s.id}>
-                <Cover url={s.book.cover} title={s.book.title} author={s.book.by} size="sm" />
-                <span className="club-sug-text">
-                  <strong>{s.book.title}</strong>
-                  <span className="muted small">{[s.book.by, `suggested by ${s.user_id === uid ? 'you' : s.by}`].filter(Boolean).join(' · ')}</span>
-                  {s.note && <span className="buddy-note">“{s.note}”</span>}
-                  <span className="club-sug-actions">
-                    {host && <button className="link small" onClick={() => startPick(s)}>Make it the {now ? 'next' : 'first'} book</button>}
-                    {(host || s.user_id === uid) && <button className="link small muted" disabled={busy} onClick={() => act(() => removeSuggestion(s.id))}>Remove</button>}
-                  </span>
-                </span>
-                <button
-                  className={`vote-btn${s.voted ? ' on' : ''}`}
-                  aria-pressed={s.voted}
-                  disabled={busy || me?.status !== 'joined'}
-                  onClick={() => act(() => vote(s, uid))}
-                  title={s.voted ? 'Take back your vote' : 'Vote for this one'}
-                >
-                  <span aria-hidden="true">▲</span>
-                  <span>{s.votes}</span>
-                  <span className="sr-only"> votes</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          mode !== 'suggest' && <p className="muted">No suggestions yet. Suggest a book and the club votes on it.</p>
-        )}
-      </section>
-
-      {past.length > 0 && (
-        <section className="panel">
-          <div className="home-head">
-            <h3>Read together</h3>
-            <span className="muted small">{past.length} book{past.length === 1 ? '' : 's'}</span>
-          </div>
-          <ul className="club-past">
-            {past.map((b) => (
-              <li key={b.read_id}>
-                <Cover url={b.book.cover} title={b.book.title} author={b.book.by} size="sm" />
-                <span>
-                  <strong>{b.book.title}</strong>
-                  <span className="muted small">
-                    {[b.book.by, formatDay((b.meet_at ?? b.created_at).slice(0, 10)), b.finished ? `${b.finished} finished` : '', b.rating ? stars(b.rating) : ''].filter(Boolean).join(' · ')}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+function MeetingBox({ c, now }: Readonly<{ c: PageCtx; now: Club['books'][number] }>) {
+  const { host, mode, setMode } = c;
+  const soon = now.meet_at ? meetingSoon(now.meet_at) : undefined;
+  const where = now.meet_where;
+  return (
+    <div className={`club-meeting${soon && MEETING_SOON.has(soon) ? ' soon' : ''}`}>
+      {now.meet_at ? (
+        <>
+          <span className="stat-label">Next meeting{soon && soon !== 'past' ? ` · ${soon}` : ''}</span>
+          <strong>{meetingLabel(now.meet_at)}</strong>
+          {where && /^https?:\/\//.test(where) && <a href={where} target="_blank" rel="noreferrer">{where}</a>}
+        {where && !/^https?:\/\//.test(where) && <span>{where}</span>}
+          {soon === 'past' && <span className="muted small">That meeting has passed.{host ? ' Set the next one, or pick the next book.' : ''}</span>}
+        </>
+      ) : (
+        <span className="muted">No meeting set yet.</span>
       )}
+      {host && mode !== 'meeting' && <button className="link small" onClick={() => setMode('meeting')}>{now.meet_at ? 'Change' : 'Set a meeting'}</button>}
+    </div>
+  );
+}
+
+function ClubNow({ c }: Readonly<{ c: PageCtx }>) {
+  const { club, uid, host, now, busy, mode, setMode, act, startPick, book, setBook, fromSuggestion, setFromSuggestion, setError, props } = c;
+  const read = currentRead(club, props.reads);
+  return (
+    <section className="panel club-now">
+      <div className="home-head">
+        <h3>Reading now</h3>
+        {host && now && mode !== 'pick' && <button className="link small" onClick={() => startPick()}>Pick the next book</button>}
+      </div>
+      {now ? (
+        <>
+          <MeetingBox c={c} now={now} />
+          {mode === 'meeting' && (
+            <MeetingForm initial={now} saveLabel="Save meeting" onCancel={() => setMode(undefined)} onSave={(m) => act(() => setMeeting(now.read_id, m))} />
+          )}
+          {read ? (
+            <ul className="buddy-list">
+              <ReadCard {...props} onJoin={props.onJoinRead} onStart={async () => undefined} read={read} club={club.name} />
+            </ul>
+          ) : (
+            <div className="buddy-chosen">
+              <Cover url={now.book.cover} title={now.book.title} author={now.book.by} size="sm" />
+              <span>
+                <strong>{now.book.title}</strong>
+                <span className="muted small">{now.book.by}</span>
+              </span>
+            </div>
+          )}
+        </>
+      ) : null}
+      {!now && host ? (
+        mode !== 'pick' && (
+          <>
+            <p className="muted">Pick the club's first book, or let everyone suggest some and vote first.</p>
+            <button className="btn primary" onClick={() => startPick()}>Pick the first book</button>
+          </>
+        )
+      ) : null}
+      {!now && !host ? <p className="muted">No book yet. Suggest one below; the host picks.</p> : null}
+      {mode === 'pick' && (
+        <div className="club-pick">
+          <h4>{now ? 'Next book' : 'First book'}</h4>
+          <BookPicker books={props.books} readings={props.readings} value={book} onChange={(b) => { setBook(b); setFromSuggestion(undefined); }} />
+          <MeetingForm
+            saveLabel={busy ? 'Starting…' : 'Start reading it'}
+            onCancel={() => setMode(undefined)}
+            onSave={async (m) => {
+              if (!book) return setError('Choose a book first.');
+              await act(() => pickBook(club, uid, book, m, fromSuggestion));
+            }}
+          />
+          <p className="muted small">Everyone in the club gets it as a buddy read, with progress and a spoiler-free chat.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SuggestionItem({ c, s }: Readonly<{ c: PageCtx; s: ClubSuggestion }>) {
+  const { uid, host, now, busy, me, act, startPick } = c;
+  return (
+    <li>
+      <Cover url={s.book.cover} title={s.book.title} author={s.book.by} size="sm" />
+      <span className="club-sug-text">
+        <strong>{s.book.title}</strong>
+        <span className="muted small">{[s.book.by, `suggested by ${s.user_id === uid ? 'you' : s.by}`].filter(Boolean).join(' · ')}</span>
+        {s.note && <span className="buddy-note">“{s.note}”</span>}
+        <span className="club-sug-actions">
+          {host && <button className="link small" onClick={() => startPick(s)}>Make it the {now ? 'next' : 'first'} book</button>}
+          {(host || s.user_id === uid) && <button className="link small muted" disabled={busy} onClick={() => act(() => removeSuggestion(s.id))}>Remove</button>}
+        </span>
+      </span>
+      <button
+        className={`vote-btn${s.voted ? ' on' : ''}`}
+        aria-pressed={s.voted}
+        disabled={busy || me?.status !== 'joined'}
+        onClick={() => act(() => vote(s, uid))}
+        title={s.voted ? 'Take back your vote' : 'Vote for this one'}
+      >
+        <span aria-hidden="true">▲</span>
+        <span>{s.votes}</span>
+        <span className="sr-only"> votes</span>
+      </button>
+    </li>
+  );
+}
+
+function ClubVotes({ c }: Readonly<{ c: PageCtx }>) {
+  const { club, uid, me, busy, mode, setMode, act, book, setBook, note, setNote, props } = c;
+  const suggestions = [...club.suggestions].sort((a, b) => b.votes - a.votes || a.created_at.localeCompare(b.created_at));
+  return (
+    <section className="panel">
+      <div className="home-head">
+        <h3>What next? Vote</h3>
+        {me?.status === 'joined' && mode !== 'suggest' && <button className="link small" onClick={() => { setBook(undefined); setNote(''); setMode('suggest'); }}>Suggest a book</button>}
+      </div>
+      {mode === 'suggest' && (
+        <div className="club-pick">
+          <BookPicker books={props.books} readings={props.readings} value={book} onChange={setBook} />
+          <label className="field">
+            <span>Why this one? (optional)</span>
+            <input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="Short, and everyone's been talking about it" />
+          </label>
+          <div className="account-actions">
+            <button className="btn primary small-btn" disabled={!book || busy} onClick={() => act(() => suggestBook(club, uid, book!, note))}>Suggest it</button>
+            <button className="link small" onClick={() => setMode(undefined)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {suggestions.length ? (
+        <ul className="club-suggestions">
+          {suggestions.map((s) => (
+            <SuggestionItem key={s.id} c={c} s={s} />
+          ))}
+        </ul>
+      ) : (
+        mode !== 'suggest' && <p className="muted">No suggestions yet. Suggest a book and the club votes on it.</p>
+      )}
+    </section>
+  );
+}
+
+function ClubPast({ past }: Readonly<{ past: Club['books'] }>) {
+  if (!past.length) return null;
+  return (
+    <section className="panel">
+      <div className="home-head">
+        <h3>Read together</h3>
+        <span className="muted small">{past.length} book{past.length === 1 ? '' : 's'}</span>
+      </div>
+      <ul className="club-past">
+        {past.map((b) => (
+          <li key={b.read_id}>
+            <Cover url={b.book.cover} title={b.book.title} author={b.book.by} size="sm" />
+            <span>
+              <strong>{b.book.title}</strong>
+              <span className="muted small">
+                {[b.book.by, formatDay((b.meet_at ?? b.created_at).slice(0, 10)), b.finished ? `${b.finished} finished` : '', b.rating ? stars(b.rating) : ''].filter(Boolean).join(' · ')}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ClubPage(props: Readonly<Props & { club: Club; onBack: () => void }>) {
+  const { club, uid, friends, onRefresh } = props;
+  const host = club.owner === uid;
+  const me = club.members.find((m) => m.user_id === uid);
+  const joined = club.members.filter((m) => m.status === 'joined');
+  const invited = club.members.filter((m) => m.status === 'invited');
+  const notIn = friends.filter((f) => f.status === 'accepted' && !club.members.some((m) => m.user_id === f.id));
+  const hostName = host ? 'you' : memberName(club.members.find((m) => m.user_id === club.owner) ?? { display_name: '', username: '?' });
+
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<ClubMode>();
+  const [book, setBook] = useState<BuddyBook>();
+  const [fromSuggestion, setFromSuggestion] = useState<string>();
+  const [note, setNote] = useState('');
+
+  const act = async (fn: () => Promise<unknown>, after?: () => void) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await fn();
+      setMode(undefined);
+      after?.();
+    } catch (e) {
+      setError((e as Error).message || String(e));
+    } finally {
+      setBusy(false);
+      onRefresh();
+    }
+  };
+  const startPick = (s?: ClubSuggestion) => {
+    setBook(s?.book);
+    setFromSuggestion(s?.id);
+    setMode('pick');
+  };
+  const c: PageCtx = { props, club, uid, host, me, now: club.books[0], busy, mode, setMode, act, startPick, book, setBook, fromSuggestion, setFromSuggestion, note, setNote, setError };
+
+  return (
+    <div className="club-page">
+      <button className="link small profile-back" onClick={props.onBack}>← All book clubs</button>
+      <div className="club-head">
+        <div>
+          <h3 className="club-name">{club.name}</h3>
+          {club.about && <p className="muted">{club.about}</p>}
+        </div>
+        <ul className="club-faces" aria-label="Members">
+          {joined.map((m) => (
+            <li key={m.user_id}>
+              <button className="post-who" onClick={() => props.onOpenProfile(m.username)} title={m.user_id === uid ? 'You' : memberName(m)}>
+                <Avatar p={m} size={32} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="muted small">
+        {joined.length} member{joined.length === 1 ? '' : 's'}
+        {invited.length > 0 && ` · ${invited.map(memberName).join(', ')} invited`}
+        {` · hosted by ${hostName}`}
+      </p>
+      <div className="buddy-actions">
+        {me?.status === 'joined' && notIn.length > 0 && <button className="btn ghost small-btn" onClick={() => setMode(mode === 'invite' ? undefined : 'invite')}>Invite friends</button>}
+        {host && <button className="link small" onClick={() => setMode(mode === 'edit' ? undefined : 'edit')}>Edit club</button>}
+        {host ? (
+          <button className="link small muted" onClick={() => setMode('delete')}>Delete club</button>
+        ) : (
+          <button className="link small muted" onClick={() => setMode('leave')}>Leave club</button>
+        )}
+      </div>
+      <ClubManage c={c} error={error} notIn={notIn} />
+
+      <ClubNow c={c} />
+
+      <ClubVotes c={c} />
+
+      <ClubPast past={club.books.slice(1)} />
     </div>
   );
 }
