@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getDiscogsToken, getGoogleKey, setDiscogsToken, setGoogleKey, testGoogleKey } from '../lib/lookup';
+import { getDiscogsToken, getGoogleKey, hasBuiltInGoogleKey, setDiscogsToken, setGoogleKey, testGoogleKey } from '../lib/lookup';
 
 export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [key, setKey] = useState(getGoogleKey());
@@ -46,29 +46,41 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
             {test.state === 'ok' && <div className="key-test ok">The key works. Press Save.</div>}
             {test.state === 'bad' && <div className="key-test bad">{test.message}</div>}
             <span className="hint">
-              Without a key, Google shares one small daily limit between everyone, so lookups can fail even when Google has the book.
-              A free key gives you your own limit (1,000 lookups a day).
+              {hasBuiltInGoogleKey() ? (
+                <>
+                  Stacks already has a Google Books key built in, so you don’t need to do anything here. Only add your own if book
+                  lookups start saying Google’s daily limit is used up.
+                </>
+              ) : (
+                <>
+                  Without a key, Google shares one small daily limit between everyone, so lookups can fail even when Google has the
+                  book. A free key gives you your own limit (1,000 lookups a day).
+                </>
+              )}
             </span>
           </label>
-          <ol className="settings-steps">
-            <li>
-              Open{' '}
-              <a href="https://console.cloud.google.com/apis/library/books.googleapis.com" target="_blank" rel="noreferrer">
-                Books API in Google Cloud
-              </a>{' '}
-              and sign in with your Google account. Create a project if it asks, then press <b>Enable</b>.
-            </li>
-            <li>
-              Go to{' '}
-              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Credentials</a>, choose{' '}
-              <b>Create credentials → API key</b>, and copy the key.
-            </li>
-            <li>
-              Click the key's name to edit it. Under <b>Application restrictions</b> choose <b>None</b> (Stacks runs from a file, so a
-              website restriction blocks it). Under <b>API restrictions</b>, choose Books API or leave it unrestricted. Save.
-            </li>
-            <li>Paste the key above, press <b>Test key</b>, then Save. It stays in this browser only.</li>
-          </ol>
+          <details className="settings-steps-wrap" open={!hasBuiltInGoogleKey() || undefined}>
+            <summary className="muted small">How to get your own Google Books key</summary>
+            <ol className="settings-steps">
+              <li>
+                Open{' '}
+                <a href="https://console.cloud.google.com/apis/library/books.googleapis.com" target="_blank" rel="noreferrer">
+                  Books API in Google Cloud
+                </a>{' '}
+                and sign in with your Google account. Create a project if it asks, then press <b>Enable</b>.
+              </li>
+              <li>
+                Go to{' '}
+                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Credentials</a>, choose{' '}
+                <b>Create credentials → API key</b>, and copy the key.
+              </li>
+              <li>
+                Click the key's name to edit it. Under <b>Application restrictions</b> choose <b>None</b> (or <b>Websites</b> with this
+                site’s address). Under <b>API restrictions</b>, choose Books API. Save.
+              </li>
+              <li>Paste the key above, press <b>Test key</b>, then Save. It stays in this browser only.</li>
+            </ol>
+          </details>
           <h3 className="section-label">Records and CDs</h3>
           <label className="field">
             <span>Discogs personal token</span>

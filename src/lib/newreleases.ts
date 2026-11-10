@@ -1,7 +1,7 @@
 import type { Book, Reading, Spin } from '../types';
 import { isMusic } from '../types';
 import { readingsOf } from './reading';
-import { getGoogleKey, getJson } from './lookup';
+import { getGoogle, getJson, withGoogleKey } from './lookup';
 import { authorKey, recKey, type Rec } from './recommend';
 import { albumKey, artistKey, deezerAlbums, deezerArtist, musicTasteOf, NOT_NEW } from './musicrecs';
 
@@ -152,9 +152,8 @@ const shortTitle = (t: string) => t.split(/[:(]/)[0].trim();
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function googleNewest(author: string): Promise<any[]> {
-  const key = getGoogleKey();
-  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`inauthor:"${author}"`)}&orderBy=newest&maxResults=20&printType=books${key ? `&key=${encodeURIComponent(key)}` : ''}`;
-  const data = (await getJson(url)) as { items?: any[] };
+  const url = withGoogleKey(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`inauthor:"${author}"`)}&orderBy=newest&maxResults=20&printType=books`);
+  const data = (await getGoogle(url)) as { items?: any[] };
   return data.items ?? [];
 }
 
