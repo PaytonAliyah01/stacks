@@ -207,7 +207,9 @@ export function ReadingPanel({ book, readings, onChange, onRemove }: Readonly<Pr
         )}
         {current && (
           <button type="button" className="link muted-link" onClick={() => onRemove(current.id)}>
-            {current.status === 'want' ? 'Remove from want to read' : readings.length > 1 ? 'Undo this read' : 'Clear reading status'}
+            {(current.status === 'want') ? 'Remove from want to read' : null}
+            {!(current.status === 'want') && (readings.length > 1) ? 'Undo this read' : null}
+            {!(current.status === 'want') && !(readings.length > 1) ? 'Clear reading status' : null}
           </button>
         )}
       </div>

@@ -184,15 +184,16 @@ export function CameraScanner({ onCode, onClose }: Readonly<Props>) {
         <div aria-live="polite">
         {error ? (
           <p className="camera-error">{error}</p>
-        ) : starting ? (
+        ) : null}
+        {!error && starting ? (
           <p>Starting the camera…</p>
-        ) : last ? (
+        ) : null}
+        {!error && !starting && last ? (
           <p>
             <strong>Got {last.code}</strong> · {last.n} scanned. Point at the next one, or press Done scanning.
           </p>
-        ) : (
-          <p>Hold the barcode inside the box, about a hand’s width away.</p>
-        )}
+        ) : null}
+        {!error && !starting && !last ? <p>Hold the barcode inside the box, about a hand’s width away.</p> : null}
         </div>
         <button className="camera-done" onClick={onClose}>{last ? 'Done scanning' : 'Close camera'}</button>
       </div>

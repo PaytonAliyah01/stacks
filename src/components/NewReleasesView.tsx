@@ -43,18 +43,19 @@ function ReleaseCard({ r, kind, have, onWant, onWish, onHide }: Readonly<{ r: Re
         <span className={`release-date small${r.upcoming ? ' soon' : ''}`}>{dateLabel(r.date)}</span>
         <span className="rec-why small">{r.reason}</span>
         <span className="rec-actions">
-          {have && !wanted ? (
+          {(have && !wanted) ? (
             <span className="muted small">In your library</span>
-          ) : wanted ? (
+          ) : null}
+          {!(have && !wanted) && wanted ? (
             <span className="muted small">On your {kind === 'music' ? 'wantlist' : 'wishlist'}</span>
-          ) : kind === 'book' ? (
+          ) : null}
+          {!(have && !wanted) && !wanted && (kind === 'book') ? (
             <>
               <button className="btn small-btn" onClick={() => onWish(r)}>Wishlist</button>
               {onWant && <button className="link small" onClick={() => onWant(r)}>Want to read</button>}
             </>
-          ) : (
-            <button className="btn small-btn" onClick={() => onWish(r)}>Add to wantlist</button>
-          )}
+          ) : null}
+          {!(have && !wanted) && !wanted && !(kind === 'book') ? <button className="btn small-btn" onClick={() => onWish(r)}>Add to wantlist</button> : null}
           <button className="icon-btn rec-hide" onClick={() => onHide(r)} aria-label={`Not interested: ${r.title}`} title="Not interested">✕</button>
         </span>
       </div>
@@ -97,11 +98,9 @@ export function NewReleasesView(p: Readonly<Props>) {
   return (
     <div className="recs-page releases-page">
       <p className="muted recs-intro">
-        {p.followed.length
-          ? `New and upcoming ${kind === 'music' ? 'albums' : 'books'} from the ${p.followed.length === 1 ? `${kind === 'music' ? 'artist' : 'author'}` : `${p.followed.length} ${who}`} you ${kind === 'music' ? 'own and play most' : 'read and like most'}, checked once a day.`
-          : kind === 'music'
-            ? 'Add records to your collection and Stacks follows those artists for new albums.'
-            : 'Finish and rate a few books (or own two by the same author) and Stacks follows those authors for new books.'}
+        {p.followed.length ? `New and upcoming ${kind === 'music' ? 'albums' : 'books'} from the ${p.followed.length === 1 ? `${kind === 'music' ? 'artist' : 'author'}` : `${p.followed.length} ${who}`} you ${kind === 'music' ? 'own and play most' : 'read and like most'}, checked once a day.` : null}
+        {!p.followed.length && (kind === 'music') ? 'Add records to your collection and Stacks follows those artists for new albums.' : null}
+        {!p.followed.length && !(kind === 'music') ? 'Finish and rate a few books (or own two by the same author) and Stacks follows those authors for new books.' : null}
       </p>
 
       {soon.length > 0 && (

@@ -79,11 +79,11 @@ export function MusicRecsView({ records, spins, uid, social, onOpen, onSpin, onW
         <div className="rec-body">
           {local ? (
             <button className="link-plain rec-title" onClick={() => onOpen(local)}>{r.title}</button>
-          ) : r.link ? (
+          ) : null}
+          {!local && r.link ? (
             <a className="rec-title" href={r.link} target="_blank" rel="noreferrer">{r.title}</a>
-          ) : (
-            <strong className="rec-title">{r.title}</strong>
-          )}
+          ) : null}
+          {!local && !r.link ? <strong className="rec-title">{r.title}</strong> : null}
           <span className="muted small">{r.authors[0]}{r.year ? ` · ${r.year}` : ''}</span>
           <span className="rec-why small">{r.reason}</span>
           <span className="rec-actions">

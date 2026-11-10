@@ -108,7 +108,9 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Re
                   spellCheck={false}
                 />
                 <button type="button" className="btn primary" onClick={load} disabled={!user.trim() || !!loading}>
-                  {loading ? 'Loading…' : wants ? 'Load my wantlist' : 'Load my collection'}
+                  {loading ? 'Loading…' : null}
+                  {!loading && wants ? 'Load my wantlist' : null}
+                  {!loading && !wants ? 'Load my collection' : null}
                 </button>
               </div>
               {loading && <p className="muted small">{loading}</p>}
@@ -170,7 +172,9 @@ export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Re
                 setBusy(false);
               }}
             >
-              {busy ? 'Importing…' : p ? `Import ${p.newBooks.length + p.updated.length}` : 'Import'}
+              {busy ? 'Importing…' : null}
+              {!busy && p ? `Import ${p.newBooks.length + p.updated.length}` : null}
+              {!busy && !p ? 'Import' : null}
             </button>
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>
           </footer>

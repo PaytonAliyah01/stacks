@@ -163,10 +163,11 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: Readonly<{ read: B
       {error && <p className="account-error small">{error}</p>}
       {!msgs ? (
         <p className="muted small">Loading the chat…</p>
-      ) : !msgs.length ? (
+      ) : null}
+{msgs && !msgs.length ? (
         <p className="muted small">No messages yet. Say what you think so far. Messages are tagged with your page, so nobody gets spoiled.</p>
-      ) : (
-        <ul className="chat-list">
+      ) : null}
+{msgs && msgs.length ? <ul className="chat-list">
           {msgs.map((m) => {
             const spoiler = !finished && m.page != null && m.page > myPage && m.user_id !== uid && !shown.has(m.id);
             return (
@@ -194,8 +195,7 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: Readonly<{ read: B
               </li>
             );
           })}
-        </ul>
-      )}
+        </ul> : null}
       <form className="chat-form" onSubmit={send}>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={2} maxLength={1000} placeholder="What do you think so far?" aria-label="Message" />
         <div className="chat-send">
@@ -301,7 +301,10 @@ export function ReadCard(props: Readonly<Props & { read: BuddyRead; club?: strin
                     <span className="buddy-name">
                       <strong>{m.user_id === uid ? 'You' : memberName(m)}</strong>
                       <span className="muted small">
-                        {m.finished_at ? `finished ${formatDay(m.finished_at)}` : m.page != null ? `page ${m.page}${pages ? ` of ${pages}` : ''}` : pct ? `${pct}%` : 'not started'}
+                        {m.finished_at ? `finished ${formatDay(m.finished_at)}` : null}
+                        {!m.finished_at && (m.page != null) ? `page ${m.page}${pages ? ` of ${pages}` : ''}` : null}
+                        {!m.finished_at && !(m.page != null) && pct ? `${pct}%` : null}
+                        {!m.finished_at && !(m.page != null) && !pct ? 'not started' : null}
                       </span>
                     </span>
                     <span className="progress-bar"><i style={{ width: `${pct}%` }} /></span>

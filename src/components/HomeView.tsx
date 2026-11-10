@@ -220,11 +220,9 @@ export function HomeView(props: Readonly<Props>) {
                     <i style={{ width: `${Math.min(100, p.pct)}%` }} />
                   </span>
                   <span className="muted small">
-                    {p.pct >= 100
-                      ? 'Done. Nice work!'
-                      : p.done >= p.expected
-                        ? `On track, ${p.daysLeft} days left`
-                        : `${Math.ceil(p.expected - p.done).toLocaleString()} ${c.measure} behind · about ${Math.ceil(p.perWeekNeeded).toLocaleString()} a week to finish on time`}
+                    {(p.pct >= 100) ? 'Done. Nice work!' : null}
+                    {!(p.pct >= 100) && (p.done >= p.expected) ? `On track, ${p.daysLeft} days left` : null}
+                    {!(p.pct >= 100) && !(p.done >= p.expected) ? `${Math.ceil(p.expected - p.done).toLocaleString()} ${c.measure} behind · about ${Math.ceil(p.perWeekNeeded).toLocaleString()} a week to finish on time` : null}
                   </span>
                 </div>
               ))
@@ -243,7 +241,9 @@ export function HomeView(props: Readonly<Props>) {
                   <i style={{ width: `${Math.min(100, Math.round((g.mine / g.goal) * 100))}%` }} />
                 </span>
                 <span className="muted small">
-                  {g.invite ? 'A friend invited you. ' : g.of > 1 ? `With friends · you're ${ordinal(g.place)} of ${g.of}` : 'With friends · waiting for them to join'}
+                  {g.invite ? 'A friend invited you. ' : null}
+                  {!g.invite && (g.of > 1) ? `With friends · you're ${ordinal(g.place)} of ${g.of}` : null}
+                  {!g.invite && !(g.of > 1) ? 'With friends · waiting for them to join' : null}
                   {g.invite && <button className="link small" onClick={() => onGo('groups')}>Join or decline</button>}
                 </span>
               </div>
@@ -289,7 +289,8 @@ export function HomeView(props: Readonly<Props>) {
                 </span>
                 <span className="vinyl-disc small-disc" aria-hidden="true" />
               </div>
-            ) : pick ? (
+            ) : null}
+            {!spinning && pick ? (
               <div className="home-record">
                 <Cover url={pick.coverUrl} title={pick.title} author={pick.authors[0]} size="sm" square />
                 <span>
@@ -303,9 +304,8 @@ export function HomeView(props: Readonly<Props>) {
                   <button className="link small" onClick={() => setPick(pickRecord(records, plays, pick.id))}>Another</button>
                 </span>
               </div>
-            ) : (
-              <p className="muted">Scan your records and CDs and Stacks suggests one to put on.</p>
-            )}
+            ) : null}
+            {!spinning && !pick ? <p className="muted">Scan your records and CDs and Stacks suggests one to put on.</p> : null}
             {(spinsWeek > 0 || listenStreak > 0) && (
               <p className="muted small">
                 {plural(spinsWeek, 'spin')} this week{listenStreak > 1 ? ` · ${listenStreak} days in a row with music` : ''}
@@ -382,15 +382,15 @@ export function HomeView(props: Readonly<Props>) {
               <h3>Friends</h3>
               {uid && profile && <button className="link small" onClick={() => onGo('friends')}>All</button>}
             </div>
-            {uid && profile ? (
+            {(uid && profile) ? (
               <FeedView uid={uid} onOpenProfile={props.onOpenProfile} hasFriends onFindFriends={() => onGo('friends')} limit={4} />
-            ) : uid ? (
+            ) : null}
+            {!(uid && profile) && uid ? (
               <p className="muted">Make your profile to add friends and see what they're reading. <button className="link small" onClick={() => onGo('friends')}>Set it up</button></p>
-            ) : (
-              <p className="muted">
+            ) : null}
+            {!(uid && profile) && !uid ? <p className="muted">
                 <button className="link small" onClick={props.onSignIn}>Sign in</button> to keep your library on all your devices and see what your friends are reading.
-              </p>
-            )}
+              </p> : null}
           </section>
         </div>
       </div>

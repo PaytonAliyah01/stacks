@@ -45,19 +45,20 @@ export function FriendButton({ uid, them, friends, onChanged }: Readonly<{ uid: 
     <span className="friend-button">
       {!f ? (
         <button className="btn primary small-btn" disabled={busy} onClick={() => act(() => sendRequest(uid, them.id))}>Add friend</button>
-      ) : f.status === 'accepted' ? (
+      ) : null}
+{f && (f.status === 'accepted') ? (
         <span className="friend-badge">✓ Friends</span>
-      ) : f.incoming ? (
+      ) : null}
+{f && !(f.status === 'accepted') && f.incoming ? (
         <>
           <button className="btn primary small-btn" disabled={busy} onClick={() => act(() => acceptRequest(uid, them.id))}>Accept</button>
           <button className="btn ghost small-btn" disabled={busy} onClick={() => act(() => removeFriend(uid, them.id))}>Decline</button>
         </>
-      ) : (
-        <>
+      ) : null}
+{f && !(f.status === 'accepted') && !f.incoming ? <>
           <span className="friend-badge muted">Request sent</span>
           <button className="link small" disabled={busy} onClick={() => act(() => removeFriend(uid, them.id))}>Cancel</button>
-        </>
-      )}
+        </> : null}
       {error && <span className="account-error small">{error}</span>}
     </span>
   );
@@ -165,14 +166,17 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
           <p>Make your profile first, so friends can find you by your username.</p>
           <button className="btn primary" onClick={onEditProfile}>Set up my profile</button>
         </div>
-      ) : tab === 'lending' && lending ? (
+      ) : null}
+{me && (tab === 'lending' && lending) ? (
         lending
-      ) : tab === 'gifts' && gifts ? (
+      ) : null}
+{me && !(tab === 'lending' && lending) && (tab === 'gifts' && gifts) ? (
         gifts
-      ) : tab === 'feed' ? (
+      ) : null}
+{me && !(tab === 'lending' && lending) && !(tab === 'gifts' && gifts) && (tab === 'feed') ? (
         <FeedView uid={uid} onOpenProfile={onOpenProfile} hasFriends={accepted.length > 0} onFindFriends={findPeople} />
-      ) : (
-        <>
+      ) : null}
+{me && !(tab === 'lending' && lending) && !(tab === 'gifts' && gifts) && !(tab === 'feed') ? <>
           <section className="panel">
             <h3>Find people</h3>
             <form className="search-row" onSubmit={search}>
@@ -269,8 +273,7 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
               Your profile is set to “Only me”, so friends won't see it. <button className="link small" onClick={onEditProfile}>Change who can see it</button>
             </p>
           )}
-        </>
-      )}
+        </> : null}
     </div>
   );
 }

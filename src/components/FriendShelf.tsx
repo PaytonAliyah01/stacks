@@ -118,15 +118,16 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Rea
                 <Cover url={x.cover ?? undefined} title={x.title} author={x.author ?? undefined} size="md" square={x.kind !== 'book'} />
                 <strong>{x.title}</strong>
                 {x.author && <span className="muted small">{x.author}</span>}
-                {l?.status === 'lent' ? (
+                {(l?.status === 'lent') ? (
                   <span className="friend-badge">You have it</span>
-                ) : l ? (
+                ) : null}
+                {!(l?.status === 'lent') && l ? (
                   <span className="friend-badge muted">Requested</span>
-                ) : x.lent_out ? (
+                ) : null}
+                {!(l?.status === 'lent') && !l && x.lent_out ? (
                   <span className="muted small">Lent out</span>
-                ) : (
-                  <button className="btn small-btn" onClick={() => setAsking(x)}>Ask to borrow</button>
-                )}
+                ) : null}
+                {!(l?.status === 'lent') && !l && !x.lent_out ? <button className="btn small-btn" onClick={() => setAsking(x)}>Ask to borrow</button> : null}
               </li>
             );
           })}

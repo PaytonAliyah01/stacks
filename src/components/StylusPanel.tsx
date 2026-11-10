@@ -88,9 +88,10 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
                 {w.daysLeft !== undefined && w.pct < 100 && ` · at your pace, about ${w.daysLeft > 60 ? `${Math.round(w.daysLeft / 30)} months` : `${w.daysLeft} days`} left`}
               </span>
             </div>
-            {w.pct >= 100 ? (
+            {(w.pct >= 100) ? (
               <p className="stylus-alert">Time for a new stylus. A worn one sounds dull and can damage your records.</p>
-            ) : w.pct >= 85 ? (
+            ) : null}
+            {!(w.pct >= 100) && (w.pct >= 85) ? (
               <p className="stylus-alert soft">Your stylus is nearly worn out. Good time to order a new one.</p>
             ) : null}
             {editingLife ? (

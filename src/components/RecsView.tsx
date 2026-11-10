@@ -111,11 +111,11 @@ function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }:
       <div className="rec-body">
         {local ? (
           <button className="link-plain rec-title" onClick={() => onOpen(local)}>{r.title}</button>
-        ) : r.openLibraryKey ? (
+        ) : null}
+        {!local && r.openLibraryKey ? (
           <a className="rec-title" href={`https://openlibrary.org${r.openLibraryKey}`} target="_blank" rel="noreferrer">{r.title}</a>
-        ) : (
-          <strong className="rec-title">{r.title}</strong>
-        )}
+        ) : null}
+        {!local && !r.openLibraryKey ? <strong className="rec-title">{r.title}</strong> : null}
         {by && <span className="muted small">{by}{r.year ? ` · ${r.year}` : ''}</span>}
         <span className="rec-why small">{r.reason}</span>
         <span className="rec-actions">
@@ -245,7 +245,9 @@ export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: Readon
           })}
         </ol>
       ) : (
-        <p className="muted">{recs.loading ? 'Finding books for you…' : recs.error && recs.taste.loved.length ? recs.error : 'Rate a few books you finished and Stacks suggests what to read next.'}</p>
+        <p className="muted">{recs.loading ? 'Finding books for you…' : null}
+        {!recs.loading && (recs.error && recs.taste.loved.length) ? recs.error : null}
+        {!recs.loading && !(recs.error && recs.taste.loved.length) ? 'Rate a few books you finished and Stacks suggests what to read next.' : null}</p>
       )}
     </section>
   );

@@ -113,18 +113,19 @@ export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRem
         {copied === 'select' && (
           <textarea ref={textRef} className="copy-box" readOnly rows={Math.min(8, list.length + 1)} value={listText} aria-label="Shopping list to copy" />
         )}
-        {list.length === 0 && music ? (
+        {(list.length === 0 && music) ? (
           <p className="muted">
             Nothing here yet. Add a record, switch scans to your wantlist and scan one in a shop, or import your Discogs wantlist. Records you already own
             can't be added, so you won't buy them twice.
           </p>
-        ) : list.length === 0 ? (
+        ) : null}
+        {!(list.length === 0 && music) && (list.length === 0) ? (
           <p className="muted">
             Nothing here yet. Add books by title, switch scans to your wishlist, or mark a book you don't own as “Want to read”. Books already in your
             library can't be added, so you won't buy them twice.
           </p>
-        ) : (
-          <ul className="wish-list">
+        ) : null}
+        {!(list.length === 0 && music) && !(list.length === 0) ? <ul className="wish-list">
             {list.map((b) => (
               <li key={b.id}>
                 <button className="now-cover" onClick={() => onOpen(b)} aria-label={`Open ${b.title}`}>
@@ -150,8 +151,7 @@ export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRem
                 </div>
               </li>
             ))}
-          </ul>
-        )}
+          </ul> : null}
       </section>
     </div>
   );

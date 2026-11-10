@@ -151,7 +151,9 @@ function StartClub({ friends, onStart, onCancel }: Readonly<{ friends: Friend[];
             }
           }}
         >
-          {busy ? 'Starting…' : chosen.length ? 'Start and invite' : 'Start the club'}
+          {busy ? 'Starting…' : null}
+          {!busy && chosen.length ? 'Start and invite' : null}
+          {!busy && !chosen.length ? 'Start the club' : null}
         </button>
         <button className="btn ghost" onClick={onCancel}>Cancel</button>
       </div>
@@ -341,16 +343,16 @@ function ClubPage(props: Readonly<Props & { club: Club; onBack: () => void }>) {
               </div>
             )}
           </>
-        ) : host ? (
+        ) : null}
+        {!now && host ? (
           mode !== 'pick' && (
             <>
               <p className="muted">Pick the club's first book, or let everyone suggest some and vote first.</p>
               <button className="btn primary" onClick={() => startPick()}>Pick the first book</button>
             </>
           )
-        ) : (
-          <p className="muted">No book yet. Suggest one below; the host picks.</p>
-        )}
+        ) : null}
+        {!now && !host ? <p className="muted">No book yet. Suggest one below; the host picks.</p> : null}
         {mode === 'pick' && (
           <div className="club-pick">
             <h4>{now ? 'Next book' : 'First book'}</h4>

@@ -96,11 +96,11 @@ export function FriendWishlist({ uid, friendId, friendName, onChanged, heading =
                       <span className="gift-mine small">🎁 You’re getting this</span>
                       <button className="link small" disabled={busy === w.id} onClick={() => act(w, () => unclaimGift(friendId, w.id))}>Not anymore</button>
                     </>
-                  ) : w.claimed_by ? (
+                  ) : null}
+                  {!w.claimed_by_me && w.claimed_by ? (
                     <span className="muted small">{w.claimed_by} is getting this</span>
-                  ) : (
-                    <button className="btn small-btn" disabled={busy === w.id} onClick={() => act(w, () => claimGift(uid, friendId, w))}>I’m getting this</button>
-                  )}
+                  ) : null}
+                  {!w.claimed_by_me && !w.claimed_by ? <button className="btn small-btn" disabled={busy === w.id} onClick={() => act(w, () => claimGift(uid, friendId, w))}>I’m getting this</button> : null}
                 </span>
               </li>
             ))}

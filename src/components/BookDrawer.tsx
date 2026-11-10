@@ -361,7 +361,8 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
                     <select id="f-position" aria-label="Book number on the shelf" value={Math.min(place.position, slotCount)}
                       onChange={(e) => set('placement', { ...place, position: Number(e.target.value) })}>
                       {Array.from({ length: slotCount }, (_, i) => (
-                        <option key={i} value={i + 1}>Book {i + 1}{i === 0 ? ' (left)' : i === slotCount - 1 && slotCount > 1 ? ' (right)' : ''}</option>
+                        <option key={i} value={i + 1}>Book {i + 1}{(i === 0) ? ' (left)' : null}
+                        {!(i === 0) && (i === slotCount - 1 && slotCount > 1) ? ' (right)' : null}</option>
                       ))}
                     </select>
                   </>

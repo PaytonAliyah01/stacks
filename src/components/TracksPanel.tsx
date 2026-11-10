@@ -53,11 +53,9 @@ export function TracksPanel({ draft, onSave }: Readonly<Props>) {
         <div>
           <h3>Tracks</h3>
           <p className="muted small">
-            {loading
-              ? 'Looking up the track list…'
-              : tracks.length
-                ? [`${tracks.length} tracks`, total && clock(total), favs && `${favs} favorite${favs === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
-                : 'No track list yet.'}
+            {loading ? 'Looking up the track list…' : null}
+            {!loading && tracks.length ? [`${tracks.length} tracks`, total && clock(total), favs && `${favs} favorite${favs === 1 ? '' : 's'}`].filter(Boolean).join(' · ') : null}
+            {!loading && !tracks.length ? 'No track list yet.' : null}
           </p>
         </div>
         {editing === null && (

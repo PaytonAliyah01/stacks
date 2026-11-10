@@ -220,7 +220,10 @@ export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }:
                       <Cover url={s.e.book.coverUrl} title={s.e.book.title} author={s.e.book.authors[0]} size="sm" />
                       <span className="series-book-title">{titleWithoutSeries(s.e.book.title)}</span>
                       <span className="series-book-status">
-                        {s.e.status ? STATUS_LABELS[s.e.status] : s.e.book.wishlist ? 'On wishlist' : s.e.book.owned === false ? 'Not owned' : 'Unread'}
+                        {s.e.status ? STATUS_LABELS[s.e.status] : null}
+                        {!s.e.status && s.e.book.wishlist ? 'On wishlist' : null}
+                        {!s.e.status && !s.e.book.wishlist && (s.e.book.owned === false) ? 'Not owned' : null}
+                        {!s.e.status && !s.e.book.wishlist && !(s.e.book.owned === false) ? 'Unread' : null}
                       </span>
                     </button>
                   </li>
@@ -245,7 +248,9 @@ export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }:
                   {g.unnumbered.map((e) => (
                     <li key={e.book.id}>
                       <button className="link" onClick={() => onOpen(e.book)}>{titleWithoutSeries(e.book.title)}</button>
-                      <span className="muted small">{e.status ? STATUS_LABELS[e.status] : e.book.owned === false ? 'Not owned' : 'Unread'}</span>
+                      <span className="muted small">{e.status ? STATUS_LABELS[e.status] : null}
+                      {!e.status && (e.book.owned === false) ? 'Not owned' : null}
+                      {!e.status && !(e.book.owned === false) ? 'Unread' : null}</span>
                       <NumberFix entry={e} onUpdate={onUpdate} />
                     </li>
                   ))}

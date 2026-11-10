@@ -1872,22 +1872,22 @@ function StacksApp() {
                 ))}
               </div>
               <div>
-                {open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false ? (
+                {(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) ? (
                   <>
                     <p className="scan-status paused"><span className="dot" /> Scanner paused</p>
                     <p className="scan-hint">Close the panel on the right to scan again.</p>
                   </>
-                ) : pageFocused ? (
+                ) : null}
+                {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && pageFocused ? (
                   <>
                     <p className="scan-status"><span className="dot" /> Scanner ready</p>
                     <p className="scan-hint">Scan the barcode on the back of a book, record or CD. You don't need to click anything first.</p>
                   </>
-                ) : (
-                  <>
+                ) : null}
+                {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && !pageFocused ? <>
                     <p className="scan-status paused"><span className="dot" /> Click this page to scan</p>
                     <p className="scan-hint">Your scanner types into whichever window is active. Click anywhere on Stacks first, then scan.</p>
-                  </>
-                )}
+                  </> : null}
               </div>
             </div>
             <label className="sr-only" htmlFor="scan-input">ISBN</label>
@@ -1986,7 +1986,9 @@ function StacksApp() {
 
           <div className="session-head">
             <h2>This session</h2>
-            <span className="muted">{sessionAdded ? `${sessionAdded} added` : scans.length ? '' : 'Nothing scanned yet'}</span>
+            <span className="muted">{sessionAdded ? `${sessionAdded} added` : null}
+            {!sessionAdded && scans.length ? '' : null}
+            {!sessionAdded && !scans.length ? 'Nothing scanned yet' : null}</span>
             {scans.length > 0 && <button className="link" onClick={() => setScans([])}>Clear</button>}
           </div>
           {scans.length === 0 ? (
@@ -2027,7 +2029,7 @@ function StacksApp() {
           )}
         </section>
 
-        {view === 'home' ? (
+        {(view === 'home') ? (
           <HomeView
             allBooks={allBooks}
             readings={readings}
@@ -2091,7 +2093,8 @@ function StacksApp() {
                 : undefined
             }
           />
-        ) : view === 'wishlist' ? (
+        ) : null}
+        {!(view === 'home') && (view === 'wishlist') ? (
           <section className="library" aria-label="Wishlist">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
             {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
@@ -2110,7 +2113,8 @@ function StacksApp() {
               scanningToWishlist={scanTarget === 'wishlist'}
             />
           </section>
-        ) : view === 'reading' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && (view === 'reading') ? (
           <section className="library" aria-label="Reading">
             <div className="library-tools">
               <h2>Your reading</h2>
@@ -2227,12 +2231,14 @@ function StacksApp() {
               <AchievementsView books={allBooks} readings={readings} challenges={challenges} onGoToChallenges={() => setReadingTab('overview')} />
             )}
           </section>
-        ) : view === 'stats' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && (view === 'stats') ? (
           <section className="library" aria-label="Stats">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
             <Stats books={books} bookcases={bookcases} onOpen={(b) => setOpen({ book: b })} />
           </section>
-        ) : view === 'series' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && (view === 'series') ? (
           <section className="library" aria-label="Series">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
             <SeriesView
@@ -2246,7 +2252,8 @@ function StacksApp() {
               }}
             />
           </section>
-        ) : view === 'music' && musicTab === 'listening' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && (view === 'music' && musicTab === 'listening') ? (
           <section className="library" aria-label="Listening">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             {[11, 0].includes(new Date().getMonth()) && spins.length > 0 && (
@@ -2269,12 +2276,14 @@ function StacksApp() {
               extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
             />
           </section>
-        ) : view === 'music' && musicTab === 'new' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && (view === 'music' && musicTab === 'new') ? (
           <section className="library" aria-label="New releases">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             {releasesView('music')}
           </section>
-        ) : view === 'music' && musicTab === 'foryou' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && (view === 'music' && musicTab === 'foryou') ? (
           <section className="library" aria-label="Music for you">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             <MusicRecsView
@@ -2288,12 +2297,14 @@ function StacksApp() {
               onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
             />
           </section>
-        ) : view === 'music' && musicTab === 'wrap' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && (view === 'music' && musicTab === 'wrap') ? (
           <section className="library" aria-label="Year in music">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             <MusicWrap records={allBooks.filter(isMusic)} spins={spins} onOpen={(b) => setOpen({ book: b })} />
           </section>
-        ) : view === 'music' && musicTab === 'wantlist' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && (view === 'music' && musicTab === 'wantlist') ? (
           <section className="library" aria-label="Wantlist">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
@@ -2314,7 +2325,8 @@ function StacksApp() {
               scanningToWishlist={scanTarget === 'wishlist'}
             />
           </section>
-        ) : view === 'music' && musicTab === 'value' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && (view === 'music' && musicTab === 'value') ? (
           <section className="library" aria-label="Value">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             <ValueView
@@ -2330,7 +2342,8 @@ function StacksApp() {
               onOpenSettings={() => setSettingsOpen(true)}
             />
           </section>
-        ) : view === 'shelves' ? (
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && (view === 'shelves') ? (
           <section className="library" aria-label="Shelves">
             <div className="library-tools">
               <h2>Your books</h2>
@@ -2347,8 +2360,8 @@ function StacksApp() {
               onEditBookcase={(bc) => setEditingCase({ bc, isNew: false })}
             />
           </section>
-        ) : (
-          <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
+        ) : null}
+        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && !(view === 'shelves') ? <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
             <div className="library-tools">
               <h2>{view === 'music' ? 'Your music' : 'Your books'}</h2>
               {view === 'music' ? musicNav : booksNav}
@@ -2485,8 +2498,7 @@ function StacksApp() {
                 ))}
               </ul>
             )}
-          </section>
-        )}
+          </section> : null}
       </main>
 
       {activeSession && (

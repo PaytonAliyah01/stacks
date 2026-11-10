@@ -72,11 +72,14 @@ export function LastfmPanel({ signedIn, onSignIn, tick }: Readonly<Props>) {
           <span className="muted small">Sign in to Stacks to connect Last.fm.</span>
           <button className="btn small-btn" onClick={onSignIn}>Sign in</button>
         </p>
-      ) : error ? (
+      ) : null}
+{signedIn && error ? (
         <p className="muted small" role="status">{error}</p>
-      ) : !status ? (
+      ) : null}
+{signedIn && !error && !status ? (
         <p className="muted small">Checking…</p>
-      ) : status.username ? (
+      ) : null}
+{signedIn && !error && status && status.username ? (
         <div className="lastfm-linked">
           <p className="lastfm-row">
             <span>
@@ -97,12 +100,11 @@ export function LastfmPanel({ signedIn, onSignIn, tick }: Readonly<Props>) {
             </p>
           )}
         </div>
-      ) : (
-        <p className="lastfm-row">
+      ) : null}
+{signedIn && !error && status && !status.username ? <p className="lastfm-row">
           <span className="muted small">Not connected yet. Last.fm asks you to allow Stacks, then sends you back here.</span>
           <a className="btn primary small-btn" href={lastfmAuthUrl(status.apiKey)}>Connect Last.fm</a>
-        </p>
-      )}
+        </p> : null}
     </section>
   );
 }

@@ -121,10 +121,11 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
 
       {onShelves ? (
         <ShelvesView readOnly books={list.map(asBook)} bookcases={cases} onOpenBook={(b) => setOpen(list.find((x) => x.id === b.id))} />
-      ) : hits.length === 0 ? (
+      ) : null}
+      {!onShelves && (hits.length === 0) ? (
         <p className="shared-msg muted">{needle ? `Nothing matches “${q.trim()}”.` : 'Nothing here yet.'}</p>
-      ) : (
-        <>
+      ) : null}
+      {!onShelves && !(hits.length === 0) ? <>
           <ul className="grid shared-grid">
             {hits.slice(0, shown).map((x) => (
               <li key={x.id}>
@@ -144,8 +145,7 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
               Show more ({(hits.length - shown).toLocaleString()} left)
             </button>
           )}
-        </>
-      )}
+        </> : null}
 
       {open && (
         <div className="shared-overlay" onClick={() => setOpen(undefined)} onKeyDown={(e) => e.key === 'Escape' && setOpen(undefined)}>

@@ -79,10 +79,11 @@ export function ShareDialog({ uid, defaultTitle, onClose, onToast }: Readonly<{ 
           </p>
           {notReady ? (
             <p className="key-test bad">Shelf links need one more step on the server: run <code>supabase/11-share-links.sql</code> in Supabase's SQL Editor, then open this again.</p>
-          ) : link === undefined && !error ? (
+          ) : null}
+          {!notReady && (link === undefined && !error) ? (
             <p className="muted">Loading…</p>
-          ) : (
-            <>
+          ) : null}
+          {!notReady && !(link === undefined && !error) ? <>
               {link?.enabled && (
                 <div className="field">
                   <span>Your link</span>
@@ -131,8 +132,7 @@ export function ShareDialog({ uid, defaultTitle, onClose, onToast }: Readonly<{ 
                   )}
                 </div>
               )}
-            </>
-          )}
+            </> : null}
           <footer className="drawer-foot">
             <button type="button" className="btn ghost" onClick={onClose}>Close</button>
             {!notReady && link !== undefined && (
@@ -142,7 +142,10 @@ export function ShareDialog({ uid, defaultTitle, onClose, onToast }: Readonly<{ 
                 disabled={busy || nothing || (!!link?.enabled && !changed)}
                 onClick={() => void save({ ...s, enabled: true }, link?.enabled ? 'Saved. Your link shows the new choices.' : 'Your shelf link is ready. Copy it and send it to anyone.')}
               >
-                {busy ? 'Saving…' : link?.enabled ? 'Save' : link ? 'Turn the link on' : 'Make my link'}
+                {busy ? 'Saving…' : null}
+                {!busy && link?.enabled ? 'Save' : null}
+                {!busy && !link?.enabled && link ? 'Turn the link on' : null}
+                {!busy && !link?.enabled && !link ? 'Make my link' : null}
               </button>
             )}
           </footer>
