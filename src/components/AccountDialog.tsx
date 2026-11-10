@@ -126,7 +126,7 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
                 <span>New password</span>
                 <input id="acct-new-password" type="password" autoComplete="new-password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} required />
               </label>
-              <button className="btn primary" disabled={busy || password.length < 6}>{busy ? 'Saving…' : 'Save new password'}</button>
+              <button type="submit" className="btn primary" disabled={busy || password.length < 6}>{busy ? 'Saving…' : 'Save new password'}</button>
             </>
           ) : user ? (
             <>
@@ -209,7 +209,7 @@ export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, pr
                   {mode === 'signup' && <span className="hint">At least 6 characters.</span>}
                 </label>
               )}
-              <button className="btn primary" disabled={busy}>
+              <button type="submit" className="btn primary" disabled={busy}>
                 {busy ? 'One moment…' : mode === 'signup' ? 'Make my account' : mode === 'forgot' ? 'Send the link' : 'Sign in'}
               </button>
               <div className="account-switch">

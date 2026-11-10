@@ -26,7 +26,7 @@ export function ReadingStats({ books, readings, onOpen }: Props) {
   const years = useMemo(() => {
     const ys = new Set(all.map((x) => x.r.finishedOn?.slice(0, 4)).filter(Boolean) as string[]);
     ys.add(String(new Date().getFullYear()));
-    return [...ys].sort().reverse();
+    return [...ys].sort((a, b) => b.localeCompare(a));
   }, [all]);
   const [year, setYear] = useState<string>(String(new Date().getFullYear()));
 
@@ -54,7 +54,7 @@ export function ReadingStats({ books, readings, onOpen }: Props) {
         e.p += x.b.pageCount ?? 0;
         byYear.set(y, e);
       }
-      const ys = [...byYear.keys()].sort();
+      const ys = [...byYear.keys()].sort((a, b) => a.localeCompare(b));
       perMonth = ys.map((y) => [y, byYear.get(y)!.n]);
       pagesPerMonth = ys.map((y) => [y, byYear.get(y)!.p]);
     } else {
@@ -111,7 +111,7 @@ export function ReadingStats({ books, readings, onOpen }: Props) {
       const k = year === 'all' ? x.start.slice(0, 4) : MONTHS[new Date(x.start).getMonth()];
       buckets.set(k, (buckets.get(k) ?? 0) + x.minutes);
     }
-    const keys = year === 'all' ? [...buckets.keys()].sort() : MONTHS;
+    const keys = year === 'all' ? [...buckets.keys()].sort((a, b) => a.localeCompare(b)) : MONTHS;
     return {
       count: sessions.length,
       minutes,

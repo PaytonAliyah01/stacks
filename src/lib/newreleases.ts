@@ -298,7 +298,7 @@ export async function findReleases(allBooks: Book[], readings: Reading[], spins:
 
 /** Who's being followed, so a new favorite author triggers a fresh check. */
 export const followId = (allBooks: Book[], readings: Reading[], spins: Spin[]) =>
-  [...followedAuthors(allBooks, readings).map((a) => a.name).sort(), '|', ...followedArtists(allBooks.filter(isMusic), spins).map((a) => a.name).sort()].join(',');
+  [...followedAuthors(allBooks, readings).map((a) => a.name).sort((a, b) => a.localeCompare(b)), '|', ...followedArtists(allBooks.filter(isMusic), spins).map((a) => a.name).sort((a, b) => a.localeCompare(b))].join(',');
 
 export function cachedReleases(id: string): (ReleaseResult & { at: number }) | undefined {
   try {

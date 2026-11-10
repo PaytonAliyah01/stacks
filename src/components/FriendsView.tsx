@@ -177,7 +177,7 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
             <h3>Find people</h3>
             <form className="search-row" onSubmit={search}>
               <input id="friend-search" type="search" value={q} onChange={(e) => { setQ(e.target.value); setFound(undefined); }} placeholder="Name or @username" autoCapitalize="none" spellCheck={false} autoComplete="off" />
-              <button className="btn primary" disabled={searching || q.trim().replace(/^@/, '').length < 2}>{searching ? 'Looking…' : 'Search'}</button>
+              <button type="submit" className="btn primary" disabled={searching || q.trim().replace(/^@/, '').length < 2}>{searching ? 'Looking…' : 'Search'}</button>
             </form>
             {found?.length === 0 && (
               <p className="muted small">

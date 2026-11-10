@@ -410,8 +410,10 @@ export function getDiscogsToken(): string {
   }
 }
 export function setDiscogsToken(token: string) {
+  // Discogs tokens are letters and digits; drop anything else (stray spaces, quotes).
+  const clean = token.replace(/[^A-Za-z0-9]/g, '');
   try {
-    if (token.trim()) localStorage.setItem(DISCOGS_TOKEN_PREF, token.trim());
+    if (/^[A-Za-z0-9]{10,80}$/.test(clean)) localStorage.setItem(DISCOGS_TOKEN_PREF, clean);
     else localStorage.removeItem(DISCOGS_TOKEN_PREF);
   } catch {
     /* preference only */

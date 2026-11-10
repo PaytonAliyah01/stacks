@@ -62,7 +62,7 @@ export function ReadingView({ books, readings, onOpen, onChange }: Props) {
     const done = readings
       .filter((r) => (r.status === 'read' || r.status === 'dnf') && byId.has(r.bookId))
       .sort((a, b) => (b.finishedOn ?? '').localeCompare(a.finishedOn ?? ''));
-    const ys = [...new Set(done.map((r) => r.finishedOn?.slice(0, 4) ?? 'No date'))].sort().reverse();
+    const ys = [...new Set(done.map((r) => r.finishedOn?.slice(0, 4) ?? 'No date'))].sort((a, b) => b.localeCompare(a));
     return {
 
       want: current.filter((x) => x.r.status === 'want').sort((a, b) => queueKey(a.r) - queueKey(b.r)),

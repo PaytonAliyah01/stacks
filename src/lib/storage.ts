@@ -76,7 +76,7 @@ class IndexedDbStore implements LibraryStore {
     const opening: Promise<IDBPDatabase> = Promise.resolve().then(() => openDB(DB_NAME, SCHEMA_VERSION, {
       // An older Stacks tab must let go so this one can upgrade the library.
       blocking() {
-        opening.then((db) => db.close());
+        opening.then((db) => db.close()).catch(() => undefined);
       },
       upgrade(db, oldVersion, _newVersion, transaction) {
         if (oldVersion < 1) {

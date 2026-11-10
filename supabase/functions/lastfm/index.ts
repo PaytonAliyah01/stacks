@@ -22,7 +22,7 @@ async function md5(s: string) {
 /** A signed call to Last.fm, as their API asks: params sorted by name, then the secret. */
 async function lastfm(params: Record<string, string>, post = false) {
   const p: Record<string, string> = { ...params, api_key: KEY };
-  const sig = await md5(Object.keys(p).sort().map((k) => k + p[k]).join('') + SECRET);
+  const sig = await md5(Object.keys(p).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).map((k) => k + p[k]).join('') + SECRET);
   const body = new URLSearchParams({ ...p, api_sig: sig, format: 'json' });
   const res = post ? await fetch(API, { method: 'POST', body }) : await fetch(`${API}?${body}`);
   const data = await res.json();

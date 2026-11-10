@@ -202,7 +202,7 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: { read: BuddyRead;
           <label className="small">
             at page <input type="number" min={0} value={page} onChange={(e) => setPage(e.target.value)} aria-label="Page this is about" />
           </label>
-          <button className="btn primary small-btn" disabled={!body.trim()}>Send</button>
+          <button type="submit" className="btn primary small-btn" disabled={!body.trim()}>Send</button>
         </div>
       </form>
     </div>

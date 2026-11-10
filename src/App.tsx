@@ -498,7 +498,7 @@ function StacksApp() {
       }
     }
     if (!fixes.length) return;
-    store.putMany(fixes).then(() => setBooks((l) => l.map((b) => fixes.find((f) => f.id === b.id) ?? b)));
+    store.putMany(fixes).then(() => setBooks((l) => l.map((b) => fixes.find((f) => f.id === b.id) ?? b))).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loans, user, loaded]);
   const loanAsks = user ? loans.filter((l) => l.owner === user.id && l.status === 'requested').length : 0;
@@ -692,7 +692,7 @@ function StacksApp() {
         const p = myProgress(g, readings, byId);
         return p.progress !== me.progress || p.latest !== me.latest ? [sendGroupProgress(g.id, user.id, p)] : [];
       });
-      if (sends.length) Promise.allSettled(sends).then(refreshGroups);
+      if (sends.length) void Promise.allSettled(sends).then(refreshGroups);
     }, 2500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1486,7 +1486,7 @@ function StacksApp() {
     for (const c of challenges) {
       const { challenge, earned } = awardBadges(c, progressOf(c, readings, byId));
       if (earned.length) {
-        saveChallenge(challenge);
+        void saveChallenge(challenge);
         won.push(...earned.map((b) => b.name));
       }
     }
@@ -1754,7 +1754,7 @@ function StacksApp() {
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) onImport(f);
+              if (f) void onImport(f);
               e.target.value = '';
             }}
           />
@@ -2522,7 +2522,7 @@ function StacksApp() {
             const cur = await store.get(open.book.id);
             if (cur) await patchBook({ ...cur, ...patch });
           }}
-          seriesNames={[...new Set(allBooks.map((b) => b.series?.name).filter((n): n is string => !!n))].sort()}
+          seriesNames={[...new Set(allBooks.map((b) => b.series?.name).filter((n): n is string => !!n))].sort((a, b) => a.localeCompare(b))}
         />
       )}
 

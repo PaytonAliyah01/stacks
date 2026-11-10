@@ -110,7 +110,7 @@ export function gatherNotifications(x: NotifInput): Notif[] {
     if (!fresh.length) continue;
     const first = fresh[0];
     out.push({
-      id: `rel:${kind}:${fresh.map((r) => r.key).sort().join(',')}`,
+      id: `rel:${kind}:${fresh.map((r) => r.key).sort((a, b) => a.localeCompare(b)).join(',')}`,
       icon: kind === 'books' ? '✨' : '💿',
       text:
         fresh.length === 1

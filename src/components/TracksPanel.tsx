@@ -38,7 +38,7 @@ export function TracksPanel({ draft, onSave }: Props) {
   useEffect(() => {
     if (tried.current || tracks.length || draft.tracksChecked || !draft.title) return;
     tried.current = true;
-    lookUp(true);
+    void lookUp(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.id]);
 

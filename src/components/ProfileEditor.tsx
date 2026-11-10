@@ -247,7 +247,7 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
 
           {error && <p className="account-error" role="alert">{error}</p>}
           <div className="drawer-foot">
-            <button className="btn primary" disabled={!!busy || !okName}>{busy === 'save' ? 'Saving…' : 'Save profile'}</button>
+            <button type="submit" className="btn primary" disabled={!!busy || !okName}>{busy === 'save' ? 'Saving…' : 'Save profile'}</button>
             <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
           </div>
         </form>

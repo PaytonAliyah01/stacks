@@ -140,7 +140,7 @@ export function MusicWrap({ records, spins, onOpen }: Props) {
   const years = useMemo(() => {
     const ys = new Set([...spins.map((s) => String(new Date(s.at).getFullYear())), ...records.filter((b) => b.owned !== false).map((b) => (b.acquiredOn ?? b.addedAt).slice(0, 4))]);
     ys.add(String(new Date().getFullYear()));
-    return [...ys].filter((y) => /^\d{4}$/.test(y)).sort().reverse();
+    return [...ys].filter((y) => /^\d{4}$/.test(y)).sort((a, b) => b.localeCompare(a));
   }, [spins, records]);
   const [year, setYear] = useState(String(new Date().getFullYear() - (new Date().getMonth() === 0 ? 1 : 0)));
   const w = useMemo(() => wrapMusic(year, records, spins), [year, records, spins]);

@@ -29,7 +29,7 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
   }, [onClose]);
 
   useEffect(() => {
-    if (initialQuery?.trim()) run(initialQuery);
+    if (initialQuery?.trim()) void run(initialQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -52,7 +52,7 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
           className="drawer-form"
           onSubmit={(e) => {
             e.preventDefault();
-            run();
+            void run();
           }}
         >
           <header className="drawer-head">

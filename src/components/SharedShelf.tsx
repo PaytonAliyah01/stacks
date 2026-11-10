@@ -148,8 +148,8 @@ export function SharedShelf({ token }: { token: string }) {
       )}
 
       {open && (
-        <div className="shared-overlay" onClick={() => setOpen(undefined)}>
-          <div className="shared-card" role="dialog" aria-label={open.title} onClick={(e) => e.stopPropagation()}>
+        <div className="shared-overlay" onClick={() => setOpen(undefined)} onKeyDown={(e) => e.key === 'Escape' && setOpen(undefined)}>
+          <div className="shared-card" role="dialog" aria-label={open.title} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <Cover url={open.cover} title={open.title} author={open.authors?.[0]} size="lg" square={open.kind !== 'book'} />
             <div className="shared-card-body">
               <h2>{open.title}</h2>

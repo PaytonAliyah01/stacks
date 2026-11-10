@@ -89,7 +89,7 @@ export function CameraScanner({ onCode, onClose }: Props) {
     let lastAt = 0;
     let n = 0;
 
-    (async () => {
+    void (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
@@ -126,7 +126,7 @@ export function CameraScanner({ onCode, onClose }: Props) {
           }
           timer = window.setTimeout(tick, 120);
         };
-        tick();
+        void tick();
       } catch (e) {
         if (!stopped) {
           setError(cameraError(e));

@@ -38,9 +38,27 @@ export function loadStyluses(): Stylus[] {
   }
 }
 
+const SHAPE_NAMES = Object.keys(SHAPES) as StylusShape[];
+const isDate = (d: unknown): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d);
+const hours = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined);
+
+/** Only the fields a stylus has, with sane values, so nothing odd ends up in storage. */
+function cleanStylus(s: Stylus): Stylus {
+  const shape = SHAPE_NAMES.includes(s.shape) ? s.shape : 'unknown';
+  return {
+    id: String(s.id).slice(0, 64),
+    name: String(s.name ?? '').slice(0, 120) || 'Stylus',
+    shape,
+    lifeHours: hours(s.lifeHours) ?? SHAPES[shape].hours,
+    installedOn: isDate(s.installedOn) ? s.installedOn : new Date().toISOString().slice(0, 10),
+    retiredOn: isDate(s.retiredOn) ? s.retiredOn : undefined,
+    startHours: hours(s.startHours),
+  };
+}
+
 export function saveStyluses(list: Stylus[]) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(list));
+    localStorage.setItem(KEY, JSON.stringify(list.map(cleanStylus)));
   } catch {
     /* storage full or blocked */
   }

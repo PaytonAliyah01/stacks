@@ -145,7 +145,7 @@ export function YearWrap({ books, readings, notes, challenges, onOpen }: Props) 
     const ys = new Set(readings.filter((r) => r.status === 'read' && r.finishedOn).map((r) => r.finishedOn!.slice(0, 4)));
     ys.add(String(new Date().getFullYear()));
     if (new Date().getMonth() === 0) ys.add(String(new Date().getFullYear() - 1));
-    return [...ys].sort().reverse();
+    return [...ys].sort((a, b) => b.localeCompare(a));
   }, [readings]);
   // In January, last year is the one worth looking back on.
   const [year, setYear] = useState(String(new Date().getFullYear() - (new Date().getMonth() === 0 ? 1 : 0)));
