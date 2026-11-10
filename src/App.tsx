@@ -230,6 +230,64 @@ function noMatchText(view: string, sectionCount: number): string {
   return sectionCount === 0 ? 'No books yet. Your records and CDs are under Music.' : 'No books match these filters.';
 }
 
+/** Series a book's own title and subjects name. */
+function localSeriesCandidates(b: Book): BookSeries[] {
+  const out: BookSeries[] = [];
+  const fromTitle = seriesFromTitle(b.title);
+  if (fromTitle) out.push(fromTitle);
+  for (const x of b.subjects.filter((x) => /^series\s*:/i.test(x))) {
+    const p = parseSeries(x);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+/** Series Open Library knows for an ISBN, leaving out publisher lines. */
+async function remoteSeriesCandidates(isbn13: string): Promise<BookSeries[]> {
+  const out: BookSeries[] = [];
+  for (const raw of await fetchSeries(isbn13)) {
+    const p = parseSeries(raw);
+    if (p && !isPublisherSeries(p.name)) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Keeps the series the book already has and just adds its number, when one turns up.
+ * A publisher line picked up by an older version isn't a real series.
+ */
+function bestSeries(current: BookSeries | undefined, candidates: BookSeries[]): BookSeries | undefined {
+  const old = current && !isPublisherSeries(current.name) ? current : undefined;
+  const same = old && candidates.find((c) => c.number !== undefined && seriesKey(c.name) === seriesKey(old.name));
+  if (old && same) return { ...old, number: same.number };
+  return old ?? candidates.find((c) => c.number !== undefined) ?? candidates[0];
+}
+
+/** What a scan that no service knows says. */
+function notFoundMessage(type: 'isbn' | 'barcode'): string {
+  return type === 'isbn'
+    ? "Open Library and Google Books don't know this ISBN. Add the details yourself."
+    : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (More → Lookup keys) and press Retry.";
+}
+
+/** The book already in the library with the same ISBN or barcode, if any. */
+async function existingCopy(book: Book): Promise<Book | undefined> {
+  if (book.isbn13) return (await store.findByIsbn(book.isbn13)) ?? undefined;
+  if (book.barcode) return (await store.findByBarcode(book.barcode)) ?? undefined;
+  return undefined;
+}
+
+/** Discogs market prices for a release, waiting once when Discogs asks us to slow down. */
+async function marketPrices(...args: Parameters<typeof fetchMarketPrices>) {
+  try {
+    return await fetchMarketPrices(...args);
+  } catch (err) {
+    if (!/HTTP 429/.test(String(err))) throw err;
+    await pause(15000);
+    return fetchMarketPrices(...args);
+  }
+}
+
 /** Whole days since a date, or Infinity when there is none. */
 function daysSince(iso: string | null | undefined): number {
   return iso ? Math.floor((Date.now() - Date.parse(iso)) / 86_400_000) : Infinity;
@@ -944,19 +1002,10 @@ function StacksApp() {
       await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
         if (!b || !needs(b)) return;
-        const candidates: BookSeries[] = [];
-        const fromTitle = seriesFromTitle(b.title);
-        if (fromTitle) candidates.push(fromTitle);
-        for (const x of b.subjects.filter((x) => /^series\s*:/i.test(x))) {
-          const p = parseSeries(x);
-          if (p) candidates.push(p);
-        }
+        const candidates = localSeriesCandidates(b);
         if (!candidates.some((c) => c.number !== undefined) && b.isbn13) {
           try {
-            for (const raw of await fetchSeries(b.isbn13)) {
-              const p = parseSeries(raw);
-              if (p && !isPublisherSeries(p.name)) candidates.push(p);
-            }
+            candidates.push(...(await remoteSeriesCandidates(b.isbn13)));
           } catch {
             return 'stop'; // offline: try again next time
           }
@@ -964,11 +1013,7 @@ function StacksApp() {
         }
         const latest = await store.get(id);
         if (!latest || !needs(latest)) return;
-        // Keep the series the book already has and just add its number, when one turns up.
-        // A publisher line picked up by an older version isn't a real series.
-        const old = latest.series && !isPublisherSeries(latest.series.name) ? latest.series : undefined;
-        const same = old && candidates.find((c) => c.number !== undefined && seriesKey(c.name) === seriesKey(old.name));
-        const best = same ? { ...old!, number: same.number } : old ?? candidates.find((c) => c.number !== undefined) ?? candidates[0];
+        const best = bestSeries(latest.series, candidates);
         const changed = best?.name !== latest.series?.name || best?.number !== latest.series?.number;
         const next: Book = { ...latest, seriesChecked: true, seriesV: SERIES_FINDER_VERSION, series: best };
         await store.put(next);
@@ -1079,6 +1124,25 @@ function StacksApp() {
       };
       const known = (b: Book) => (b.owned === false ? fromUnowned(b) : patchScan(key, asDuplicate(b)));
 
+      // Saves an item a lookup found, to the library or the wishlist.
+      const addFound = async (metadata: BookMetadata) => {
+        const book = await freshBook(metadata);
+        if (scanTarget === 'wishlist') {
+          book.owned = false;
+          book.wishlist = true;
+          book.placement = undefined;
+        }
+        await store.put(book);
+        if (scanTarget !== 'wishlist') postAdded(book);
+        // Deezer and iTunes can't tell vinyl from CD; only MusicBrainz and Discogs can.
+        const guessedKind = isMusic(book) && !book.sources.some((x) => x === 'musicbrainz' || x === 'discogs');
+        patchScan(key, {
+          state: 'added', bookId: book.id, kind: kindOf(book), title: book.title, author: book.authors[0], coverUrl: book.coverUrl,
+          message: scanTarget === 'wishlist' ? 'Added to your wishlist.' : guessedKind && 'Saved as a CD. If it’s vinyl, open it and switch to Vinyl.' || undefined,
+        });
+        reload();
+      };
+
       // Show the scan straight away, so a scan never seems to vanish.
       setScans((l) => [{ key, raw, ...ids, state: 'looking' }, ...l]);
       try {
@@ -1090,33 +1154,9 @@ function StacksApp() {
         const again = await find();
         if (again) return known(again);
 
-        if (result.status === 'found') {
-          const book = await freshBook(result.metadata);
-          if (scanTarget === 'wishlist') {
-            book.owned = false;
-            book.wishlist = true;
-            book.placement = undefined;
-          }
-          await store.put(book);
-          if (scanTarget !== 'wishlist') postAdded(book);
-          // Deezer and iTunes can't tell vinyl from CD; only MusicBrainz and Discogs can.
-          const guessedKind = isMusic(book) && !book.sources.some((x) => x === 'musicbrainz' || x === 'discogs');
-          patchScan(key, {
-            state: 'added', bookId: book.id, kind: kindOf(book), title: book.title, author: book.authors[0], coverUrl: book.coverUrl,
-            message: scanTarget === 'wishlist' ? 'Added to your wishlist.' : guessedKind && 'Saved as a CD. If it’s vinyl, open it and switch to Vinyl.' || undefined,
-          });
-          reload();
-        } else if (result.status === 'not-found') {
-          patchScan(key, {
-            state: 'not-found',
-            message:
-              parsed.type === 'isbn'
-                ? "Open Library and Google Books don't know this ISBN. Add the details yourself."
-                : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (More → Lookup keys) and press Retry.",
-          });
-        } else {
-          patchScan(key, { state: 'error', message: result.message });
-        }
+        if (result.status === 'found') await addFound(result.metadata);
+        else if (result.status === 'not-found') patchScan(key, { state: 'not-found', message: notFoundMessage(parsed.type) });
+        else patchScan(key, { state: 'error', message: result.message });
       } catch (err) {
         patchScan(key, { state: 'error', message: `Couldn't save this scan: ${err instanceof Error ? err.message : String(err)}` });
       }
@@ -1236,8 +1276,8 @@ function StacksApp() {
   };
 
   const saveBook = async (book: Book) => {
-    if (open?.isNew && (book.isbn13 || book.barcode)) {
-      const dup = book.isbn13 ? await store.findByIsbn(book.isbn13) : await store.findByBarcode(book.barcode!);
+    if (open?.isNew) {
+      const dup = await existingCopy(book);
       if (dup) {
         setToast(`“${dup.title}” is already in your library.`);
         setOpen({ book: dup });
@@ -1347,14 +1387,7 @@ function StacksApp() {
       try {
         if (!id && b.barcode) id = await discogsIdForBarcode(b.barcode);
         if (id) {
-          let m;
-          try {
-            m = await fetchMarketPrices(id, cur, b.mediaCondition);
-          } catch (err) {
-            if (!/HTTP 429/.test(String(err))) throw err;
-            await pause(15000); // Discogs asked us to slow down
-            m = await fetchMarketPrices(id, cur, b.mediaCondition);
-          }
+          const m = await marketPrices(id, cur, b.mediaCondition);
           const latest = (await store.get(b.id)) ?? b;
           const next: Book = { ...latest, discogsId: id, market: { ...m, checkedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() };
           await store.put(next);
