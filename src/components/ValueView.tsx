@@ -107,7 +107,7 @@ export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, 
           <p className="small">
             <strong>{s.missing.length} without a value.</strong>{' '}
             <span className="muted">
-              {records.length - linked > 0 && `${records.length - linked} aren't linked to Discogs${canLink ? ` (${canLink} can be linked by barcode when you update)` : ''}. `}
+              {records.length - linked > 0 && unlinkedText(records.length - linked, canLink)}
               Some releases simply have no copies on sale.
             </span>
           </p>
@@ -176,4 +176,9 @@ export function marketLine(b: Book, currency: string): string {
     b.market.forSale !== undefined && `${b.market.forSale} for sale`,
   ].filter(Boolean);
   return `${v ? 'Discogs: ' : 'Discogs has no copies on sale. '}${parts.join(' · ')} (${formatDay(b.market.checkedAt)})`;
+}
+
+function unlinkedText(unlinked: number, canLink: number): string {
+  const byBarcode = canLink ? ` (${canLink} can be linked by barcode when you update)` : '';
+  return `${unlinked} aren't linked to Discogs${byBarcode}. `;
 }

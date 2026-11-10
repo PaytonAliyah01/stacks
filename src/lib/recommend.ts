@@ -241,7 +241,7 @@ export async function fromOpenLibrary(books: Book[], t: Taste, hidden: Set<strin
 
   const [byAuthor, bySeed] = await Promise.all([
     Promise.allSettled(topAuthors.map((a) => search(`author=${encodeURIComponent(a)}`, '&sort=rating'))),
-    Promise.allSettled(seeds.map((x) => search(`q=${encodeURIComponent(seedSubjects(x.b, t).map((s) => `subject:"${s}"`).join(' AND '))}`, '&sort=rating'))),
+    Promise.allSettled(seeds.map((x) => search(`q=${encodeURIComponent(subjectQuery(seedSubjects(x.b, t)))}`, '&sort=rating'))),
   ]);
   if ([...byAuthor, ...bySeed].every((r) => r.status === 'rejected') && byAuthor.length + bySeed.length)
     throw new Error("Couldn't reach Open Library for new books. Check your connection and try again.");
@@ -358,3 +358,5 @@ function shelfReason(queued: boolean, waited: number): string {
   if (queued) return 'Already on your to-read list';
   return waited > 0.5 ? 'Has been on your shelf a while' : 'On your shelf, not read yet';
 }
+
+const subjectQuery = (subjects: string[]) => subjects.map((s) => `subject:"${s}"`).join(' AND ');

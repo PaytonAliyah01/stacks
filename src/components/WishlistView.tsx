@@ -154,7 +154,8 @@ export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRem
 function ownedText(b: Book, music: boolean, place: string): string {
   const format = music ? ` on ${KIND_LABELS[kindOf(b)].one}` : '';
   const copies = b.copies > 1 ? ` (${b.copies} copies)` : '';
-  return `You own this${format}${copies}${place ? ` · ${place}` : ''}`;
+  const where = place ? ` · ${place}` : '';
+  return `You own this${format}${copies}${where}`;
 }
 
 function notOwnedText(onList: boolean, music: boolean, read: boolean): string {

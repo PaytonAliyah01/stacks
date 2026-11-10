@@ -302,7 +302,7 @@ export function ReadCard(props: Readonly<Props & { read: BuddyRead; club?: strin
                       <strong>{m.user_id === uid ? 'You' : memberName(m)}</strong>
                       <span className="muted small">
                         {m.finished_at ? `finished ${formatDay(m.finished_at)}` : null}
-                        {!m.finished_at && (m.page != null) ? `page ${m.page}${pages ? ` of ${pages}` : ''}` : null}
+                        {!m.finished_at && (m.page != null) ? `page ${m.page}${pages ? ' of ' : ''}${pages || ''}` : null}
                         {!m.finished_at && !(m.page != null) && pct ? `${pct}%` : null}
                         {!m.finished_at && !(m.page != null) && !pct ? 'not started' : null}
                       </span>

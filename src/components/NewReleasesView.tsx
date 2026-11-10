@@ -95,10 +95,14 @@ export function NewReleasesView(p: Readonly<Props>) {
   const mutedHere = [...muted].filter((k) => p.allBooks.some((b) => (kind === 'music') === isMusic(b) && keyOf(b.authors[0] ?? '') === k));
   const nameOf = (k: string) => p.allBooks.find((b) => keyOf(b.authors[0] ?? '') === k)?.authors[0] ?? k;
 
+  const music = kind === 'music';
+  const followedWho = p.followed.length === 1 ? (music ? 'artist' : 'author') : `${p.followed.length} ${who}`;
+  const intro = `New and upcoming ${music ? 'albums' : 'books'} from the ${followedWho} you ${music ? 'own and play most' : 'read and like most'}, checked once a day.`;
+
   return (
     <div className="recs-page releases-page">
       <p className="muted recs-intro">
-        {p.followed.length ? `New and upcoming ${kind === 'music' ? 'albums' : 'books'} from the ${p.followed.length === 1 ? `${kind === 'music' ? 'artist' : 'author'}` : `${p.followed.length} ${who}`} you ${kind === 'music' ? 'own and play most' : 'read and like most'}, checked once a day.` : null}
+        {p.followed.length ? intro : null}
         {!p.followed.length && (kind === 'music') ? 'Add records to your collection and Stacks follows those artists for new albums.' : null}
         {!p.followed.length && !(kind === 'music') ? 'Finish and rate a few books (or own two by the same author) and Stacks follows those authors for new books.' : null}
       </p>

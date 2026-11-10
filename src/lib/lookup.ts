@@ -402,6 +402,13 @@ async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | nu
 
 const DISCOGS_TOKEN_PREF = 'stacks.discogsToken';
 
+const tokenQuery = (token: string) => (token ? `?token=${encodeURIComponent(token)}` : '');
+
+function titleQuery(title: string, author?: string): string {
+  const by = author ? `&author=${encodeURIComponent(author)}` : '';
+  return `title=${encodeURIComponent(title)}${by}`;
+}
+
 /** A free personal Discogs token the person can add in Settings. */
 export function getDiscogsToken(): string {
   try {
@@ -598,7 +605,7 @@ export async function lookupBarcode(code: string): Promise<LookupResult> {
 export async function fetchSubjects(book: { isbn13?: string; title: string; authors: string[] }): Promise<string[]> {
   const q = book.isbn13
     ? `isbn=${book.isbn13}`
-    : `title=${encodeURIComponent(book.title)}${book.authors[0] ? `&author=${encodeURIComponent(book.authors[0])}` : ''}`;
+    : titleQuery(book.title, book.authors[0]);
   const data = (await getJson(`https://openlibrary.org/search.json?${q}&fields=subject&limit=1`)) as { docs?: { subject?: string[] }[] };
   return data.docs?.[0]?.subject ?? [];
 }
@@ -653,7 +660,7 @@ export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: s
 /** Details from a Discogs release page: barcode, track count, genres, pressing, and the cover when Discogs shares it. */
 export async function fetchDiscogsRelease(id: number): Promise<ReturnType<typeof pressingFrom>> {
   const token = getDiscogsToken();
-  const rel = (await getJson(`https://api.discogs.com/releases/${id}${token ? `?token=${encodeURIComponent(token)}` : ''}`)) as any;
+  const rel = (await getJson(`https://api.discogs.com/releases/${id}${tokenQuery(token)}`)) as any;
   const tracks = (rel.tracklist ?? []).filter((t: any) => !t.type_ || t.type_ === 'track');
   const barcode = (rel.identifiers ?? []).find((x: any) => x.type === 'Barcode')?.value?.replace(/\D/g, '');
   const img = rel.images?.find((i: any) => i.type === 'primary') ?? rel.images?.[0];
@@ -758,7 +765,7 @@ export async function fetchTrackList(b: { discogsId?: number; musicBrainzId?: st
   if (b.discogsId) {
     try {
       const token = getDiscogsToken();
-      const rel = (await getJson(`https://api.discogs.com/releases/${b.discogsId}${token ? `?token=${encodeURIComponent(token)}` : ''}`)) as any;
+      const rel = (await getJson(`https://api.discogs.com/releases/${b.discogsId}${tokenQuery(token)}`)) as any;
       const main = (rel.artists ?? []).map((a: any) => strip(a.name)).join(', ');
       const tracks: Track[] = (rel.tracklist ?? [])
         .filter((t: any) => (!t.type_ || t.type_ === 'track') && t.title)

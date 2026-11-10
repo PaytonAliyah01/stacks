@@ -87,7 +87,10 @@ const baseKey = (name: string) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
-export const seriesLabel = (s?: BookSeries) => (s ? `${s.name}${s.number !== undefined ? ` #${s.number}` : ''}` : '');
+export function seriesLabel(s?: BookSeries): string {
+  if (!s) return '';
+  return s.number === undefined ? s.name : `${s.name} #${s.number}`;
+}
 
 export interface SeriesEntry {
   book: Book;

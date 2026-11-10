@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Spin } from '../types';
 import { todayIso as todayIsoDate } from '../lib/reading';
 import { agoLabel } from '../lib/spins';
+import { countOf } from '../lib/labels';
 
 interface Props {
   /** This record's spins. */
@@ -27,7 +28,7 @@ export function SpinsPanel({ spins, onSpin, onRemove }: Readonly<Props>) {
           <h3>Plays</h3>
           <p className="muted small">
             {sorted.length
-              ? `Played ${sorted.length === 1 ? 'once' : `${sorted.length} times`} · last ${agoLabel(sorted[0].at)}`
+              ? `Played ${sorted.length === 1 ? 'once' : countOf(sorted.length, 'time')} · last ${agoLabel(sorted[0].at)}`
               : 'Never played yet. Press Spin when you put it on.'}
           </p>
         </div>

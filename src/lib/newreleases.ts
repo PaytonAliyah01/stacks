@@ -4,6 +4,7 @@ import { readingsOf } from './reading';
 import { getGoogle, getJson, withGoogleKey } from './lookup';
 import { authorKey, recKey, type Rec } from './recommend';
 import { albumKey, artistKey, deezerAlbums, deezerArtist, musicTasteOf, NOT_NEW } from './musicrecs';
+import { countOf } from './labels';
 
 /**
  * New releases: books just out or coming soon from the authors you read, and
@@ -147,7 +148,7 @@ export function followedArtists(records: Book[], spins: Spin[]): Followed[] {
     .map(([, a]) => ({
       name: a.name,
       weight: a.weight,
-      why: a.spins > 1 ? `You've spun ${a.name} ${a.spins} times` : `You have ${a.owned === 1 ? 'a record' : `${a.owned} records`} by ${a.name}`,
+      why: a.spins > 1 ? `You've spun ${a.name} ${a.spins} times` : `You have ${a.owned === 1 ? 'a record' : countOf(a.owned, 'record')} by ${a.name}`,
     }));
 }
 
@@ -158,7 +159,8 @@ const shortTitle = (t: string) => t.split(/[:(]/)[0].trim();
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function googleNewest(author: string): Promise<any[]> {
-  const url = withGoogleKey(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(`inauthor:"${author}"`)}&orderBy=newest&maxResults=20&printType=books`);
+  const q = encodeURIComponent(`inauthor:"${author}"`);
+  const url = withGoogleKey(`https://www.googleapis.com/books/v1/volumes?q=${q}&orderBy=newest&maxResults=20&printType=books`);
   const data = (await getGoogle(url)) as { items?: any[] };
   return data.items ?? [];
 }

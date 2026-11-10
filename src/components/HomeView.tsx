@@ -170,7 +170,7 @@ export function HomeView(props: Readonly<Props>) {
                   <li key={i}>
                     <button className="link-plain" onClick={() => onGo('buddy')}>{x.title}</button>
                     <span className="muted small">
-                      {x.invite ? `${x.others} invited you` : `with ${x.others} · you ${x.myPct}%${x.leaderPct > x.myPct ? `, ahead is ${x.leaderPct}%` : ''}`}
+                      {x.invite ? `${x.others} invited you` : buddyLine(x)}
                     </span>
                   </li>
                 ))}
@@ -354,7 +354,7 @@ export function HomeView(props: Readonly<Props>) {
               <ol className="home-covers home-covers-8">
                 {recent.map((b) => (
                   <li key={b.id}>
-                    <button onClick={() => onOpen(b)} title={`${b.title}${b.authors[0] ? ` · ${b.authors[0]}` : ''}`}>
+                    <button onClick={() => onOpen(b)} title={[b.title, b.authors[0]].filter(Boolean).join(' · ')}>
                       <Cover url={b.coverUrl} title={b.title} author={b.authors[0]} size="sm" square={kindOf(b) !== 'book'} />
                     </button>
                   </li>
@@ -398,4 +398,9 @@ export function HomeView(props: Readonly<Props>) {
       </div>
     </section>
   );
+}
+
+function buddyLine(x: { others: string; myPct: number; leaderPct: number }): string {
+  const ahead = x.leaderPct > x.myPct ? `, ahead is ${x.leaderPct}%` : '';
+  return `with ${x.others} · you ${x.myPct}%${ahead}`;
 }

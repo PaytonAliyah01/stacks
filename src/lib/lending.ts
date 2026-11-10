@@ -163,7 +163,8 @@ export function dueLabel(due: string | null): string {
   if (d === 0) return 'Due today';
   if (d === 1) return 'Due tomorrow';
   if (d < 14) return `Due in ${d} days`;
-  return `Due ${new Date(`${due}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
+  const day = new Date(`${due}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return `Due ${day}`;
 }
 
 /** A date some weeks from today, as YYYY-MM-DD. */

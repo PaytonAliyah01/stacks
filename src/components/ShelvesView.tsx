@@ -94,7 +94,7 @@ function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed =
         e.dataTransfer.effectAllowed = 'move';
       }}
       onClick={onOpen}
-      title={`${book.placement ? `${book.placement.position}. ` : ''}${book.title}${book.authors[0] ? ` by ${book.authors[0]}` : ''}${book.pageCount ? ` · ${book.pageCount} pages` : ''}`}
+      title={spineTitle(book)}
     >
       {lookKind !== 'photo' && (
         <span className={`spine-text ${width >= 20 && k > 0.7 ? 'two-line' : ''} ${width < 13 || k < 0.6 ? 'tiny' : ''}`}>
@@ -363,3 +363,10 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
   );
 }
 
+
+function spineTitle(book: Book): string {
+  const pos = book.placement ? `${book.placement.position}. ` : '';
+  const by = book.authors[0] ? ` by ${book.authors[0]}` : '';
+  const pages = book.pageCount ? ` · ${book.pageCount} pages` : '';
+  return `${pos}${book.title}${by}${pages}`;
+}

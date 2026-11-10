@@ -188,7 +188,7 @@ function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: Readonly<{ 
             {g.goal.toLocaleString()} {unit(g.measure, g.goal)} · {day(g.start_on)} to {day(g.end_on)}
             {ended ? ' · finished' : null}
             {!ended && notYet ? ' · starts soon' : null}
-            {!ended && !notYet ? ` · ${Math.ceil((Date.parse(`${g.end_on}T23:59:59`) - Date.now()) / 86_400_000)} days left` : null}
+            {!ended && !notYet ? ` · ${daysUntilEnd(g.end_on)} days left` : null}
           </p>
         </div>
         {ended && leader && leader.progress > 0 && <span className="group-winner">🏆 {memberName(leader)}</span>}
@@ -309,4 +309,9 @@ export function GroupChallengesView(props: Readonly<Props>) {
       )}
     </div>
   );
+}
+
+function daysUntilEnd(endOn: string): number {
+  const end = Date.parse(`${endOn}T23:59:59`);
+  return Math.ceil((end - Date.now()) / 86_400_000);
 }

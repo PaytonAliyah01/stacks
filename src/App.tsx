@@ -58,6 +58,7 @@ import { YearWrap } from './components/YearWrap';
 import { SERIES_FINDER_VERSION, isPublisherSeries, parseSeries, seriesFromTitle, seriesKey, seriesLabel } from './lib/series';
 import { TimerBar } from './components/ReadingTimer';
 import { loadActive, saveActive, startSession, type ActiveSession } from './lib/sessions';
+import { countOf } from './lib/labels';
 import { guessVibe, matchesVibe } from './lib/moods';
 import { ReadingStats } from './components/ReadingStats';
 import { AchievementsView } from './components/AchievementsView';
@@ -200,7 +201,8 @@ export default function App() {
 
 function ownedMessage(toWishlist: boolean, copies: number): string | undefined {
   const several = copies > 1;
-  if (toWishlist) return `You already own this${several ? ` (${copies} copies)` : ''}. No need to buy it.`;
+  const count = several ? ` (${copies} copies)` : '';
+  if (toWishlist) return `You already own this${count}. No need to buy it.`;
   return several ? `You have ${copies} copies.` : undefined;
 }
 
@@ -211,6 +213,16 @@ function recordLine(b: Book, plays?: number): string {
 }
 
 const pagesLine = (b: Book) => (b.pageCount ? `${b.pageCount.toLocaleString()} pages` : 'Pages unknown');
+
+function wantlistImportText(added: number, alreadyOwned: number): string {
+  const left = alreadyOwned ? `. ${alreadyOwned} you already own were left off` : '';
+  return `Added ${countOf(added, 'record')} to your wantlist${left}.`;
+}
+
+function collectionImportText(added: number, updated: number): string {
+  const also = updated ? ` and updated ${updated} you already had` : '';
+  return `Imported ${countOf(added, 'record')} from Discogs${also}.`;
+}
 
 function noMatchText(view: string, sectionCount: number): string {
   if (view === 'music') return 'Nothing matches these filters.';
@@ -618,7 +630,8 @@ function StacksApp() {
   const wishRelease = async (r: Release) => {
     if (r.kind === 'music') return wantRecord(r);
     await bookForRec(r, { wishlist: true, ...(r.isbn13 ? { isbn13: r.isbn13 } : {}), publishedDate: r.date });
-    setToast(`Added “${r.title}” to your wishlist${r.upcoming ? `. It comes out ${dateLabel(r.date).replace(/^Out /, '')}` : ''}.`);
+    const comesOut = r.upcoming ? `. It comes out ${dateLabel(r.date).replace(/^Out /, '')}` : '';
+    setToast(`Added “${r.title}” to your wishlist${comesOut}.`);
     reload();
   };
   const releasesView = (kind: 'book' | 'music') => (
@@ -1402,7 +1415,8 @@ function StacksApp() {
     const owned: Book = { ...b, owned: undefined, wishlist: undefined, acquiredOn: todayIsoDate(), updatedAt: new Date().toISOString() };
     if (scanSpot && !isMusic(b)) owned.placement = { ...scanSpot, position: nextPosition(await store.list(), scanSpot) };
     await store.put(owned);
-    setToast(`“${b.title}” is now in your ${isMusic(b) ? 'collection' : 'library'}${owned.placement ? `, on ${label(owned)}` : ''}.`);
+    const where = owned.placement ? `, on ${label(owned)}` : '';
+    setToast(`“${b.title}” is now in your ${isMusic(b) ? 'collection' : 'library'}${where}.`);
     reload();
   };
   const removeFromWishlist = async (b: Book) => {
@@ -2588,7 +2602,9 @@ function StacksApp() {
             await reload();
             setImportOpen(false);
             setView('reading');
-            setToast(`Imported ${plan.readings.length} reads and ${plan.newBooks.length} new books.${plan.removedReadings.length ? ` ${plan.removedReadings.length} book${plan.removedReadings.length === 1 ? '' : 's'} you'd marked “Want to read” now show as read.` : ''}${plan.merges.length ? ` Matched ${plan.merges.length} to copies you own under another title.` : ''}`);
+            const nowRead = plan.removedReadings.length ? ` ${countOf(plan.removedReadings.length, 'book')} you'd marked “Want to read” now show as read.` : '';
+            const matched = plan.merges.length ? ` Matched ${plan.merges.length} to copies you own under another title.` : '';
+            setToast(`Imported ${plan.readings.length} reads and ${plan.newBooks.length} new books.${nowRead}${matched}`);
           }}
         />
       )}
@@ -2610,9 +2626,7 @@ function StacksApp() {
             setView('music');
             setMusicTab(wanted ? 'wantlist' : 'collection');
             setToast(
-              wanted
-                ? `Added ${plan.newBooks.length} record${plan.newBooks.length === 1 ? '' : 's'} to your wantlist${plan.alreadyOwned.length ? `. ${plan.alreadyOwned.length} you already own were left off` : ''}.`
-                : `Imported ${plan.newBooks.length} record${plan.newBooks.length === 1 ? '' : 's'} from Discogs${plan.updated.length ? ` and updated ${plan.updated.length} you already had` : ''}.`,
+              wanted ? wantlistImportText(plan.newBooks.length, plan.alreadyOwned.length) : collectionImportText(plan.newBooks.length, plan.updated.length),
             );
           }}
         />

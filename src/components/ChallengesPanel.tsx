@@ -200,8 +200,9 @@ export function ChallengesPanel({ challenges, books, readings, onSave, onRemove 
               <ul className="badges" aria-label="Badges">
                 {BADGES.map((b) => {
                   const on = c.badges[b.id];
+                  const earned = on ? ` Earned ${formatDay(on)}.` : '';
                   return (
-                    <li key={b.id} className={`badge-medal ${on ? 'earned' : 'locked'}`} title={`${b.name}: ${b.description(c)}${on ? ` Earned ${formatDay(on)}.` : ''}`}>
+                    <li key={b.id} className={`badge-medal ${on ? 'earned' : 'locked'}`} title={`${b.name}: ${b.description(c)}${earned}`}>
                       <span className="medal" aria-hidden="true">{b.mark}</span>
                       <span className="medal-name">{b.name}</span>
                       <span className="sr-only">{on ? `earned ${formatDay(on)}` : `not earned yet. ${b.description(c)}`}</span>

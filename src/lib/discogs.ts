@@ -98,7 +98,8 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
   const items: DiscogsItem[] = [];
   for (let page = 1; ; page++) {
     const path = list === 'wants' ? 'wants' : 'collection/folders/0/releases';
-    const url = `https://api.discogs.com/users/${encodeURIComponent(user)}/${path}?per_page=100&page=${page}&sort=added&sort_order=desc${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const auth = token ? `&token=${encodeURIComponent(token)}` : '';
+    const url = `https://api.discogs.com/users/${encodeURIComponent(user)}/${path}?per_page=100&page=${page}&sort=added&sort_order=desc${auth}`;
     let res: Response;
     try {
       res = await fetch(url);

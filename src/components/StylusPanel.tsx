@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Book, Spin } from '../types';
 import { SHAPES, hoursLabel, newStylus, wear, type Stylus, type StylusShape } from '../lib/stylus';
 import { formatDay, todayIso } from '../lib/reading';
+import { countOf } from '../lib/labels';
 
 interface Props {
   records: Book[];
@@ -85,7 +86,7 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
               <span className="muted small">
                 {w.plays} vinyl play{w.plays === 1 ? '' : 's'}
                 {active.startHours ? ` + ${active.startHours} hours from before` : ''}
-                {w.daysLeft !== undefined && w.pct < 100 && ` · at your pace, about ${w.daysLeft > 60 ? `${Math.round(w.daysLeft / 30)} months` : `${w.daysLeft} days`} left`}
+                {w.daysLeft !== undefined && w.pct < 100 && ` · at your pace, about ${w.daysLeft > 60 ? countOf(Math.round(w.daysLeft / 30), 'month') : countOf(w.daysLeft, 'day')} left`}
               </span>
             </div>
             {(w.pct >= 100) ? (

@@ -51,7 +51,8 @@ export const clock = (ms: number) => {
 export const hoursAndMinutes = (minutes: number) => {
   const m = Math.round(minutes);
   if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+  const h = `${Math.floor(m / 60)} h`;
+  return m % 60 ? `${h} ${m % 60} min` : h;
 };
 
 export function getDailyGoal(): number {

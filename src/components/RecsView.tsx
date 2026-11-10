@@ -3,6 +3,7 @@ import type { Book, Reading } from '../types';
 import { Cover } from './Cover';
 import { currentReading } from '../lib/reading';
 import { loadFeed, type FeedEntry } from '../lib/feed';
+import { countOf } from '../lib/labels';
 import {
   cachedShelves,
   cacheShelves,
@@ -161,7 +162,7 @@ export function RecsView(props: Readonly<Props>) {
       <p className="muted recs-intro">
         {noTaste
           ? 'Rate the books you finish (4 stars and up counts as loved) and Stacks learns what you like. Until then, here are unread books from your shelves.'
-          : `Picked from the ${recs.taste.loved.length === 1 ? 'book' : `${recs.taste.loved.length} books`} you loved, their genres and moods, and what your friends rated highly.`}
+          : `Picked from the ${recs.taste.loved.length === 1 ? 'book' : countOf(recs.taste.loved.length, 'book')} you loved, their genres and moods, and what your friends rated highly.`}
       </p>
 
       <section className="panel">

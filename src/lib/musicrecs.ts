@@ -4,6 +4,7 @@ import { jsonp } from './lookup';
 import { agoLabel, daysSince, playsByRecord } from './spins';
 import { cleanSubjects, recKey, type Rec, type Shelf } from './recommend';
 import type { FeedEntry } from './feed';
+import { countOf } from './labels';
 
 /**
  * Music recommendations: records from your own crates to put on, new albums
@@ -159,7 +160,7 @@ export async function fromDeezer(records: Book[], t: MusicTaste, hidden: Set<str
   albums.forEach((res, i) => {
     const x = ids[i];
     if (!x || res.status !== 'fulfilled') return;
-    const why = x.mine.spins > 1 ? `You've spun ${x.mine.name} ${x.mine.spins} times` : `You have ${x.mine.owned === 1 ? 'a record' : `${x.mine.owned} records`} by ${x.mine.name}`;
+    const why = x.mine.spins > 1 ? `You've spun ${x.mine.name} ${x.mine.spins} times` : `You have ${x.mine.owned === 1 ? 'a record' : countOf(x.mine.owned, 'record')} by ${x.mine.name}`;
     const recent = (d?: string) => !!d && Date.now() - Date.parse(d) < 365 * 86_400_000;
     const list = res.value.filter((a) => ok(x.mine.name, a)).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
     for (const a of list.slice(0, 3)) more.push(rec(x.mine.name, a, recent(a.date) ? `New from ${x.mine.name}` : why));
@@ -210,7 +211,7 @@ export function friendsSpinning(feed: FeedEntry[], records: Book[], uid: string,
     .slice(0, 8)
     .map(({ n, who, ...r }) => ({
       ...r,
-      reason: who.size > 1 ? `${who.size} friends are spinning it` : `${[...who][0]} spun it${n > 1 ? ` ${n} times` : ''}`,
+      reason: who.size > 1 ? `${who.size} friends are spinning it` : `${[...who][0]} spun it${n > 1 ? ' ' : ''}${n > 1 ? countOf(n, 'time') : ''}`,
     }));
 }
 
