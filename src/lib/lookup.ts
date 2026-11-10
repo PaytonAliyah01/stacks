@@ -110,9 +110,13 @@ export function getGoogleKey(): string {
     return '';
   }
 }
+/** Google API keys are letters, digits, "-" and "_" only; anything else is a stray paste. */
+const cleanGoogleKey = (key: string) => key.replace(/[^A-Za-z0-9_-]/g, '');
+
 export function setGoogleKey(key: string) {
+  const clean = cleanGoogleKey(key);
   try {
-    if (key.trim()) localStorage.setItem(GOOGLE_KEY_PREF, key.trim());
+    if (/^[A-Za-z0-9_-]{20,60}$/.test(clean)) localStorage.setItem(GOOGLE_KEY_PREF, clean);
     else localStorage.removeItem(GOOGLE_KEY_PREF);
   } catch {
     /* preference only */
@@ -203,7 +207,7 @@ async function fromGoogleBooks(isbn13: string, isbn10?: string): Promise<Partial
  */
 export async function testGoogleKey(key: string): Promise<string | null> {
   try {
-    await getJson(`https://www.googleapis.com/books/v1/volumes?q=isbn:9780547928227&maxResults=1&key=${encodeURIComponent(key.trim())}`);
+    await getJson(`https://www.googleapis.com/books/v1/volumes?q=isbn:9780547928227&maxResults=1&key=${encodeURIComponent(cleanGoogleKey(key))}`);
     return null;
   } catch (err) {
     const detail = (err as { detail?: string }).detail ?? '';
