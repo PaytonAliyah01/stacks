@@ -2128,7 +2128,7 @@ function StacksApp() {
             }
           />
         ) : null}
-        {!(view === 'home') && (view === 'wishlist') ? (
+        {view !== 'home' && (view === 'wishlist') ? (
           <section className="library" aria-label="Wishlist">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
             {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
@@ -2148,7 +2148,7 @@ function StacksApp() {
             />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && (view === 'reading') ? (
+        {view !== 'home' && view !== 'wishlist' && (view === 'reading') ? (
           <section className="library" aria-label="Reading">
             <div className="library-tools">
               <h2>Your reading</h2>
@@ -2266,13 +2266,13 @@ function StacksApp() {
             )}
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && (view === 'stats') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && (view === 'stats') ? (
           <section className="library" aria-label="Stats">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
             <Stats books={books} bookcases={bookcases} onOpen={(b) => setOpen({ book: b })} />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && (view === 'series') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && (view === 'series') ? (
           <section className="library" aria-label="Series">
             <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
             <SeriesView
@@ -2287,7 +2287,7 @@ function StacksApp() {
             />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && (view === 'music' && musicTab === 'listening') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && (view === 'music' && musicTab === 'listening') ? (
           <section className="library" aria-label="Listening">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             {[11, 0].includes(new Date().getMonth()) && spins.length > 0 && (
@@ -2311,13 +2311,13 @@ function StacksApp() {
             />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && (view === 'music' && musicTab === 'new') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && (view === 'music' && musicTab === 'new') ? (
           <section className="library" aria-label="New releases">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             {releasesView('music')}
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && (view === 'music' && musicTab === 'foryou') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && (view === 'music' && musicTab === 'foryou') ? (
           <section className="library" aria-label="Music for you">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             <MusicRecsView
@@ -2332,13 +2332,13 @@ function StacksApp() {
             />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && (view === 'music' && musicTab === 'wrap') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && (view === 'music' && musicTab === 'wrap') ? (
           <section className="library" aria-label="Year in music">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             <MusicWrap records={allBooks.filter(isMusic)} spins={spins} onOpen={(b) => setOpen({ book: b })} />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && (view === 'music' && musicTab === 'wantlist') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && (view === 'music' && musicTab === 'wantlist') ? (
           <section className="library" aria-label="Wantlist">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
@@ -2360,7 +2360,7 @@ function StacksApp() {
             />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && (view === 'music' && musicTab === 'value') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && (view === 'music' && musicTab === 'value') ? (
           <section className="library" aria-label="Value">
             <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
             <ValueView
@@ -2377,7 +2377,7 @@ function StacksApp() {
             />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && (view === 'shelves') ? (
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && (view === 'shelves') ? (
           <section className="library" aria-label="Shelves">
             <div className="library-tools">
               <h2>Your books</h2>
@@ -2395,7 +2395,7 @@ function StacksApp() {
             />
           </section>
         ) : null}
-        {!(view === 'home') && !(view === 'wishlist') && !(view === 'reading') && !(view === 'stats') && !(view === 'series') && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && !(view === 'shelves') ? <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
+        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && view !== 'shelves' ? <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
             <div className="library-tools">
               <h2>{view === 'music' ? 'Your music' : 'Your books'}</h2>
               {view === 'music' ? musicNav : booksNav}

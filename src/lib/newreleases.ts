@@ -154,7 +154,16 @@ export function followedArtists(records: Book[], spins: Spin[]): Followed[] {
 }
 
 // Study guides, box sets and the like aren't a new book.
-const NOT_A_NEW_BOOK = /summary|study guide|workbook|box(ed)? set|boxset|collection|sampler|coloring|colouring|journal|calendar|\bbooks? \d+\s*[-–&]\s*\d+|\btrilogy\b|omnibus|teacher|analysis of|\bsparknotes\b|conversation starters/i;
+const NOT_A_NEW_BOOK_WORDS = [
+  'summary', 'study guide', 'workbook', 'box set', 'boxed set', 'boxset', 'collection', 'sampler', 'coloring', 'colouring',
+  'journal', 'calendar', 'omnibus', 'teacher', 'analysis of', 'conversation starters',
+];
+// "Books 1-3"
+const BOOK_RANGE = /\bbooks? \d+ ?[-–&] ?\d/i;
+const isNotANewBook = (title: string) => {
+  const t = title.toLowerCase();
+  return NOT_A_NEW_BOOK_WORDS.some((w) => t.includes(w)) || /\b(?:trilogy|sparknotes)\b/.test(t) || BOOK_RANGE.test(t);
+};
 
 const shortTitle = (t: string) => t.split(/[:(]/)[0].trim();
 
@@ -177,7 +186,7 @@ async function openLibraryNewest(author: string): Promise<any[]> {
 async function booksBy(a: Followed, have: Set<string>, now: number): Promise<Release[]> {
   const ak = authorKey(a.name);
   const ok = (title: string, date: string | undefined) => {
-    if (!title || !date || NOT_A_NEW_BOOK.test(title)) return false;
+    if (!title || !date || isNotANewBook(title)) return false;
     const ms = dateMs(date);
     return Number.isFinite(ms) && ms > now - BACK && ms < now + AHEAD && !have.has(recKey(shortTitle(title), a.name));
   };

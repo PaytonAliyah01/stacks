@@ -119,7 +119,7 @@ export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRem
             library can't be added, so you won't buy them twice.
           </p>
         ) : null}
-        {!(list.length === 0 && music) && !(list.length === 0) ? <ul className="wish-list">
+        {!(list.length === 0 && music) && list.length !== 0 ? <ul className="wish-list">
             {list.map((b) => (
               <li key={b.id}>
                 <button className="now-cover" onClick={() => onOpen(b)} aria-label={`Open ${b.title}`}>

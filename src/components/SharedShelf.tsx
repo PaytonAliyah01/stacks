@@ -135,7 +135,7 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
       {!onShelves && (hits.length === 0) ? (
         <p className="shared-msg muted">{needle ? `Nothing matches “${q.trim()}”.` : 'Nothing here yet.'}</p>
       ) : null}
-      {!onShelves && !(hits.length === 0) ? <>
+      {!onShelves && hits.length !== 0 ? <>
           <ul className="grid shared-grid">
             {hits.slice(0, shown).map((x) => (
               <li key={x.id}>

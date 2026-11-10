@@ -223,8 +223,8 @@ export function HomeView(props: Readonly<Props>) {
                   </span>
                   <span className="muted small">
                     {(p.pct >= 100) ? 'Done. Nice work!' : null}
-                    {!(p.pct >= 100) && (p.done >= p.expected) ? `On track, ${p.daysLeft} days left` : null}
-                    {!(p.pct >= 100) && !(p.done >= p.expected) ? `${Math.ceil(p.expected - p.done).toLocaleString()} ${c.measure} behind · about ${Math.ceil(p.perWeekNeeded).toLocaleString()} a week to finish on time` : null}
+                    {p.pct < 100 && (p.done >= p.expected) ? `On track, ${p.daysLeft} days left` : null}
+                    {p.pct < 100 && p.done < p.expected ? `${Math.ceil(p.expected - p.done).toLocaleString()} ${c.measure} behind · about ${Math.ceil(p.perWeekNeeded).toLocaleString()} a week to finish on time` : null}
                   </span>
                 </div>
               ))
@@ -245,7 +245,7 @@ export function HomeView(props: Readonly<Props>) {
                 <span className="muted small">
                   {g.invite ? 'A friend invited you. ' : null}
                   {!g.invite && (g.of > 1) ? `With friends · you're ${ordinal(g.place)} of ${g.of}` : null}
-                  {!g.invite && !(g.of > 1) ? 'With friends · waiting for them to join' : null}
+                  {!g.invite && g.of <= 1 ? 'With friends · waiting for them to join' : null}
                   {g.invite && <button className="link small" onClick={() => onGo('groups')}>Join or decline</button>}
                 </span>
               </div>

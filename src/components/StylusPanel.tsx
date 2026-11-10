@@ -93,7 +93,7 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
             {(w.pct >= 100) ? (
               <p className="stylus-alert">Time for a new stylus. A worn one sounds dull and can damage your records.</p>
             ) : null}
-            {!(w.pct >= 100) && (w.pct >= 85) ? (
+            {w.pct < 100 && (w.pct >= 85) ? (
               <p className="stylus-alert soft">Your stylus is nearly worn out. Good time to order a new one.</p>
             ) : null}
             {editingLife ? (

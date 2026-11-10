@@ -3,6 +3,7 @@ import { kindOf } from '../types';
 import { parseCsv } from './importHistory';
 import { getDiscogsToken, vinylSizeOf } from './lookup';
 import { newId } from './storage';
+import { dropDiscogsNumber, stripBrackets } from './text';
 
 /** One release from a Discogs collection, whichever way it came in. */
 export interface DiscogsItem {
@@ -25,13 +26,13 @@ export interface DiscogsItem {
 }
 
 /** "Prince (2)" → "Prince", "Sade*" → "Sade". */
-const cleanArtist = (a: string) => a.replace(/\s*\(\d+\)$/, '').replace(/\*$/, '').trim();
+const cleanArtist = (a: string) => dropDiscogsNumber(a.trim()).replace(/\*$/, '').trim();
 
 /** Vinyl, CD, or something Stacks doesn't keep (cassettes, files, DVDs). */
 export function kindOfFormat(format: string): Exclude<ItemKind, 'book'> | undefined {
   // "2xLP" and "3xCD" have no word break before the format, so look for a non-letter instead.
   const has = (w: string) => new RegExp(String.raw`(?:(?<![a-z])|(?<=\dx))(?:${w})(?![a-z])`).test(format.toLowerCase());
-  const vinyl = has('lp|vinyl|ep|single|acetate|lathe') || /\d+"/.test(format);
+  const vinyl = has('lp|vinyl|ep|single|acetate|lathe') || /\d"/.test(format);
   const cd = has('cd|cdr|sacd|hdcd');
   if (cd && !vinyl) return 'cd';
   return vinyl ? 'vinyl' : undefined;
@@ -39,7 +40,7 @@ export function kindOfFormat(format: string): Exclude<ItemKind, 'book'> | undefi
 
 /** "2xLP" → 2, "3xCD, Box Set" → 3. */
 const discCountOf = (format: string) => {
-  const m = /(\d+)\s*x\s*(lp|cd|vinyl|\d+")/i.exec(format);
+  const m = format.split(',').map((part) => /^(\d+) ?x ?(lp|cd|vinyl|\d+")/i.exec(part.trim())).find(Boolean);
   return m ? Number(m[1]) : undefined;
 };
 
@@ -75,7 +76,7 @@ export function parseDiscogsCsv(text: string): DiscogsItem[] {
       releaseId: Number(at(r, iId)) || undefined,
       artists: [cleanArtist(at(r, iArtist) ?? '')].filter((a) => a && a !== 'Various'),
       title: at(r, iTitle)!,
-      label: at(r, iLabel)?.split(',')[0].replace(/\s*\(\d+\)$/, ''),
+      label: dropDiscogsNumber(at(r, iLabel)?.split(',')[0] ?? '') || undefined,
       catalogNumber: at(r, iCat) && at(r, iCat) !== 'none' ? at(r, iCat) : undefined,
       format: at(r, iFormat) ?? '',
       year: yearOf(at(r, iRel)),
@@ -92,7 +93,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** A public Discogs collection, page by page. */
 /** A public Discogs collection or wantlist, page by page. */
 export async function fetchDiscogsCollection(username: string, onProgress?: (got: number, total: number) => void, list: 'collection' | 'wants' = 'collection'): Promise<DiscogsItem[]> {
-  const user = username.trim().replace(/^https?:\/\/(www\.)?discogs\.com\/(user\/)?/i, '').replace(/\/.*$/, '');
+  const user = username.trim().replace(/^https?:\/\/(www\.)?discogs\.com\/(user\/)?/i, '').split('/')[0];
   if (!user) throw new Error('Type your Discogs username.');
   const token = getDiscogsToken();
   const items: DiscogsItem[] = [];
@@ -127,7 +128,7 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
         releaseId: b.id ?? r.id,
         artists: (b.artists ?? []).map((a: any) => cleanArtist(a.name)).filter((a: string) => a && a !== 'Various').slice(0, 3),
         title: b.title ?? '',
-        label: b.labels?.[0]?.name?.replace(/\s*\(\d+\)$/, ''),
+        label: dropDiscogsNumber(b.labels?.[0]?.name ?? '') || undefined,
         catalogNumber: b.labels?.[0]?.catno && b.labels[0].catno !== 'none' ? b.labels[0].catno : undefined,
         format: formats.map((f) => [f.qty > 1 ? `${f.qty}x${f.name}` : f.name, ...(f.descriptions ?? [])].join(' ')).join(', '),
         year: yearOf(b.year),
@@ -152,7 +153,7 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
   return items;
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const norm = (s: string) => stripBrackets(s.toLowerCase()).replace(/[^a-z0-9]+/g, ' ').trim();
 const key = (artist: string | undefined, title: string, kind: string) => `${norm(artist ?? '')}|${norm(title)}|${kind}`;
 
 export interface DiscogsPlan {

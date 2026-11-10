@@ -85,10 +85,10 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
               {(problemKind === 'server') ? (
                 <span className="muted">That's Google having a hiccup, not your {getGoogleKey() ? 'key' : 'settings'}. Press Search again in a minute.</span>
               ) : null}
-              {!(problemKind === 'server') && (problemKind === 'quota' && !getGoogleKey()) ? (
+              {problemKind !== 'server' && (problemKind === 'quota' && !getGoogleKey()) ? (
                 <button type="button" className="link" onClick={onOpenSettings}>Add a Google Books key</button>
               ) : null}
-              {!(problemKind === 'server') && !(problemKind === 'quota' && !getGoogleKey()) && (problemKind === 'quota') ? (
+              {problemKind !== 'server' && !(problemKind === 'quota' && !getGoogleKey()) && (problemKind === 'quota') ? (
                 <button type="button" className="link" onClick={onOpenSettings}>Check your Google Books key</button>
               ) : null}
             </p>

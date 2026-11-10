@@ -122,13 +122,13 @@ export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Rea
                 {(l?.status === 'lent') ? (
                   <span className="friend-badge">You have it</span>
                 ) : null}
-                {!(l?.status === 'lent') && l ? (
+                {l?.status !== 'lent' && l ? (
                   <span className="friend-badge muted">Requested</span>
                 ) : null}
-                {!(l?.status === 'lent') && !l && x.lent_out ? (
+                {l?.status !== 'lent' && !l && x.lent_out ? (
                   <span className="muted small">Lent out</span>
                 ) : null}
-                {!(l?.status === 'lent') && !l && !x.lent_out ? <button className="btn small-btn" onClick={() => setAsking(x)}>Ask to borrow</button> : null}
+                {l?.status !== 'lent' && !l && !x.lent_out ? <button className="btn small-btn" onClick={() => setAsking(x)}>Ask to borrow</button> : null}
               </li>
             );
           })}

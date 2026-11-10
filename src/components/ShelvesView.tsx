@@ -347,8 +347,8 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
           <h3>Not on a bookcase</h3>
           <span className="muted small">
             {(unshelved.length === 0) ? 'Every book has a spot.' : null}
-            {!(unshelved.length === 0) && readOnly ? `${unshelved.length} ${unshelved.length === 1 ? 'item' : 'items'}` : null}
-            {!(unshelved.length === 0) && !readOnly ? `${unshelved.length} ${unshelved.length === 1 ? 'book' : 'books'}. Drag them onto a shelf, or drag a book here to take it off.` : null}
+            {unshelved.length !== 0 && readOnly ? `${unshelved.length} ${unshelved.length === 1 ? 'item' : 'items'}` : null}
+            {unshelved.length !== 0 && !readOnly ? `${unshelved.length} ${unshelved.length === 1 ? 'book' : 'books'}. Drag them onto a shelf, or drag a book here to take it off.` : null}
           </span>
         </div>
         {unshelved.length > 0 && (

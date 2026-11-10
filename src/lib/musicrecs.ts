@@ -5,6 +5,7 @@ import { agoLabel, daysSince, playsByRecord } from './spins';
 import { cleanSubjects, recKey, type Rec, type Shelf } from './recommend';
 import type { FeedEntry } from './feed';
 import { countOf } from './labels';
+import { stripBrackets } from './text';
 
 /**
  * Music recommendations: records from your own crates to put on, new albums
@@ -22,7 +23,7 @@ export interface MusicTaste {
 
 export const artistKey = (a: string) => a.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, '');
 /** "Rumours (Remastered 2004) [Deluxe]" → "rumours". */
-export const albumKey = (t: string) => t.toLowerCase().replace(/[([].*?[)\]]/g, '').replace(/[^a-z0-9]/g, '');
+export const albumKey = (t: string) => stripBrackets(t.toLowerCase()).replace(/[^a-z0-9]/g, '');
 
 export function musicTasteOf(records: Book[], spins: Spin[]): MusicTaste {
   const plays = playsByRecord(spins);

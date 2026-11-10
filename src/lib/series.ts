@@ -1,5 +1,6 @@
 import type { Book, BookSeries, Reading } from '../types';
 import { currentReading } from './reading';
+import { dropTrailingBookNumber, stripBrackets, trimEndOf } from './text';
 
 /** Bump when the series finder gets better, so books are looked at again. */
 export const SERIES_FINDER_VERSION = 2;
@@ -26,15 +27,13 @@ const TRAILING_NUMBER = new RegExp(String.raw`^(.*?)(?:\s*(?:[;,:]|--|-|–)\s*|
 // Needs the "book"/"volume" word, so "One of Us Is Lying" stays as it is.
 const LEADING_NUMBER = new RegExp(String.raw`^\s*(?:#|no\.?\s*|vol(?:ume)?\.?\s*|bk\.?\s*|book\s+|part\s+|tome\s+)(\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:of|in)\s+(?:the\s+)?(?=\S)`, 'i');
 
+const dropSeriesWord = (s: string) => s.replace(/\b(series|saga|sequence|novels?)\s*$/i, '');
+
 export function cleanSeriesName(name: string): string {
-  return name
-    .replace(LEADING_NUMBER, (m) => (/\bthe\s+$/i.test(m) ? 'The ' : ''))
-    .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')
-    .replace(/\b(series|saga|sequence|novels?)\s*$/i, '')
-    // A number left on the end ("The Empyrean 3.5") belongs to the book, not the series.
-    .replace(/(\D)[\s,;:#-]*(?:#|book\s+|bk\.?\s*|vol\.?\s*)?\d+(?:[.,]\d+)?\s*$/i, '$1')
-    .replace(/\b(series|saga|sequence|novels?)\s*$/i, '')
-    .replace(/[\s,;:#.-]+$/, '')
+  const withoutLead = name.replace(LEADING_NUMBER, (m) => (/\bthe\s+$/i.test(m) ? 'The ' : ''));
+  // A number left on the end ("The Empyrean 3.5") belongs to the book, not the series.
+  const withoutNumber = dropTrailingBookNumber(dropSeriesWord(stripBrackets(withoutLead, ' ')));
+  return trimEndOf(dropSeriesWord(withoutNumber), ',;:#.-')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -194,5 +193,12 @@ export function groupSeries(books: Book[], readings: Reading[]): SeriesGroup[] {
 }
 
 /** Publisher lines that libraries record as a "series" but aren't one ("Penguin Classics", "Vintage International"). */
-export const isPublisherSeries = (name: string) =>
-  /\b(classics?|library|collection|editions?|imprint|penguin|vintage|everyman|signet|bantam|orbit|tor|ace|del rey|harper|pan|picador|reader'?s?|book club|bestsellers?|large print|international|perennial|anchor|modern)\b/i.test(name);
+const PUBLISHER_WORDS = new Set(
+  'classic classics library collection edition editions imprint penguin vintage everyman signet bantam orbit tor ace harper pan picador reader readers bestseller bestsellers international perennial anchor modern'.split(' '),
+);
+const PUBLISHER_PHRASES = [' del rey ', ' book club ', ' large print '];
+export const isPublisherSeries = (name: string) => {
+  const words = name.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  const spaced = ` ${words.join(' ')} `;
+  return words.some((w) => PUBLISHER_WORDS.has(w)) || PUBLISHER_PHRASES.some((p) => spaced.includes(p));
+};

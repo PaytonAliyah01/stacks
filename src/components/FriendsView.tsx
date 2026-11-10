@@ -49,13 +49,13 @@ export function FriendButton({ uid, them, friends, onChanged }: Readonly<{ uid: 
 {f && (f.status === 'accepted') ? (
         <span className="friend-badge">✓ Friends</span>
       ) : null}
-{f && !(f.status === 'accepted') && f.incoming ? (
+{f && f.status !== 'accepted' && f.incoming ? (
         <>
           <button className="btn primary small-btn" disabled={busy} onClick={() => act(() => acceptRequest(uid, them.id))}>Accept</button>
           <button className="btn ghost small-btn" disabled={busy} onClick={() => act(() => removeFriend(uid, them.id))}>Decline</button>
         </>
       ) : null}
-{f && !(f.status === 'accepted') && !f.incoming ? <>
+{f && f.status !== 'accepted' && !f.incoming ? <>
           <span className="friend-badge muted">Request sent</span>
           <button className="link small" disabled={busy} onClick={() => act(() => removeFriend(uid, them.id))}>Cancel</button>
         </> : null}
@@ -176,7 +176,7 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
 {me && !(tab === 'lending' && lending) && !(tab === 'gifts' && gifts) && (tab === 'feed') ? (
         <FeedView uid={uid} onOpenProfile={onOpenProfile} hasFriends={accepted.length > 0} onFindFriends={findPeople} />
       ) : null}
-{me && !(tab === 'lending' && lending) && !(tab === 'gifts' && gifts) && !(tab === 'feed') ? <>
+{me && !(tab === 'lending' && lending) && !(tab === 'gifts' && gifts) && tab !== 'feed' ? <>
           <section className="panel">
             <h3>Find people</h3>
             <form className="search-row" onSubmit={search}>

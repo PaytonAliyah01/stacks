@@ -1,5 +1,6 @@
 import type { BookMetadata, Track } from '../types';
 import { firstInTurn, pause } from './inTurn';
+import { dropDiscogsNumber } from './text';
 
 const TIMEOUT_MS = 8000;
 
@@ -649,7 +650,7 @@ export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: s
     pressingCountry: rel.country || undefined,
     matrix: matrix || undefined,
     catalogNumber: rel.labels?.[0]?.catno && rel.labels[0].catno !== 'none' ? rel.labels[0].catno : undefined,
-    publisher: rel.labels?.[0]?.name?.replace(/\s*\(\d+\)$/, ''),
+    publisher: dropDiscogsNumber(rel.labels?.[0]?.name ?? '') || undefined,
   };
 }
 

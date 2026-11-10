@@ -1,4 +1,5 @@
 import type { Book, Track } from '../types';
+import { splitTrailingDuration } from './text';
 
 /** "4:12" → 252 seconds. */
 export const seconds = (d?: string) => {
@@ -47,13 +48,8 @@ export function parseTrackText(text: string): Track[] {
     .map((l) => l.trim())
     .filter(Boolean)
     .map((line) => {
-      let rest = line;
-      let duration: string | undefined;
-      const d = /[\s([–-]*\(?(\d{1,2}:\d{2}(?::\d{2})?)\)?\s*$/.exec(rest);
-      if (d) {
-        duration = d[1];
-        rest = rest.slice(0, d.index).trim();
-      }
+      const [beforeDuration, duration] = splitTrailingDuration(line);
+      let rest = beforeDuration;
       let position: string | undefined;
       const p = /^([A-Za-z]?\d{1,2}(?:[-.]\d{1,2})?|[A-Z])[.):\s-]+\s*/.exec(rest);
       if (p && rest.length > p[0].length) {

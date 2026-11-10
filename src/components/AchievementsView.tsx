@@ -28,7 +28,7 @@ function Medal({ mark, name, earnedOn, description, progress }: Readonly<{ mark:
             <span className="muted small">{progress!.now.toLocaleString()} / {progress!.target.toLocaleString()}</span>
           </span>
         ) : null}
-        {!earnedOn && !(pct !== undefined) ? <span className="muted small">Not yet</span> : null}
+        {!earnedOn && pct === undefined ? <span className="muted small">Not yet</span> : null}
       </span>
     </li>
   );

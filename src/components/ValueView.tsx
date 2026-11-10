@@ -5,6 +5,7 @@ import { Cover } from './Cover';
 import { discogsReleaseUrl, isStale, summarize, valueOf } from '../lib/value';
 import { formatDay } from '../lib/reading';
 import { gainClass } from '../lib/labels';
+import { dropTrailingNote } from '../lib/text';
 
 export interface PriceRun {
   done: number;
@@ -137,7 +138,7 @@ export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, 
                     <td>
                       <div className="value-record">
                         <button className="link value-title" onClick={() => onOpen(b)}>{b.title}</button>
-                        <span className="muted small">{[b.authors[0], b.mediaCondition?.replace(/\s*\(.*\)$/, '')].filter(Boolean).join(' · ')}</span>
+                        <span className="muted small">{[b.authors[0], b.mediaCondition && dropTrailingNote(b.mediaCondition)].filter(Boolean).join(' · ')}</span>
                       </div>
                     </td>
                     <td className="num">

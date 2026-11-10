@@ -4,6 +4,7 @@ import { currentReading, readingsOf } from './reading';
 import { matchKey, sameWork } from './importHistory';
 import { getJson } from './lookup';
 import type { FeedEntry } from './feed';
+import { stripBrackets } from './text';
 
 /**
  * Recommendations: what to read next, worked out from the books you've read
@@ -37,16 +38,23 @@ export interface Taste {
 }
 
 // Subjects that say nothing about what a book is like.
-const NOISE =
-  /^(fiction|general|novel|novels|literature|english|american|large type books|accessible book|protected daisy|in library|lending library|open library|overdrive|reading level|translations?( into .*)?|fiction in english|english fiction|american fiction|nyt:.*|new york times.*|award winners?|bestsellers?|readers?|textbooks?|juvenile works|long now manual for civilization|internet archive wishlist)$/;
+const NOISE_WORDS = new Set([
+  'fiction', 'general', 'novel', 'novels', 'literature', 'english', 'american', 'large type books', 'accessible book',
+  'protected daisy', 'in library', 'lending library', 'open library', 'overdrive', 'reading level', 'translation',
+  'translations', 'fiction in english', 'english fiction', 'american fiction', 'award winner', 'award winners',
+  'bestseller', 'bestsellers', 'reader', 'readers', 'textbook', 'textbooks', 'juvenile works',
+  'long now manual for civilization', 'internet archive wishlist',
+]);
+const NOISE_STARTS = ['translation into ', 'translations into ', 'nyt:', 'new york times'];
+const isNoise = (p: string) => NOISE_WORDS.has(p) || NOISE_STARTS.some((s) => p.startsWith(s));
 
 /** "Fiction, fantasy, general" → ["fantasy"]. Lowercase, without noise. */
 export function cleanSubjects(subjects: string[] = []): string[] {
   const out = new Set<string>();
   for (const s of subjects)
-    for (const part of s.toLowerCase().split(/\s*(?:,|--|\/|;)\s*/)) {
-      const p = part.replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim();
-      if (p.length < 3 || p.length > 40 || NOISE.test(p) || /\d{4}/.test(p)) continue;
+    for (const part of s.toLowerCase().split(/,|--|\/|;/)) {
+      const p = stripBrackets(part, '', { '(': ')' }).replace(/\s+/g, ' ').trim();
+      if (p.length < 3 || p.length > 40 || isNoise(p) || /\d{4}/.test(p)) continue;
       out.add(p);
     }
   return [...out];
@@ -168,10 +176,19 @@ export function alreadyHave(books: Book[], title: string, author?: string): bool
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const FIELDS = 'key,title,author_name,cover_i,first_publish_year,number_of_pages_median,ratings_average,ratings_count,subject';
 // Things Open Library lists as books that aren't one to read next.
-const NOT_A_BOOK = /box(ed)? set|collection|omnibus|trilogy set|books? \d+\s*(-|–|&|and|to)\s*\d+|summary|study guide|sparknotes|cliffs ?notes|coloring|calendar|journal|workbook|companion|untitled|^the works of|selected works|complete works|\bsampler\b/i;
+const NOT_A_BOOK_WORDS = [
+  'box set', 'boxed set', 'collection', 'omnibus', 'trilogy set', 'summary', 'study guide', 'sparknotes', 'cliffsnotes',
+  'cliffs notes', 'coloring', 'calendar', 'journal', 'workbook', 'companion', 'untitled', 'selected works', 'complete works',
+];
+// "Books 1-3", "Book 1 to 4"
+const BOOK_RANGE = /books? \d+ ?(?:-|–|&|and|to) ?\d/i;
+const isNotABook = (title: string) => {
+  const t = title.toLowerCase();
+  return NOT_A_BOOK_WORDS.some((w) => t.includes(w)) || t.startsWith('the works of') || /\bsampler\b/.test(t) || BOOK_RANGE.test(t);
+};
 
 function docToRec(d: any, reason: string): Rec | undefined {
-  if (!d?.title || NOT_A_BOOK.test(d.title)) return undefined;
+  if (!d?.title || isNotABook(d.title)) return undefined;
   const authors: string[] = d.author_name ?? [];
   return {
     key: recKey(d.title, authors[0]),

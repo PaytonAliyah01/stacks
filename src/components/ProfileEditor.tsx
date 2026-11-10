@@ -179,8 +179,8 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             <div className="avatar-edit-actions">
               <button type="button" className="btn small-btn" onClick={() => fileRef.current?.click()} disabled={busy === 'photo'}>
                 {(busy === 'photo') ? 'Uploading…' : null}
-                {!(busy === 'photo') && avatarUrl ? 'Change picture' : null}
-                {!(busy === 'photo') && !avatarUrl ? 'Upload a picture' : null}
+                {busy !== 'photo' && avatarUrl ? 'Change picture' : null}
+                {busy !== 'photo' && !avatarUrl ? 'Upload a picture' : null}
               </button>
               {avatarUrl && <button type="button" className="link small" onClick={() => setAvatarUrl(null)}>Use initials instead</button>}
               <input ref={fileRef} id="avatar-file" type="file" accept="image/*" hidden onChange={(e) => void pickPhoto(e.target.files?.[0])} />

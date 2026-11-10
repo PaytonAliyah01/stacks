@@ -225,7 +225,7 @@ export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }:
                         {s.e.status ? STATUS_LABELS[s.e.status] : null}
                         {!s.e.status && s.e.book.wishlist ? 'On wishlist' : null}
                         {!s.e.status && !s.e.book.wishlist && (s.e.book.owned === false) ? 'Not owned' : null}
-                        {!s.e.status && !s.e.book.wishlist && !(s.e.book.owned === false) ? 'Unread' : null}
+                        {!s.e.status && !s.e.book.wishlist && s.e.book.owned !== false ? 'Unread' : null}
                       </span>
                     </button>
                   </li>
@@ -252,7 +252,7 @@ export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }:
                       <button className="link" onClick={() => onOpen(e.book)}>{titleWithoutSeries(e.book.title)}</button>
                       <span className="muted small">{e.status ? STATUS_LABELS[e.status] : null}
                       {!e.status && (e.book.owned === false) ? 'Not owned' : null}
-                      {!e.status && !(e.book.owned === false) ? 'Unread' : null}</span>
+                      {!e.status && e.book.owned !== false ? 'Unread' : null}</span>
                       <NumberFix entry={e} onUpdate={onUpdate} />
                     </li>
                   ))}

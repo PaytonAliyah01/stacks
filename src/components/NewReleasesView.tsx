@@ -55,7 +55,7 @@ function ReleaseCard({ r, kind, have, onWant, onWish, onHide }: Readonly<{ r: Re
               {onWant && <button className="link small" onClick={() => onWant(r)}>Want to read</button>}
             </>
           ) : null}
-          {!(have && !wanted) && !wanted && !(kind === 'book') ? <button className="btn small-btn" onClick={() => onWish(r)}>Add to wantlist</button> : null}
+          {!(have && !wanted) && !wanted && kind !== 'book' ? <button className="btn small-btn" onClick={() => onWish(r)}>Add to wantlist</button> : null}
           <button className="icon-btn rec-hide" onClick={() => onHide(r)} aria-label={`Not interested: ${r.title}`} title="Not interested">✕</button>
         </span>
       </div>
@@ -104,7 +104,7 @@ export function NewReleasesView(p: Readonly<Props>) {
       <p className="muted recs-intro">
         {p.followed.length ? intro : null}
         {!p.followed.length && (kind === 'music') ? 'Add records to your collection and Stacks follows those artists for new albums.' : null}
-        {!p.followed.length && !(kind === 'music') ? 'Finish and rate a few books (or own two by the same author) and Stacks follows those authors for new books.' : null}
+        {!p.followed.length && kind !== 'music' ? 'Finish and rate a few books (or own two by the same author) and Stacks follows those authors for new books.' : null}
       </p>
 
       {soon.length > 0 && (

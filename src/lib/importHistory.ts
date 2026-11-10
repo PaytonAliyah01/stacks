@@ -3,6 +3,7 @@ import { isMusic } from '../types';
 import { isValidIsbn10, isValidIsbn13, isbn10to13, isbn13to10 } from './isbn';
 import { newId } from './storage';
 import { parseMoods, parsePace, parseWarnings, type Mood, type Pace } from './moods';
+import { stripBrackets } from './text';
 
 export type ImportSource = 'goodreads' | 'storygraph';
 
@@ -192,15 +193,13 @@ export function parseHistory(text: string): { source: ImportSource; rows: Import
 }
 
 const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/\(.*?\)|\[.*?\]/g, '')
+  stripBrackets(s.toLowerCase())
     .split(':')[0]
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 export const matchKey = (title: string, author?: string) => `${norm(title)}|${norm(author ?? '').split(' ').pop() ?? ''}`;
 
-const plain = (s: string) => s.toLowerCase().replace(/\(.*?\)|\[.*?\]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
+const plain = (s: string) => stripBrackets(s.toLowerCase()).replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
 /** The whole title, and the part after a colon ("Percy Jackson and the Olympians: The Lightning Thief"). */
 const titleForms = (t: string) => {
   const parts = t.split(':');

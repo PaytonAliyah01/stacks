@@ -73,7 +73,7 @@ export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: Rea
         <button type="button" className="btn primary small-btn" onClick={save} disabled={!text.trim()}>
           {initial ? 'Save' : null}
           {!initial && (kind === 'quote') ? 'Save quote' : null}
-          {!initial && !(kind === 'quote') ? 'Save note' : null}
+          {!initial && kind !== 'quote' ? 'Save note' : null}
         </button>
         {onCancel && <button type="button" className="btn ghost small-btn" onClick={onCancel}>Cancel</button>}
       </div>

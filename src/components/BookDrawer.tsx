@@ -14,6 +14,7 @@ import { formatIsbn13, parseIsbn, parseScan } from '../lib/isbn';
 import { Cover } from './Cover';
 import { spinePhotoToDataUrl } from '../lib/coverColor';
 import { focusOnMount } from '../lib/focus';
+import { stripTags } from '../lib/text';
 
 interface Props {
   book: Book;
@@ -364,7 +365,7 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
                       onChange={(e) => set('placement', { ...place, position: Number(e.target.value) })}>
                       {Array.from({ length: slotCount }, (_, i) => (
                         <option key={i} value={i + 1}>Book {i + 1}{(i === 0) ? ' (left)' : null}
-                        {!(i === 0) && (i === slotCount - 1 && slotCount > 1) ? ' (right)' : null}</option>
+                        {i !== 0 && (i === slotCount - 1 && slotCount > 1) ? ' (right)' : null}</option>
                       ))}
                     </select>
                   </>
@@ -449,7 +450,7 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
           {!editingMeta && draft.description && (
             <>
               <h3 className="section-label">About this book</h3>
-              <p className="description">{draft.description.replace(/<[^>]+>/g, '')}</p>
+              <p className="description">{stripTags(draft.description)}</p>
             </>
           )}
 

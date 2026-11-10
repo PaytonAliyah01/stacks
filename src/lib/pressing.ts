@@ -1,3 +1,5 @@
+import { insideParens } from './text';
+
 /** Goldmine grades, written the way Discogs writes them, best first. */
 export const MEDIA_GRADES = [
   'Mint (M)',
@@ -25,8 +27,8 @@ export const GRADE_HELP: Record<string, string> = {
 /** "Near Mint (NM or M-)" → "NM", "Very Good Plus (VG+)" → "VG+". */
 export const gradeShort = (g?: string) => {
   if (!g) return '';
-  const m = /\(([^)]+)\)/.exec(g);
-  return m ? m[1].replace(/ or M-$/, '') : g;
+  const inner = insideParens(g);
+  return inner ? inner.replace(/ or M-$/, '') : g;
 };
 
 /** A grade from the CSV of another app ("VG+", "nm", "near mint") in Discogs' words. */
