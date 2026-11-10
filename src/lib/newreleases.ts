@@ -1,4 +1,4 @@
-import type { Book, Reading, Spin } from '../types';
+import type { Book, Reading, ReadStatus, Spin } from '../types';
 import { isMusic } from '../types';
 import { readingsOf } from './reading';
 import { getGoogle, getJson, withGoogleKey } from './lookup';
@@ -89,10 +89,39 @@ export function dateLabel(d: string, now = Date.now()): string {
   return ms > now ? `Out ${s}` : `Came out ${s}`;
 }
 
+interface AuthorTally {
+  name: string;
+  weight: number;
+  read: number;
+  loved: number;
+  owned: number;
+}
+
+/** How much your latest read of a book counts towards following its author. */
+function ratingWeight(r: number | undefined): number {
+  if (r === undefined) return 1;
+  if (r >= 4.5) return 3;
+  if (r >= 4) return 2;
+  if (r >= 3) return 0.5;
+  return -1;
+}
+
+const STATUS_WEIGHT: Partial<Record<ReadStatus, number>> = { reading: 1, dnf: -1.5 };
+
+function weighRead(cur: AuthorTally, last: Reading | undefined) {
+  if (last?.status !== 'read') {
+    cur.weight += (last && STATUS_WEIGHT[last.status]) ?? 0;
+    return;
+  }
+  cur.read++;
+  if ((last.rating ?? 0) >= 4) cur.loved++;
+  cur.weight += ratingWeight(last.rating);
+}
+
 /** The authors you read most and like best. Not authors you only put down. */
 export function followedAuthors(books: Book[], readings: Reading[]): Followed[] {
   const muted = mutedNames();
-  const by = new Map<string, { name: string; weight: number; read: number; loved: number; owned: number }>();
+  const by = new Map<string, AuthorTally>();
   for (const b of books) {
     if (isMusic(b) || !b.authors?.[0]) continue;
     const a = b.authors[0];
@@ -100,22 +129,11 @@ export function followedAuthors(books: Book[], readings: Reading[]): Followed[] 
     if (!k || muted.has(k)) continue;
     const cur = by.get(k) ?? { name: a, weight: 0, read: 0, loved: 0, owned: 0 };
     const rs = readingsOf(readings, b.id);
-    const last = rs[rs.length - 1];
     if (b.owned !== false && !b.wishlist) {
       cur.owned++;
       cur.weight += 0.5;
     }
-    if (last?.status === 'read') {
-      cur.read++;
-      const r = last.rating;
-      if (r === undefined) cur.weight += 1;
-      else if (r >= 4) {
-        cur.loved++;
-        cur.weight += r >= 4.5 ? 3 : 2;
-      } else if (r >= 3) cur.weight += 0.5;
-      else cur.weight -= 1;
-    } else if (last?.status === 'reading') cur.weight += 1;
-    else if (last?.status === 'dnf') cur.weight -= 1.5;
+    weighRead(cur, rs[rs.length - 1]);
     by.set(k, cur);
   }
   return [...by.values()]
@@ -182,70 +200,66 @@ async function openLibraryNewest(author: string): Promise<any[]> {
   return data.docs ?? [];
 }
 
+const writtenBy = (names: string[] | undefined, ak: string) => (names ?? []).some((n) => authorKey(n) === ak);
+const https = (url?: string) => url?.replace(/^http:/, 'https:');
+
+function releaseFromGoogle(it: any, a: Followed, now: number): Release {
+  const v = it.volumeInfo ?? {};
+  const title = shortTitle(v.title ?? '');
+  const key = recKey(title, a.name);
+  const published = v.publishedDate ? String(v.publishedDate) : '';
+  return {
+    kind: 'book',
+    key,
+    title,
+    authors: [a.name],
+    cover: https(v.imageLinks?.thumbnail)?.replace('&edge=curl', ''),
+    pages: v.pageCount,
+    year: Number(published.slice(0, 4)) || undefined,
+    date: published.slice(0, 10),
+    upcoming: dateMs(published) > now,
+    isbn13: (v.industryIdentifiers ?? []).find((x: any) => x.type === 'ISBN_13')?.identifier,
+    link: https(v.infoLink),
+    reason: a.why,
+  };
+}
+
+function releaseFromOpenLibrary(d: any, a: Followed): Release {
+  const title = shortTitle(d.title ?? '');
+  return {
+    kind: 'book',
+    key: recKey(title, a.name),
+    title,
+    authors: [a.name],
+    cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : undefined,
+    year: d.first_publish_year,
+    date: d.first_publish_year ? String(d.first_publish_year) : '',
+    upcoming: false,
+    openLibraryKey: d.key,
+    isbn13: (d.isbn ?? []).find((x: string) => x.length === 13),
+    reason: a.why,
+  };
+}
+
 /** New and upcoming books by one author, newest first. */
 async function booksBy(a: Followed, have: Set<string>, now: number): Promise<Release[]> {
   const ak = authorKey(a.name);
-  const ok = (title: string, date: string | undefined) => {
-    if (!title || !date || isNotANewBook(title)) return false;
-    const ms = dateMs(date);
-    return Number.isFinite(ms) && ms > now - BACK && ms < now + AHEAD && !have.has(recKey(shortTitle(title), a.name));
+  const ok = (r: Release) => {
+    if (!r.title || !r.date || isNotANewBook(r.title)) return false;
+    const ms = dateMs(r.date);
+    return Number.isFinite(ms) && ms > now - BACK && ms < now + AHEAD && !have.has(r.key);
   };
-  const out = new Map<string, Release>();
-  let items: any[] | undefined;
+  let found: Release[];
   try {
-    items = await googleNewest(a.name);
+    const items = await googleNewest(a.name);
+    found = items.filter((it) => writtenBy(it.volumeInfo?.authors, ak)).map((it) => releaseFromGoogle(it, a, now));
   } catch {
-    items = undefined;
-  }
-  if (items) {
-    for (const it of items) {
-      const v = it.volumeInfo ?? {};
-      if (!(v.authors ?? []).some((n: string) => authorKey(n) === ak)) continue;
-      const title = shortTitle(v.title ?? '');
-      if (!ok(title, v.publishedDate)) continue;
-      const key = recKey(title, a.name);
-      if (out.has(key)) continue;
-      const isbn = (v.industryIdentifiers ?? []).find((x: any) => x.type === 'ISBN_13')?.identifier;
-      out.set(key, {
-        kind: 'book',
-        key,
-        title,
-        authors: [a.name],
-        cover: v.imageLinks?.thumbnail?.replace(/^http:/, 'https:').replace('&edge=curl', ''),
-        pages: v.pageCount,
-        year: Number(String(v.publishedDate).slice(0, 4)) || undefined,
-        date: String(v.publishedDate).slice(0, 10),
-        upcoming: dateMs(v.publishedDate) > now,
-        isbn13: isbn,
-        link: v.infoLink?.replace(/^http:/, 'https:'),
-        reason: a.why,
-      });
-    }
-  } else {
     // Google is busy or out of free lookups: Open Library knows recent books, though rarely upcoming ones.
     const docs = await openLibraryNewest(a.name);
-    for (const d of docs) {
-      if (!(d.author_name ?? []).some((n: string) => authorKey(n) === ak)) continue;
-      const title = shortTitle(d.title ?? '');
-      const date = d.first_publish_year ? String(d.first_publish_year) : undefined;
-      if (!ok(title, date)) continue;
-      const key = recKey(title, a.name);
-      if (out.has(key)) continue;
-      out.set(key, {
-        kind: 'book',
-        key,
-        title,
-        authors: [a.name],
-        cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : undefined,
-        year: d.first_publish_year,
-        date: date!,
-        upcoming: false,
-        openLibraryKey: d.key,
-        isbn13: (d.isbn ?? []).find((x: string) => x.length === 13),
-        reason: a.why,
-      });
-    }
+    found = docs.filter((d) => writtenBy(d.author_name, ak)).map((d) => releaseFromOpenLibrary(d, a));
   }
+  const out = new Map<string, Release>();
+  for (const r of found) if (ok(r) && !out.has(r.key)) out.set(r.key, r);
   return [...out.values()].slice(0, 4);
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
