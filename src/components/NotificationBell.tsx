@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ago, markNotifsRead, readNotifs, type Notif, type NotifTarget } from '../lib/notifications';
 
 /** The bell in the top bar: everything waiting for you, in one list. */
-export function NotificationBell({ notifs, onGo }: { notifs: Notif[]; onGo: (t: NotifTarget) => void }) {
+export function NotificationBell({ notifs, onGo }: Readonly<{ notifs: Notif[]; onGo: (t: NotifTarget) => void }>) {
   const ref = useRef<HTMLDetailsElement>(null);
   const [read, setRead] = useState(readNotifs);
   const [now, setNow] = useState(Date.now());

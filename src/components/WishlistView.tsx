@@ -21,7 +21,7 @@ interface Props {
   onImportDiscogs?: () => void;
 }
 
-export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRemove, onAddByTitle, onScanToWishlist, scanningToWishlist, music = false, onImportDiscogs }: Props) {
+export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRemove, onAddByTitle, onScanToWishlist, scanningToWishlist, music = false, onImportDiscogs }: Readonly<Props>) {
   const mine = useMemo(() => books.filter((b) => isMusic(b) === music), [books, music]);
   const list = useMemo(
     () => wishlistOf(mine, readings).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })),

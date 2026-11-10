@@ -10,7 +10,7 @@ interface Props {
   onChange: (list: Stylus[]) => void;
 }
 
-function NewStylusForm({ onAdd, onCancel }: { onAdd: (s: Stylus) => void; onCancel?: () => void }) {
+function NewStylusForm({ onAdd, onCancel }: Readonly<{ onAdd: (s: Stylus) => void; onCancel?: () => void }>) {
   const [name, setName] = useState('');
   const [shape, setShape] = useState<StylusShape>('elliptical');
   const [day, setDay] = useState(todayIso());
@@ -46,7 +46,7 @@ function NewStylusForm({ onAdd, onCancel }: { onAdd: (s: Stylus) => void; onCanc
   );
 }
 
-export function StylusPanel({ records, spins, styluses, onChange }: Props) {
+export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Props>) {
   const byId = useMemo(() => new Map(records.map((b) => [b.id, b])), [records]);
   const active = styluses.find((s) => !s.retiredOn);
   const old = styluses.filter((s) => s.retiredOn).sort((a, b) => b.retiredOn!.localeCompare(a.retiredOn!));

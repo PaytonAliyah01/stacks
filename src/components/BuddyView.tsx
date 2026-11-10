@@ -39,7 +39,7 @@ interface Props {
 const stars = (n: number) => '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '');
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
-function StartForm({ books, readings, friends, onStart, onCancel }: Pick<Props, 'books' | 'readings' | 'friends' | 'onStart'> & { onCancel: () => void }) {
+function StartForm({ books, readings, friends, onStart, onCancel }: Readonly<Pick<Props, 'books' | 'readings' | 'friends' | 'onStart'> & { onCancel: () => void }>) {
   const [q, setQ] = useState('');
   const [book, setBook] = useState<Book>();
   const [chosen, setChosen] = useState<string[]>([]);
@@ -131,7 +131,7 @@ function StartForm({ books, readings, friends, onStart, onCancel }: Pick<Props, 
   );
 }
 
-function Chat({ read, uid, myPage, finished, onOpenProfile }: { read: BuddyRead; uid: string; myPage: number; finished: boolean; onOpenProfile: (u: string) => void }) {
+function Chat({ read, uid, myPage, finished, onOpenProfile }: Readonly<{ read: BuddyRead; uid: string; myPage: number; finished: boolean; onOpenProfile: (u: string) => void }>) {
   const [msgs, setMsgs] = useState<ChatMessage[]>();
   const [body, setBody] = useState('');
   const [page, setPage] = useState(String(myPage || ''));
@@ -210,7 +210,7 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: { read: BuddyRead;
 }
 
 /** One buddy read. In a book club, `club` is the club's name. */
-export function ReadCard(props: Props & { read: BuddyRead; club?: string }) {
+export function ReadCard(props: Readonly<Props & { read: BuddyRead; club?: string }>) {
   const { read, uid, books, readings, friends, onOpen, onRefresh, onJoin, onOpenProfile } = props;
   const me = read.members.find((m) => m.user_id === uid);
   const [busy, setBusy] = useState(false);
@@ -353,7 +353,7 @@ export function ReadCard(props: Props & { read: BuddyRead; club?: string }) {
   );
 }
 
-export function BuddyView(props: Props) {
+export function BuddyView(props: Readonly<Props>) {
   const [starting, setStarting] = useState(false);
   const { friends } = props;
   // Book club books live on the Book clubs page.

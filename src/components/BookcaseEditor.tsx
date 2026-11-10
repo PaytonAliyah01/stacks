@@ -17,7 +17,7 @@ const COLORS: { value: Bookcase['color']; label: string }[] = [
   { value: 'black', label: 'Black' },
 ];
 
-export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, onClose }: Props) {
+export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, onClose }: Readonly<Props>) {
   const [d, setD] = useState(bookcase);
   const [confirm, setConfirm] = useState(false);
   const set = <K extends keyof Bookcase>(k: K, v: Bookcase[K]) => setD((x) => ({ ...x, [k]: v }));

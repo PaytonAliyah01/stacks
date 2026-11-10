@@ -14,7 +14,7 @@ const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 /** The record drawer's play log. Not a <form>: it sits inside the drawer's form. */
-export function SpinsPanel({ spins, onSpin, onRemove }: Props) {
+export function SpinsPanel({ spins, onSpin, onRemove }: Readonly<Props>) {
   const [earlier, setEarlier] = useState(false);
   const [day, setDay] = useState(todayIsoDate());
   const [all, setAll] = useState(false);

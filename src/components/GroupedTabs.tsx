@@ -15,7 +15,7 @@ export interface TabGroup<K extends string> {
  * small switch under it picks the page inside the current group. A group
  * opens on the page you used last.
  */
-export function GroupedTabs<K extends string>({ groups, current, onPick, label, line }: { groups: readonly TabGroup<K>[]; current: K; onPick: (k: K) => void; label: string; line?: boolean }) {
+export function GroupedTabs<K extends string>({ groups, current, onPick, label, line }: Readonly<{ groups: readonly TabGroup<K>[]; current: K; onPick: (k: K) => void; label: string; line?: boolean }>) {
   const active = groups.find((g) => g.pages.some(([k]) => k === current)) ?? groups[0];
   lastPage.set(`${label}|${active.label}`, current);
   const badge = (n?: number): ReactNode => (n ? <span className="tab-badge">{n}</span> : null);

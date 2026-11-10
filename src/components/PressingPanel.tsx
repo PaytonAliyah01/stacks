@@ -10,7 +10,7 @@ interface Props {
 }
 
 /** Which pressing you own and what state it's in. Not a <form>: it sits inside the drawer's form. */
-export function PressingPanel({ draft, onChange }: Props) {
+export function PressingPanel({ draft, onChange }: Readonly<Props>) {
   const vinyl = draft.kind === 'vinyl';
   const [finding, setFinding] = useState(false);
   const [hits, setHits] = useState<PressingHit[] | null>(null);

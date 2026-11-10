@@ -14,7 +14,7 @@ interface Props {
 }
 
 /** A friend's wishlist and wantlist, with "I'm getting this". */
-export function FriendWishlist({ uid, friendId, friendName, onChanged, heading = true }: Props) {
+export function FriendWishlist({ uid, friendId, friendName, onChanged, heading = true }: Readonly<Props>) {
   const [items, setItems] = useState<WishItem[]>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
@@ -112,7 +112,7 @@ export function FriendWishlist({ uid, friendId, friendName, onChanged, heading =
 }
 
 /** On your own wishlist: share it with friends for gift ideas, or keep it to yourself. */
-export function WishlistSharing({ uid, onSeeFriends }: { uid: string; onSeeFriends: () => void }) {
+export function WishlistSharing({ uid, onSeeFriends }: Readonly<{ uid: string; onSeeFriends: () => void }>) {
   const [open, setOpen] = useState<boolean>();
   const [error, setError] = useState<string>();
   useEffect(() => {

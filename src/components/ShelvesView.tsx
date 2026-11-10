@@ -43,7 +43,7 @@ interface DropTarget {
 
 const keyOf = (s: Spot) => `${s.bookcaseId}:${s.shelf}:${s.section}`;
 
-function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed = false }: { book: Book; highlight: boolean; onOpen: () => void; maxCm?: number; scale?: number; fixed?: boolean }) {
+function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed = false }: Readonly<{ book: Book; highlight: boolean; onOpen: () => void; maxCm?: number; scale?: number; fixed?: boolean }>) {
   const h = hash(book.title);
   const kind = kindOf(book);
   // At least wide enough to read the title and author; records are thin, so a bit less.
@@ -106,7 +106,7 @@ function Spine({ book, highlight, onOpen, maxCm = 28, scale = PX_PER_CM, fixed =
   );
 }
 
-export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove, onAddBookcase, onEditBookcase, readOnly = false }: Props) {
+export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove, onAddBookcase, onEditBookcase, readOnly = false }: Readonly<Props>) {
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const hlRef = useRef<HTMLDivElement>(null);
   const casesRef = useRef<HTMLDivElement>(null);

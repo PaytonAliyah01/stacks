@@ -13,7 +13,7 @@ interface Props {
 }
 
 /** Writing or editing one quote or note. Not a <form>: it sits inside the book drawer's form. */
-export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: { initial?: BookNote; bookId: string; pageCount?: number; onSave: (n: BookNote) => void; onCancel?: () => void }) {
+export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: Readonly<{ initial?: BookNote; bookId: string; pageCount?: number; onSave: (n: BookNote) => void; onCancel?: () => void }>) {
   const [kind, setKind] = useState<BookNote['kind']>(initial?.kind ?? 'quote');
   const [text, setText] = useState(initial?.text ?? '');
   const [page, setPage] = useState(initial?.page ? String(initial.page) : '');
@@ -79,7 +79,7 @@ export function NoteEditor({ initial, bookId, pageCount, onSave, onCancel }: { i
   );
 }
 
-export function NoteCard({ note, onSave, onRemove, onEdit, children }: { note: BookNote; onSave: (n: BookNote) => void; onRemove: (id: string) => void; onEdit: () => void; children?: React.ReactNode }) {
+export function NoteCard({ note, onSave, onRemove, onEdit, children }: Readonly<{ note: BookNote; onSave: (n: BookNote) => void; onRemove: (id: string) => void; onEdit: () => void; children?: React.ReactNode }>) {
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
   return (
@@ -133,7 +133,7 @@ export function NoteCard({ note, onSave, onRemove, onEdit, children }: { note: B
 }
 
 /** Quotes and notes for one book, in the book drawer. Saved right away. */
-export function NotesPanel({ bookId, pageCount, notes, onSave, onRemove }: Props) {
+export function NotesPanel({ bookId, pageCount, notes, onSave, onRemove }: Readonly<Props>) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const sorted = [...notes].sort((a, b) => (a.page ?? 1e9) - (b.page ?? 1e9) || a.createdAt.localeCompare(b.createdAt));

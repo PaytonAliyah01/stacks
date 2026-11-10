@@ -140,7 +140,7 @@ async function drawShareImage(w: Wrap): Promise<Blob | null> {
   return new Promise((resolve) => c.toBlob((b) => resolve(b), 'image/png'));
 }
 
-export function YearWrap({ books, readings, notes, challenges, onOpen }: Props) {
+export function YearWrap({ books, readings, notes, challenges, onOpen }: Readonly<Props>) {
   const years = useMemo(() => {
     const ys = new Set(readings.filter((r) => r.status === 'read' && r.finishedOn).map((r) => r.finishedOn!.slice(0, 4)));
     ys.add(String(new Date().getFullYear()));

@@ -10,7 +10,7 @@ const OPTIONS: [keyof ShareSettings, string, string][] = [
 ];
 
 /** Make, tune, copy or turn off your shareable shelf link. */
-export function ShareDialog({ uid, defaultTitle, onClose, onToast }: { uid: string; defaultTitle: string; onClose: () => void; onToast: (m: string) => void }) {
+export function ShareDialog({ uid, defaultTitle, onClose, onToast }: Readonly<{ uid: string; defaultTitle: string; onClose: () => void; onToast: (m: string) => void }>) {
   const [link, setLink] = useState<ShareLink | null>();
   const [s, setS] = useState<ShareSettings>(DEFAULT_SHARE);
   const [busy, setBusy] = useState(false);

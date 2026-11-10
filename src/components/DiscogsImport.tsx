@@ -12,7 +12,7 @@ interface Props {
 
 const USER_PREF = 'stacks.discogsUser';
 
-export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Props) {
+export function DiscogsImport({ books, onImport, onClose, wantlist = false }: Readonly<Props>) {
   const [list, setList] = useState<'collection' | 'wants'>(wantlist ? 'wants' : 'collection');
   const wants = list === 'wants';
   const [how, setHow] = useState<'user' | 'csv'>('user');

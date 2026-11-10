@@ -19,7 +19,7 @@ interface Props {
   onFindFriends: () => void;
 }
 
-export function MusicRecsView({ records, spins, uid, social, onOpen, onSpin, onWant, onFindFriends }: Props) {
+export function MusicRecsView({ records, spins, uid, social, onOpen, onSpin, onWant, onFindFriends }: Readonly<Props>) {
   const [hidden, setHidden] = useState(hiddenRecs);
   const taste = useMemo(() => musicTasteOf(records, spins), [records, spins]);
   const id = musicTasteId(taste);

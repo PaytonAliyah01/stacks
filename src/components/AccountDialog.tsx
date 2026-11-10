@@ -46,7 +46,7 @@ export function syncLabel(s: SyncState): string {
   }
 }
 
-export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, profile, onEditProfile, onViewProfile, startMode }: Props) {
+export function AccountDialog({ user, sync, recovering, onClose, onSignedOut, profile, onEditProfile, onViewProfile, startMode }: Readonly<Props>) {
   const [mode, setMode] = useState<Mode>(startMode ?? 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

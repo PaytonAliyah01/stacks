@@ -48,7 +48,7 @@ const splitList = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnShelf, onClose, books, bookcases, defaultCurrency, onCurrencyChange, readings = [], onReadingChange, onReadingRemove, notes = [], onNoteSave, onNoteRemove, seriesNames = [], spins = [], onSpin, onSpinRemove, onQuickSave }: Props) {
+export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnShelf, onClose, books, bookcases, defaultCurrency, onCurrencyChange, readings = [], onReadingChange, onReadingRemove, notes = [], onNoteSave, onNoteRemove, seriesNames = [], spins = [], onSpin, onSpinRemove, onQuickSave }: Readonly<Props>) {
   const [draft, setDraft] = useState<Book>(book);
   const [authors, setAuthors] = useState(book.authors.join(', '));
   const [tags, setTags] = useState(book.tags.join(', '));

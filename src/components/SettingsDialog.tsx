@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDiscogsToken, getGoogleKey, hasBuiltInGoogleKey, setDiscogsToken, setGoogleKey, testGoogleKey } from '../lib/lookup';
 
-export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+export function SettingsDialog({ onClose, onSaved }: Readonly<{ onClose: () => void; onSaved: () => void }>) {
   const [key, setKey] = useState(getGoogleKey());
   const [discogs, setDiscogs] = useState(getDiscogsToken());
   const [test, setTest] = useState<{ state: 'idle' | 'testing' | 'ok' | 'bad'; message?: string }>({ state: 'idle' });

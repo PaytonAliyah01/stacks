@@ -13,7 +13,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onClose }: Props) {
+export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onClose }: Readonly<Props>) {
   const [query, setQuery] = useState(initialQuery ?? '');
   const [busy, setBusy] = useState(false);
   const [hits, setHits] = useState<SearchHit[] | null>(null);

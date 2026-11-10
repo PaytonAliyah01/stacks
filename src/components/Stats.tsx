@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { FORMAT_LABELS, KIND_LABELS, formatMoney, isMusic, kindOf, type Book, type BookFormat, type Bookcase } from '../types';
 
-export function Bars({ rows, unit }: { rows: [string, number][]; unit?: (n: number) => string }) {
+export function Bars({ rows, unit }: Readonly<{ rows: [string, number][]; unit?: (n: number) => string }>) {
   const max = Math.max(1, ...rows.map((r) => r[1]));
   if (rows.length === 0) return <p className="muted">Nothing to show yet.</p>;
   return (
@@ -20,7 +20,7 @@ export function Bars({ rows, unit }: { rows: [string, number][]; unit?: (n: numb
 }
 
 
-export function Stats({ books, bookcases, onOpen }: { books: Book[]; bookcases: Bookcase[]; onOpen: (b: Book) => void }) {
+export function Stats({ books, bookcases, onOpen }: Readonly<{ books: Book[]; bookcases: Bookcase[]; onOpen: (b: Book) => void }>) {
   const s = useMemo(() => {
     const count = <K extends string>(keyOf: (b: Book) => K | K[] | undefined) => {
       const m = new Map<K, number>();

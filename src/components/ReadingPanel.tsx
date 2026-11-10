@@ -14,7 +14,7 @@ interface Props {
 const STATUSES: ReadStatus[] = ['want', 'reading', 'read', 'dnf'];
 
 /** Five stars, each split in half: click the left half for a half star. Click the same value again to clear. */
-export function Stars({ value, onChange }: { value?: number; onChange?: (v: number | undefined) => void }) {
+export function Stars({ value, onChange }: Readonly<{ value?: number; onChange?: (v: number | undefined) => void }>) {
   const [hover, setHover] = useState<number>();
   const shown = hover ?? value ?? 0;
   return (
@@ -45,7 +45,7 @@ export function Stars({ value, onChange }: { value?: number; onChange?: (v: numb
   );
 }
 
-export function ReadingPanel({ book, readings, onChange, onRemove }: Props) {
+export function ReadingPanel({ book, readings, onChange, onRemove }: Readonly<Props>) {
   const current = readings[0];
   const earlier = readings.slice(1).filter((r) => r.status === 'read' || r.status === 'dnf');
   const pct = progressPct(current, book);

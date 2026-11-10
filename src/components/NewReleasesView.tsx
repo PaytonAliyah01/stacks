@@ -26,7 +26,7 @@ interface Props {
   onSeen?: () => void;
 }
 
-function ReleaseCard({ r, kind, have, onWant, onWish, onHide }: { r: Release; kind: Props['kind']; have?: Book } & Pick<Props, 'onWant' | 'onWish' | 'onHide'>) {
+function ReleaseCard({ r, kind, have, onWant, onWish, onHide }: Readonly<{ r: Release; kind: Props['kind']; have?: Book } & Pick<Props, 'onWant' | 'onWish' | 'onHide'>>) {
   const wanted = have && (have.wishlist || have.owned === false);
   return (
     <li className="rec release">
@@ -62,7 +62,7 @@ function ReleaseCard({ r, kind, have, onWant, onWish, onHide }: { r: Release; ki
   );
 }
 
-export function NewReleasesView(p: Props) {
+export function NewReleasesView(p: Readonly<Props>) {
   const { kind, releases } = p;
   const soon = releases.filter((r) => r.upcoming).sort((a, b) => dateMs(a.date) - dateMs(b.date));
   const out = releases.filter((r) => !r.upcoming);

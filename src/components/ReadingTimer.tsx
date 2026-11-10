@@ -15,7 +15,7 @@ export function SessionForm({
   onCancel,
   cancelLabel = 'Cancel',
   extra,
-}: {
+}: Readonly<{
   book: Book;
   reading: Reading;
   minutes?: number;
@@ -25,7 +25,7 @@ export function SessionForm({
   onCancel: () => void;
   cancelLabel?: string;
   extra?: React.ReactNode;
-}) {
+}>) {
   const [minutes, setMinutes] = useState(initialMinutes !== undefined ? String(Math.max(1, Math.round(initialMinutes))) : '');
   const [page, setPage] = useState(lastPage(reading) !== undefined ? String(lastPage(reading)) : '');
   const [error, setError] = useState('');
@@ -71,13 +71,13 @@ export function TimerBar({
   reading,
   onChange,
   onSave,
-}: {
+}: Readonly<{
   active: ActiveSession;
   book?: Book;
   reading?: Reading;
   onChange: (a: ActiveSession | null) => void;
   onSave: (r: Reading) => void;
-}) {
+}>) {
   const [now, setNow] = useState(Date.now);
   const [stopping, setStopping] = useState(false);
   useEffect(() => {
@@ -149,7 +149,7 @@ export function TimerBar({
 }
 
 /** Today's minutes against the daily goal, and the streak. */
-export function TodaySummary({ readings }: { readings: Reading[] }) {
+export function TodaySummary({ readings }: Readonly<{ readings: Reading[] }>) {
   const [goal, setGoal] = useState(getDailyGoal);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(String(goal || 30));

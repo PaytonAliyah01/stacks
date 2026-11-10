@@ -51,7 +51,7 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-export function HomeView(props: Props) {
+export function HomeView(props: Readonly<Props>) {
   const { allBooks, readings, challenges, spins, profile, uid, onOpen, onGo, onSpin } = props;
   const owned = useMemo(() => allBooks.filter((b) => b.owned !== false), [allBooks]);
   const byId = useMemo(() => new Map(allBooks.map((b) => [b.id, b])), [allBooks]);

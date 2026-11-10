@@ -9,7 +9,7 @@ interface Props {
 }
 
 /** Mood, pace and content warnings for one book. Changes go into the drawer's draft. */
-export function MoodPanel({ draft, onChange: change }: Props) {
+export function MoodPanel({ draft, onChange: change }: Readonly<Props>) {
   // Any change by hand means the tags are yours now, not a guess.
   const onChange = (patch: Partial<Book>) => change({ ...patch, vibeGuessed: undefined, vibeChecked: true });
   const [guessing, setGuessing] = useState('');

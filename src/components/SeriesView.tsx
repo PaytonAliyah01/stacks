@@ -14,7 +14,7 @@ interface Props {
   onFindMissing: (seriesName: string, number: number) => void;
 }
 
-function NumberFix({ entry, onUpdate }: { entry: { book: Book }; onUpdate: (b: Book) => void }) {
+function NumberFix({ entry, onUpdate }: Readonly<{ entry: { book: Book }; onUpdate: (b: Book) => void }>) {
   const [v, setV] = useState('');
   const save = () => {
     const n = Number(v.replace(',', '.'));
@@ -39,7 +39,7 @@ function NumberFix({ entry, onUpdate }: { entry: { book: Book }; onUpdate: (b: B
 }
 
 /** Rename the series, change any book's number, or take a book out. */
-function EditSeries({ group, onUpdate, onDone }: { group: SeriesGroup; onUpdate: (b: Book) => void; onDone: () => void }) {
+function EditSeries({ group, onUpdate, onDone }: Readonly<{ group: SeriesGroup; onUpdate: (b: Book) => void; onDone: () => void }>) {
   const all = [...group.entries, ...group.unnumbered];
   const [name, setName] = useState(group.name);
   const [nums, setNums] = useState<Record<string, string>>(() =>
@@ -97,7 +97,7 @@ function EditSeries({ group, onUpdate, onDone }: { group: SeriesGroup; onUpdate:
 }
 
 /** Fold this series into another one, for when Stacks didn't see they're the same. */
-function MergeSeries({ group, others, onUpdate }: { group: SeriesGroup; others: string[]; onUpdate: (b: Book) => void }) {
+function MergeSeries({ group, others, onUpdate }: Readonly<{ group: SeriesGroup; others: string[]; onUpdate: (b: Book) => void }>) {
   if (!others.length) return null;
   return (
     <select
@@ -119,7 +119,7 @@ function MergeSeries({ group, others, onUpdate }: { group: SeriesGroup; others: 
 }
 
 /** Pick one of your books by the same author to add to this series. */
-function AddToSeries({ group, books, onUpdate }: { group: SeriesGroup; books: Book[]; onUpdate: (b: Book) => void }) {
+function AddToSeries({ group, books, onUpdate }: Readonly<{ group: SeriesGroup; books: Book[]; onUpdate: (b: Book) => void }>) {
   const [id, setId] = useState('');
   const [n, setN] = useState('');
   const authors = new Set(group.authors.map((a) => a.toLowerCase()));
@@ -154,7 +154,7 @@ function AddToSeries({ group, books, onUpdate }: { group: SeriesGroup; books: Bo
   );
 }
 
-export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }: Props) {
+export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }: Readonly<Props>) {
   const groups = useMemo(() => groupSeries(books, readings), [books, readings]);
   const [filter, setFilter] = useState<'all' | 'gaps' | 'unfinished'>('all');
   const [editing, setEditing] = useState<string | null>(null);

@@ -99,7 +99,7 @@ interface Actions {
   onHide: (r: Rec) => void;
 }
 
-function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }: { r: Rec; books: Book[]; readings: Reading[] } & Actions) {
+function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }: Readonly<{ r: Rec; books: Book[]; readings: Reading[] } & Actions>) {
   const local = r.bookId ? books.find((b) => b.id === r.bookId) : undefined;
   const queued = local && currentReading(readings, local.id)?.status === 'want';
   const by = r.authors.slice(0, 2).join(', ');
@@ -147,7 +147,7 @@ interface Props extends Omit<Actions, 'onHide'> {
   onFindFriends: () => void;
 }
 
-export function RecsView(props: Props) {
+export function RecsView(props: Readonly<Props>) {
   const { books, readings, uid, social } = props;
   const recs = useRecs(books, readings, uid, social);
   const actions: Actions = { onOpen: props.onOpen, onWant: props.onWant, onWish: props.onWish, onRead: props.onRead, onHide: recs.hide };
@@ -216,7 +216,7 @@ export function RecsView(props: Props) {
 }
 
 /** The Home card: a few picks, mixed from your shelves and new books. */
-export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: { books: Book[]; readings: Reading[]; uid?: string; social: boolean; onOpen: (b: Book) => void; onAll: () => void }) {
+export function HomeRecs({ books, readings, uid, social, onOpen, onAll }: Readonly<{ books: Book[]; readings: Reading[]; uid?: string; social: boolean; onOpen: (b: Book) => void; onAll: () => void }>) {
   const recs = useRecs(books, readings, uid, social);
   const picks: Rec[] = [];
   // Books already on your to-read list are in "Up next" right above.

@@ -38,7 +38,7 @@ interface Props {
 
 const sub = (b: Book) => [b.authors[0], KIND_LABELS[kindOf(b)].one, b.publishedDate?.slice(0, 4)].filter(Boolean).join(' · ');
 
-function RecordRow({ b, note, onOpen, onSpin }: { b: Book; note?: string; onOpen: (b: Book) => void; onSpin: (b: Book) => void }) {
+function RecordRow({ b, note, onOpen, onSpin }: Readonly<{ b: Book; note?: string; onOpen: (b: Book) => void; onSpin: (b: Book) => void }>) {
   return (
     <li className="record-row">
       <button className="record-open" onClick={() => onOpen(b)}>
@@ -53,7 +53,7 @@ function RecordRow({ b, note, onOpen, onSpin }: { b: Book; note?: string; onOpen
   );
 }
 
-function RecordList({ items, empty, onOpen, onSpin, note }: { items: Book[]; empty: string; onOpen: (b: Book) => void; onSpin: (b: Book) => void; note?: (b: Book) => string }) {
+function RecordList({ items, empty, onOpen, onSpin, note }: Readonly<{ items: Book[]; empty: string; onOpen: (b: Book) => void; onSpin: (b: Book) => void; note?: (b: Book) => string }>) {
   const [all, setAll] = useState(false);
   if (!items.length) return <p className="muted">{empty}</p>;
   return (
@@ -66,7 +66,7 @@ function RecordList({ items, empty, onOpen, onSpin, note }: { items: Book[]; emp
   );
 }
 
-export function ListeningView({ records, spins, onSpin, onOpen, onRemoveSpin, allRecords, styluses, onStylusChange, extra }: Props) {
+export function ListeningView({ records, spins, onSpin, onOpen, onRemoveSpin, allRecords, styluses, onStylusChange, extra }: Readonly<Props>) {
   const byId = useMemo(() => new Map(records.map((b) => [b.id, b])), [records]);
   const mine = useMemo(() => spins.filter((s) => byId.has(s.bookId)), [spins, byId]);
   const plays = useMemo(() => playsByRecord(mine), [mine]);

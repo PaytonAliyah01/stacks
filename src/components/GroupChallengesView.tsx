@@ -49,7 +49,7 @@ function presets(now = new Date()) {
   ];
 }
 
-function StartForm({ uid, friends, books, readings, onDone, onCancel }: { uid: string; friends: Friend[]; books: Book[]; readings: Reading[]; onDone: () => void; onCancel: () => void }) {
+function StartForm({ uid, friends, books, readings, onDone, onCancel }: Readonly<{ uid: string; friends: Friend[]; books: Book[]; readings: Reading[]; onDone: () => void; onCancel: () => void }>) {
   const p0 = presets()[0];
   const [name, setName] = useState(p0.name);
   const [measure, setMeasure] = useState<ChallengeMeasure>(p0.measure);
@@ -143,7 +143,7 @@ function StartForm({ uid, friends, books, readings, onDone, onCancel }: { uid: s
   );
 }
 
-function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupChallenge; uid: string; friends: Friend[]; onChanged: () => void; onOpenProfile: (u: string) => void; onJoin: () => Promise<void> }) {
+function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: Readonly<{ g: GroupChallenge; uid: string; friends: Friend[]; onChanged: () => void; onOpenProfile: (u: string) => void; onJoin: () => Promise<void> }>) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [inviting, setInviting] = useState(false);
@@ -260,7 +260,7 @@ function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupC
   );
 }
 
-export function GroupChallengesView(props: Props) {
+export function GroupChallengesView(props: Readonly<Props>) {
   const { uid, groups, onChanged } = props;
   const [starting, setStarting] = useState(false);
   const byId = useMemo(() => new Map(props.books.map((b) => [b.id, b])), [props.books]);

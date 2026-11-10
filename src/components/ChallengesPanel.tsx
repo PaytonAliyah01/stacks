@@ -14,7 +14,7 @@ interface Props {
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
-function ChallengeForm({ initial, onSave, onCancel }: { initial?: Challenge; onSave: (c: Challenge) => void; onCancel: () => void }) {
+function ChallengeForm({ initial, onSave, onCancel }: Readonly<{ initial?: Challenge; onSave: (c: Challenge) => void; onCancel: () => void }>) {
   const year = new Date().getFullYear();
   const [measure, setMeasure] = useState<ChallengeMeasure>(initial?.measure ?? 'books');
   const [goal, setGoal] = useState(String(initial?.goal ?? 24));
@@ -104,7 +104,7 @@ function ChallengeForm({ initial, onSave, onCancel }: { initial?: Challenge; onS
   );
 }
 
-export function ChallengesPanel({ challenges, books, readings, onSave, onRemove }: Props) {
+export function ChallengesPanel({ challenges, books, readings, onSave, onRemove }: Readonly<Props>) {
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);

@@ -13,7 +13,7 @@ interface Props {
 
 const APP_NAME: Record<ImportSource, string> = { goodreads: 'Goodreads', storygraph: 'The StoryGraph' };
 
-export function ImportDialog({ books, readings, notes = [], defaultFormat, onImport, onClose }: Props) {
+export function ImportDialog({ books, readings, notes = [], defaultFormat, onImport, onClose }: Readonly<Props>) {
   const [plan, setPlan] = useState<{ source: ImportSource; plan: ImportPlan; rows: number } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

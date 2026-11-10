@@ -55,7 +55,7 @@ const toLocalInput = (iso?: string | null) => {
 };
 const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 
-function FriendPicker({ friends, chosen, onChange }: { friends: Friend[]; chosen: string[]; onChange: (ids: string[]) => void }) {
+function FriendPicker({ friends, chosen, onChange }: Readonly<{ friends: Friend[]; chosen: string[]; onChange: (ids: string[]) => void }>) {
   return (
     <div className="buddy-friends">
       {friends.map((f) => (
@@ -70,7 +70,7 @@ function FriendPicker({ friends, chosen, onChange }: { friends: Friend[]; chosen
 }
 
 /** Pick a book: one from your library, or any title you type. */
-function BookPicker({ books, readings, value, onChange }: { books: Book[]; readings: Reading[]; value?: BuddyBook; onChange: (b?: BuddyBook) => void }) {
+function BookPicker({ books, readings, value, onChange }: Readonly<{ books: Book[]; readings: Reading[]; value?: BuddyBook; onChange: (b?: BuddyBook) => void }>) {
   const [q, setQ] = useState('');
   const [author, setAuthor] = useState('');
   const pool = useMemo(() => {
@@ -114,7 +114,7 @@ function BookPicker({ books, readings, value, onChange }: { books: Book[]; readi
   );
 }
 
-function StartClub({ friends, onStart, onCancel }: { friends: Friend[]; onStart: (name: string, about: string, ids: string[]) => Promise<void>; onCancel: () => void }) {
+function StartClub({ friends, onStart, onCancel }: Readonly<{ friends: Friend[]; onStart: (name: string, about: string, ids: string[]) => Promise<void>; onCancel: () => void }>) {
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
   const [chosen, setChosen] = useState<string[]>([]);
@@ -159,7 +159,7 @@ function StartClub({ friends, onStart, onCancel }: { friends: Friend[]; onStart:
   );
 }
 
-function MeetingForm({ initial, onSave, onCancel, saveLabel }: { initial?: { meet_at: string | null; meet_where: string | null }; onSave: (m: { meet_at: string | null; meet_where: string }) => Promise<void>; onCancel?: () => void; saveLabel: string }) {
+function MeetingForm({ initial, onSave, onCancel, saveLabel }: Readonly<{ initial?: { meet_at: string | null; meet_where: string | null }; onSave: (m: { meet_at: string | null; meet_where: string }) => Promise<void>; onCancel?: () => void; saveLabel: string }>) {
   const [at, setAt] = useState(toLocalInput(initial?.meet_at));
   const [where, setWhere] = useState(initial?.meet_where ?? '');
   const [busy, setBusy] = useState(false);
@@ -193,7 +193,7 @@ function MeetingForm({ initial, onSave, onCancel, saveLabel }: { initial?: { mee
   );
 }
 
-function ClubPage(props: Props & { club: Club; onBack: () => void }) {
+function ClubPage(props: Readonly<Props & { club: Club; onBack: () => void }>) {
   const { club, uid, friends, onRefresh } = props;
   const host = club.owner === uid;
   const me = club.members.find((m) => m.user_id === uid);
@@ -444,7 +444,7 @@ function ClubPage(props: Props & { club: Club; onBack: () => void }) {
   );
 }
 
-function ClubCard({ club, uid, onOpen, onJoin, onDecline, busy }: { club: Club; uid: string; onOpen: () => void; onJoin: () => void; onDecline: () => void; busy: boolean }) {
+function ClubCard({ club, uid, onOpen, onJoin, onDecline, busy }: Readonly<{ club: Club; uid: string; onOpen: () => void; onJoin: () => void; onDecline: () => void; busy: boolean }>) {
   const me = club.members.find((m) => m.user_id === uid);
   const now = club.books[0];
   const joined = club.members.filter((m) => m.status === 'joined');
@@ -479,7 +479,7 @@ function ClubCard({ club, uid, onOpen, onJoin, onDecline, busy }: { club: Club; 
 
 const OPEN = 'stacks.club.open';
 
-export function ClubsView(props: Props) {
+export function ClubsView(props: Readonly<Props>) {
   const { clubs, uid, friends } = props;
   const [starting, setStarting] = useState(false);
   const [openId, setOpenId] = useState<string | undefined>(() => {

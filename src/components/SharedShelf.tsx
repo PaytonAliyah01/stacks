@@ -8,7 +8,7 @@ type Tab = 'books' | 'music' | 'wishlist';
 const stars = (r: number) => '★'.repeat(Math.floor(r)) + (r % 1 ? '½' : '');
 
 /** What anyone with your shelf link sees. No account needed. */
-export function SharedShelf({ token }: { token: string }) {
+export function SharedShelf({ token }: Readonly<{ token: string }>) {
   const [shelf, setShelf] = useState<Shelf | null>();
   const [error, setError] = useState<string>();
   const [tab, setTab] = useState<Tab>('books');

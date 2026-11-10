@@ -84,7 +84,7 @@ function ShelfArt() {
   );
 }
 
-export function Welcome({ onSignIn, onSignUp, onTry, hasLocal }: Props) {
+export function Welcome({ onSignIn, onSignUp, onTry, hasLocal }: Readonly<Props>) {
   return (
     <div className="welcome">
       <header className="welcome-top">

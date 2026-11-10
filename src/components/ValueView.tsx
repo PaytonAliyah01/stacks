@@ -23,7 +23,7 @@ interface Props {
 
 const SOURCE_LABEL = { yours: 'your estimate', suggested: 'Discogs suggested', lowest: 'lowest on sale' } as const;
 
-export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, onOpen, onOpenSettings }: Props) {
+export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, onOpen, onOpenSettings }: Readonly<Props>) {
   const s = useMemo(() => summarize(records, currency), [records, currency]);
   const [all, setAll] = useState(false);
   const money = (n: number) => formatMoney(n, currency);

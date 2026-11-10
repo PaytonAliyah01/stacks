@@ -24,7 +24,7 @@ interface Props {
 const nameOf = (f: Pick<Friend, 'display_name' | 'username'>) => f.display_name || `@${f.username}`;
 
 /** The button for someone, whatever state your friendship is in. */
-export function FriendButton({ uid, them, friends, onChanged }: { uid: string; them: Found; friends: Friend[]; onChanged: () => void }) {
+export function FriendButton({ uid, them, friends, onChanged }: Readonly<{ uid: string; them: Found; friends: Friend[]; onChanged: () => void }>) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const f = friends.find((x) => x.id === them.id);
@@ -63,7 +63,7 @@ export function FriendButton({ uid, them, friends, onChanged }: { uid: string; t
   );
 }
 
-function Person({ f, onOpen, children }: { f: Found; onOpen?: () => void; children?: React.ReactNode }) {
+function Person({ f, onOpen, children }: Readonly<{ f: Found; onOpen?: () => void; children?: React.ReactNode }>) {
   return (
     <li className="person">
       <button className="person-open" onClick={onOpen} disabled={!onOpen}>
@@ -78,7 +78,7 @@ function Person({ f, onOpen, children }: { f: Found; onOpen?: () => void; childr
   );
 }
 
-export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProfile, onEditProfile, onBack, lending, lendingBadge = 0, gifts, initialTab }: Props) {
+export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProfile, onEditProfile, onBack, lending, lendingBadge = 0, gifts, initialTab }: Readonly<Props>) {
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Found[] | undefined>();
   const [suggested, setSuggested] = useState<(Found & { mutual: number })[]>([]);

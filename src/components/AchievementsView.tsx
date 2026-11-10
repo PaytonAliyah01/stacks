@@ -11,7 +11,7 @@ interface Props {
   onGoToChallenges: () => void;
 }
 
-function Medal({ mark, name, earnedOn, description, progress }: { mark: string; name: string; earnedOn: string | null; description: string; progress?: { now: number; target: number } }) {
+function Medal({ mark, name, earnedOn, description, progress }: Readonly<{ mark: string; name: string; earnedOn: string | null; description: string; progress?: { now: number; target: number } }>) {
   const pct = progress ? Math.min(100, Math.round((progress.now / progress.target) * 100)) : undefined;
   return (
     <li className={`achievement ${earnedOn ? 'earned' : 'locked'}`}>
@@ -34,7 +34,7 @@ function Medal({ mark, name, earnedOn, description, progress }: { mark: string; 
   );
 }
 
-export function AchievementsView({ books, readings, challenges, onGoToChallenges }: Props) {
+export function AchievementsView({ books, readings, challenges, onGoToChallenges }: Readonly<Props>) {
   const lifetime = useMemo(() => achievementsOf(books, readings), [books, readings]);
   const groups = [...new Set(lifetime.map((a) => a.group))];
   const earnedLifetime = lifetime.filter((a) => a.earnedOn).length;

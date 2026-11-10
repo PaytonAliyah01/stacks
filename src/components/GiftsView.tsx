@@ -14,7 +14,7 @@ interface Props {
 const nameOf = (f: { display_name: string | null; username: string }) => f.display_name || `@${f.username}`;
 
 /** Friends → Gifts: presents you're getting, and your friends' wishlists. */
-export function GiftsView({ uid, friends, onOpenProfile }: Props) {
+export function GiftsView({ uid, friends, onOpenProfile }: Readonly<Props>) {
   const [claims, setClaims] = useState<GiftClaim[]>();
   const [error, setError] = useState<string>();
   const accepted = useMemo(() => friends.filter((f) => f.status === 'accepted').sort((a, b) => nameOf(a).localeCompare(nameOf(b))), [friends]);

@@ -136,7 +136,7 @@ async function drawShareImage(w: Wrap): Promise<Blob | null> {
   return new Promise((resolve) => c.toBlob((b) => resolve(b), 'image/png'));
 }
 
-export function MusicWrap({ records, spins, onOpen }: Props) {
+export function MusicWrap({ records, spins, onOpen }: Readonly<Props>) {
   const years = useMemo(() => {
     const ys = new Set([...spins.map((s) => String(new Date(s.at).getFullYear())), ...records.filter((b) => b.owned !== false).map((b) => (b.acquiredOn ?? b.addedAt).slice(0, 4))]);
     ys.add(String(new Date().getFullYear()));

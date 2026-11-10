@@ -6,7 +6,7 @@ function hue(s: string) {
   return h;
 }
 
-export function Cover({ url, title, author, size = 'md', square = false }: { url?: string; title: string; author?: string; size?: 'sm' | 'md' | 'lg'; square?: boolean }) {
+export function Cover({ url, title, author, size = 'md', square = false }: Readonly<{ url?: string; title: string; author?: string; size?: 'sm' | 'md' | 'lg'; square?: boolean }>) {
   const shape = square ? ' cover-square' : '';
   const [failed, setFailed] = useState(false);
   if (url && !failed) {

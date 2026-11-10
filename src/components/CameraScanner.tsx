@@ -70,7 +70,7 @@ function cameraError(e: unknown): string {
 }
 
 /** Full-screen camera view. Keeps scanning until you close it, so you can do a whole stack in a row. */
-export function CameraScanner({ onCode, onClose }: Props) {
+export function CameraScanner({ onCode, onClose }: Readonly<Props>) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string>();
   const [starting, setStarting] = useState(true);

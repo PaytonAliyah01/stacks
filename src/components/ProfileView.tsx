@@ -23,7 +23,7 @@ interface Props {
   onLoansChanged?: () => void;
 }
 
-function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]; square?: boolean }) {
+function Shelf({ title, items, square }: Readonly<{ title: string; items?: ShowcaseItem[]; square?: boolean }>) {
   if (!items?.length) return null;
   return (
     <section className="profile-shelf">
@@ -46,7 +46,7 @@ function Shelf({ title, items, square }: { title: string; items?: ShowcaseItem[]
   );
 }
 
-export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn, uid, friends, onFriendsChanged, loans, onLoansChanged }: Props) {
+export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn, uid, friends, onFriendsChanged, loans, onLoansChanged }: Readonly<Props>) {
   const own = mine?.username === username;
   const [p, setP] = useState<Profile | null | undefined>(own ? mine : undefined);
   const [failed, setFailed] = useState(false);

@@ -18,7 +18,7 @@ const KINDS = [
 ] as const;
 
 /** A friend's shelves on their profile, with "Ask to borrow". */
-export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Props) {
+export function FriendShelf({ uid, friendId, friendName, loans, onChanged }: Readonly<Props>) {
   const [items, setItems] = useState<ShelfItem[] | null>();
   const [error, setError] = useState<string>();
   const [q, setQ] = useState('');

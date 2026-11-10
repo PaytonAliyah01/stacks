@@ -10,7 +10,7 @@ interface Props {
 }
 
 /** A record's track list with favorite stars. Not a <form>: it sits inside the drawer's form. */
-export function TracksPanel({ draft, onSave }: Props) {
+export function TracksPanel({ draft, onSave }: Readonly<Props>) {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
@@ -114,7 +114,7 @@ export function TracksPanel({ draft, onSave }: Props) {
   );
 }
 
-function TrackRow({ t, onStar }: { t: Track; onStar: () => void }) {
+function TrackRow({ t, onStar }: Readonly<{ t: Track; onStar: () => void }>) {
   return (
     <li className={t.favorite ? 'is-fav' : ''}>
       <span className="track-pos">{t.position}</span>

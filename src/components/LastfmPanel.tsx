@@ -9,7 +9,7 @@ interface Props {
 }
 
 /** Music → Listening: connect Last.fm so every spin is scrobbled. */
-export function LastfmPanel({ signedIn, onSignIn, tick }: Props) {
+export function LastfmPanel({ signedIn, onSignIn, tick }: Readonly<Props>) {
   const [status, setStatus] = useState<{ apiKey: string; username: string | null }>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

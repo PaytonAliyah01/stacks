@@ -14,7 +14,7 @@ interface Props {
 const MONTHS = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: 'short' }));
 const DAY = 86_400_000;
 
-export function ReadingStats({ books, readings, onOpen }: Props) {
+export function ReadingStats({ books, readings, onOpen }: Readonly<Props>) {
   const byId = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   const all = useMemo(
     () =>

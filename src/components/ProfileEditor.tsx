@@ -16,7 +16,7 @@ import {
   type Visibility,
 } from '../lib/profile';
 
-export function Avatar({ p, size = 40 }: { p: Pick<Profile, 'avatar_url' | 'avatar_color' | 'display_name' | 'username'>; size?: number }) {
+export function Avatar({ p, size = 40 }: Readonly<{ p: Pick<Profile, 'avatar_url' | 'avatar_color' | 'display_name' | 'username'>; size?: number }>) {
   return p.avatar_url ? (
     <img className="avatar" src={p.avatar_url} alt="" width={size} height={size} style={{ width: size, height: size }} />
   ) : (
@@ -33,7 +33,7 @@ const VISIBILITY: { v: Visibility; label: string; help: string }[] = [
 ];
 
 /** Pick up to 4 favorites from your own shelves. */
-function TopPicker({ label, pool, ids, onChange }: { label: string; pool: Book[]; ids: string[]; onChange: (ids: string[]) => void }) {
+function TopPicker({ label, pool, ids, onChange }: Readonly<{ label: string; pool: Book[]; ids: string[]; onChange: (ids: string[]) => void }>) {
   const [q, setQ] = useState('');
   const byId = useMemo(() => new Map(pool.map((b) => [b.id, b])), [pool]);
   const chosen = ids.map((id) => byId.get(id)).filter((b): b is Book => !!b);
@@ -99,7 +99,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSaved, onClose }: Props) {
+export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSaved, onClose }: Readonly<Props>) {
   const [username, setUsername] = useState(profile?.username ?? cleanUsername(email?.split('@')[0] ?? '').slice(0, 20));
   const [name, setName] = useState(profile?.display_name ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
