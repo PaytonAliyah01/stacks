@@ -187,9 +187,9 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
             </div>
           </div>
           {!avatarUrl && (
-            <div className="swatches" role="radiogroup" aria-label="Picture color">
+            <div className="color-dots" role="radiogroup" aria-label="Picture color">
               {AVATAR_COLORS.map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={c} className={`swatch ${color === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />
+                <button key={c} type="button" role="radio" aria-checked={color === c} aria-label={c} className={`color-dot ${color === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />
               ))}
             </div>
           )}
@@ -214,9 +214,9 @@ export function ProfileEditor({ uid, email, profile, books, makeShowcase, onSave
 
           <div className="field">
             <span>Profile color</span>
-            <div className="swatches" role="radiogroup" aria-label="Profile color">
+            <div className="color-dots" role="radiogroup" aria-label="Profile color">
               {ACCENTS.map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={accent === c} aria-label={c} className={`swatch ${accent === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setAccent(c)} />
+                <button key={c} type="button" role="radio" aria-checked={accent === c} aria-label={c} className={`color-dot ${accent === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setAccent(c)} />
               ))}
             </div>
           </div>
