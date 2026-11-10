@@ -90,17 +90,55 @@ export function parseDiscogsCsv(text: string): DiscogsItem[] {
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** A public Discogs collection, page by page. */
+function checkDiscogsAnswer(res: Response, user: string, list: 'collection' | 'wants') {
+  if (res.status === 404) throw new Error(`Discogs has no user called “${user}”.`);
+  if (res.status === 401 || res.status === 403)
+    throw new Error(`That ${list === 'wants' ? 'wantlist' : 'collection'} is private. Make it public in Discogs (Settings → Privacy), add your Discogs token under Backup → Lookup keys, or use the CSV file instead.`);
+  if (!res.ok) throw new Error(`Discogs answered with an error (${res.status}). Try again in a minute, or use the CSV file.`);
+}
+
+const PLAIN_FORMAT_WORDS = /^(lp|album|ep|single|compilation|reissue|repress|remastered|stereo|mono|12"|10"|7"|33 ⅓ rpm|45 rpm|gatefold)$/i;
+const realCover = (url?: string) => (url && !/spacer\.gif/.test(url) ? url : undefined);
+
+/** One release from the Discogs API, as Stacks keeps it. */
+function itemFromApi(r: any): DiscogsItem {
+  const b = r.basic_information ?? {};
+  const formats: any[] = b.formats ?? [];
+  const note = (id: number) => {
+    if (Array.isArray(r.notes)) return r.notes.find((n: any) => n.field_id === id)?.value || undefined;
+    return (id === 3 && r.notes) || undefined;
+  };
+  const label = b.labels?.[0];
+  const isVinyl = formats.some((f) => /vinyl/i.test(f.name));
+  return {
+    releaseId: b.id ?? r.id,
+    artists: (b.artists ?? []).map((a: any) => cleanArtist(a.name)).filter((a: string) => a && a !== 'Various').slice(0, 3),
+    title: b.title ?? '',
+    label: dropDiscogsNumber(label?.name ?? '') || undefined,
+    catalogNumber: label?.catno && label.catno !== 'none' ? label.catno : undefined,
+    format: formats.map((f) => [f.qty > 1 ? `${f.qty}x${f.name}` : f.name, ...(f.descriptions ?? [])].join(' ')).join(', '),
+    year: yearOf(b.year),
+    dateAdded: r.date_added,
+    mediaCondition: note(1),
+    sleeveCondition: note(2),
+    notes: note(3),
+    coverUrl: realCover(b.cover_image),
+    vinylColor: isVinyl ? formats.map((f) => f.text).filter(Boolean).join(', ') || undefined : undefined,
+    edition: formats.flatMap((f) => f.descriptions ?? []).filter((d: string) => !PLAIN_FORMAT_WORDS.test(d)).join(', ') || undefined,
+    genres: [...(b.genres ?? []), ...(b.styles ?? [])],
+  };
+}
+
 /** A public Discogs collection or wantlist, page by page. */
 export async function fetchDiscogsCollection(username: string, onProgress?: (got: number, total: number) => void, list: 'collection' | 'wants' = 'collection'): Promise<DiscogsItem[]> {
   const user = username.trim().replace(/^https?:\/\/(www\.)?discogs\.com\/(user\/)?/i, '').split('/')[0];
   if (!user) throw new Error('Type your Discogs username.');
   const token = getDiscogsToken();
   const items: DiscogsItem[] = [];
+  const path = list === 'wants' ? 'wants' : 'collection/folders/0/releases';
+  const auth = token ? `&token=${encodeURIComponent(token)}` : '';
   // Pages come one after another: each says how many there are, and Discogs limits how fast we may ask.
   const fetchPage = async (page: number): Promise<void> => {
-    const path = list === 'wants' ? 'wants' : 'collection/folders/0/releases';
-    const auth = token ? `&token=${encodeURIComponent(token)}` : '';
     const url = `https://api.discogs.com/users/${encodeURIComponent(user)}/${path}?per_page=100&page=${page}&sort=added&sort_order=desc${auth}`;
     let res: Response;
     try {
@@ -108,40 +146,13 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
     } catch {
       throw new Error("Couldn't reach Discogs. Check your internet connection, or use the CSV file instead.");
     }
-    if (res.status === 404) throw new Error(`Discogs has no user called “${user}”.`);
-    if (res.status === 401 || res.status === 403)
-      throw new Error(`That ${list === 'wants' ? 'wantlist' : 'collection'} is private. Make it public in Discogs (Settings → Privacy), add your Discogs token under Backup → Lookup keys, or use the CSV file instead.`);
     if (res.status === 429) {
       await pause(5000);
       return fetchPage(page);
     }
-    if (!res.ok) throw new Error(`Discogs answered with an error (${res.status}). Try again in a minute, or use the CSV file.`);
+    checkDiscogsAnswer(res, user, list);
     const data = (await res.json()) as any;
-    for (const r of (list === 'wants' ? data.wants : data.releases) ?? []) {
-      const b = r.basic_information ?? {};
-      const formats: any[] = b.formats ?? [];
-      const note = (id: number) => {
-        if (Array.isArray(r.notes)) return r.notes.find((n: any) => n.field_id === id)?.value || undefined;
-        return (id === 3 && r.notes) || undefined;
-      };
-      items.push({
-        releaseId: b.id ?? r.id,
-        artists: (b.artists ?? []).map((a: any) => cleanArtist(a.name)).filter((a: string) => a && a !== 'Various').slice(0, 3),
-        title: b.title ?? '',
-        label: dropDiscogsNumber(b.labels?.[0]?.name ?? '') || undefined,
-        catalogNumber: b.labels?.[0]?.catno && b.labels[0].catno !== 'none' ? b.labels[0].catno : undefined,
-        format: formats.map((f) => [f.qty > 1 ? `${f.qty}x${f.name}` : f.name, ...(f.descriptions ?? [])].join(' ')).join(', '),
-        year: yearOf(b.year),
-        dateAdded: r.date_added,
-        mediaCondition: note(1),
-        sleeveCondition: note(2),
-        notes: note(3),
-        coverUrl: b.cover_image && !/spacer\.gif/.test(b.cover_image) ? b.cover_image : undefined,
-        vinylColor: formats.some((f) => /vinyl/i.test(f.name)) ? formats.map((f) => f.text).filter(Boolean).join(', ') || undefined : undefined,
-        edition: formats.flatMap((f) => f.descriptions ?? []).filter((d: string) => !/^(lp|album|ep|single|compilation|reissue|repress|remastered|stereo|mono|12"|10"|7"|33 ⅓ rpm|45 rpm|gatefold)$/i.test(d)).join(', ') || undefined,
-        genres: [...(b.genres ?? []), ...(b.styles ?? [])],
-      });
-    }
+    items.push(...((list === 'wants' ? data.wants : data.releases) ?? []).map(itemFromApi));
     const pages = data.pagination?.pages ?? 1;
     onProgress?.(items.length, data.pagination?.items ?? items.length);
     if (page >= pages) return;
@@ -168,12 +179,90 @@ export interface DiscogsPlan {
   alreadyOwned: Book[];
 }
 
+interface DiscogsCtx {
+  plan: DiscogsPlan;
+  byRelease: Map<number, Book>;
+  now: string;
+  wanted: boolean;
+}
+
+/** Wantlist import: a record you already have in Stacks. */
+function planWantedMatch(it: DiscogsItem, match: Book, c: DiscogsCtx) {
+  if (match.owned !== false) c.plan.alreadyOwned.push(match);
+  else if (!match.wishlist || (it.releaseId && !match.discogsId))
+    c.plan.updated.push({ ...match, wishlist: true, discogsId: match.discogsId ?? it.releaseId, coverUrl: match.coverUrl ?? it.coverUrl, updatedAt: c.now });
+  else c.plan.unchanged++;
+}
+
+/** Collection import: a record you already have in Stacks. */
+function planOwnedMatch(it: DiscogsItem, match: Book, c: DiscogsCtx) {
+  if (match.owned === false) {
+    // On your wantlist (or read-only) in Stacks, but in your Discogs collection: you have it now.
+    c.plan.updated.push({ ...match, owned: undefined, wishlist: undefined, discogsId: match.discogsId ?? it.releaseId, coverUrl: match.coverUrl ?? it.coverUrl, catalogNumber: match.catalogNumber ?? it.catalogNumber, mediaCondition: it.mediaCondition, sleeveCondition: it.sleeveCondition, updatedAt: c.now });
+    return;
+  }
+  if (match.discogsId === it.releaseId || !it.releaseId) {
+    c.plan.unchanged++;
+    return;
+  }
+  const up: Book = {
+    ...match,
+    discogsId: it.releaseId,
+    catalogNumber: match.catalogNumber ?? it.catalogNumber,
+    mediaCondition: match.mediaCondition ?? it.mediaCondition,
+    sleeveCondition: match.sleeveCondition ?? it.sleeveCondition,
+    coverUrl: match.coverUrl ?? it.coverUrl,
+    updatedAt: c.now,
+  };
+  c.plan.updated.push(up);
+  c.byRelease.set(it.releaseId, up);
+}
+
+function addedAtOf(dateAdded: string | undefined, now: string): string {
+  const iso = dateAdded?.replace(' ', 'T');
+  return iso && !Number.isNaN(Date.parse(iso)) ? new Date(iso).toISOString() : now;
+}
+
+function newRecord(it: DiscogsItem, kind: Exclude<ItemKind, 'book'>, c: DiscogsCtx): Book {
+  const { wanted, now } = c;
+  return {
+    id: newId(),
+    kind,
+    title: it.title,
+    authors: it.artists.length ? it.artists : ['Various artists'],
+    publisher: it.label,
+    publishedDate: it.year,
+    subjects: it.genres.slice(0, 8),
+    coverUrl: it.coverUrl,
+    sources: ['discogs'],
+    discogsId: it.releaseId,
+    catalogNumber: it.catalogNumber,
+    vinylColor: it.vinylColor,
+    edition: it.edition,
+    mediaCondition: wanted ? undefined : it.mediaCondition,
+    sleeveCondition: wanted ? undefined : it.sleeveCondition,
+    notes: it.notes,
+    ...(wanted ? { owned: false, wishlist: true } : {}),
+    vinylSize: kind === 'vinyl' ? vinylSizeOf(it.format) : undefined,
+    discCount: discCountOf(it.format),
+    format: 'other',
+    copies: 1,
+    tags: [],
+    addedAt: addedAtOf(it.dateAdded, now),
+    updatedAt: now,
+  };
+}
+
 /** wanted: the items are a wantlist, so new ones go on your wantlist instead of into your collection. */
 export function planDiscogsImport(items: DiscogsItem[], existing: Book[], wanted = false): DiscogsPlan {
-  const byRelease = new Map(existing.filter((b) => b.discogsId).map((b) => [b.discogsId!, b]));
   const byKey = new Map(existing.map((b) => [key(b.authors[0], b.title, kindOf(b)), b]));
-  const plan: DiscogsPlan = { newBooks: [], updated: [], unchanged: 0, skipped: [], alreadyOwned: [] };
-  const now = new Date().toISOString();
+  const c: DiscogsCtx = {
+    plan: { newBooks: [], updated: [], unchanged: 0, skipped: [], alreadyOwned: [] },
+    byRelease: new Map(existing.filter((b) => b.discogsId).map((b) => [b.discogsId!, b])),
+    now: new Date().toISOString(),
+    wanted,
+  };
+  const { plan } = c;
   for (const it of items) {
     const kind = kindOfFormat(it.format);
     if (!kind) {
@@ -181,69 +270,17 @@ export function planDiscogsImport(items: DiscogsItem[], existing: Book[], wanted
       continue;
     }
     const k = key(it.artists[0] ?? 'Various artists', it.title, kind);
-    const match = (it.releaseId && byRelease.get(it.releaseId)) || byKey.get(k);
-    if (match && wanted) {
-      if (match.owned !== false) plan.alreadyOwned.push(match);
-      else if (!match.wishlist || (it.releaseId && !match.discogsId)) plan.updated.push({ ...match, wishlist: true, discogsId: match.discogsId ?? it.releaseId, coverUrl: match.coverUrl ?? it.coverUrl, updatedAt: now });
-      else plan.unchanged++;
-      continue;
-    }
-    if (match?.owned === false) {
-      // On your wantlist (or read-only) in Stacks, but in your Discogs collection: you have it now.
-      plan.updated.push({ ...match, owned: undefined, wishlist: undefined, discogsId: match.discogsId ?? it.releaseId, coverUrl: match.coverUrl ?? it.coverUrl, catalogNumber: match.catalogNumber ?? it.catalogNumber, mediaCondition: it.mediaCondition, sleeveCondition: it.sleeveCondition, updatedAt: now });
-      continue;
-    }
+    const match = (it.releaseId && c.byRelease.get(it.releaseId)) || byKey.get(k);
     if (match) {
-      if (match.discogsId === it.releaseId || !it.releaseId) {
-        plan.unchanged++;
-        continue;
-      }
-      const up: Book = {
-        ...match,
-        discogsId: it.releaseId,
-        catalogNumber: match.catalogNumber ?? it.catalogNumber,
-        mediaCondition: match.mediaCondition ?? it.mediaCondition,
-        sleeveCondition: match.sleeveCondition ?? it.sleeveCondition,
-        coverUrl: match.coverUrl ?? it.coverUrl,
-        updatedAt: now,
-      };
-      plan.updated.push(up);
-      byRelease.set(it.releaseId, up);
+      if (wanted) planWantedMatch(it, match, c);
+      else planOwnedMatch(it, match, c);
       continue;
     }
     // Two copies of the same release in Discogs are one item with two copies here.
-    const dupe = plan.newBooks.find((b) => (it.releaseId && b.discogsId === it.releaseId) || (!it.releaseId && key(b.authors[0], b.title, kindOf(b)) === k));
-    if (dupe) {
-      dupe.copies++;
-      continue;
-    }
-    const added = it.dateAdded && !Number.isNaN(Date.parse(it.dateAdded.replace(' ', 'T'))) ? new Date(it.dateAdded.replace(' ', 'T')).toISOString() : now;
-    plan.newBooks.push({
-      id: newId(),
-      kind,
-      title: it.title,
-      authors: it.artists.length ? it.artists : ['Various artists'],
-      publisher: it.label,
-      publishedDate: it.year,
-      subjects: it.genres.slice(0, 8),
-      coverUrl: it.coverUrl,
-      sources: ['discogs'],
-      discogsId: it.releaseId,
-      catalogNumber: it.catalogNumber,
-      vinylColor: it.vinylColor,
-      edition: it.edition,
-      mediaCondition: wanted ? undefined : it.mediaCondition,
-      sleeveCondition: wanted ? undefined : it.sleeveCondition,
-      notes: it.notes,
-      ...(wanted ? { owned: false, wishlist: true } : {}),
-      vinylSize: kind === 'vinyl' ? vinylSizeOf(it.format) : undefined,
-      discCount: discCountOf(it.format),
-      format: 'other',
-      copies: 1,
-      tags: [],
-      addedAt: added,
-      updatedAt: now,
-    });
+    const sameRelease = (b: Book) => (it.releaseId ? b.discogsId === it.releaseId : key(b.authors[0], b.title, kindOf(b)) === k);
+    const dupe = plan.newBooks.find(sameRelease);
+    if (dupe) dupe.copies++;
+    else plan.newBooks.push(newRecord(it, kind, c));
   }
   return plan;
 }

@@ -30,35 +30,48 @@ export interface ImportRow {
   contentWarnings?: string[];
 }
 
+/** Reads a quoted CSV field from just after its opening quote. Returns the text and where to carry on. */
+function readQuoted(s: string, from: number): [string, number] {
+  let out = '';
+  let i = from;
+  while (i < s.length) {
+    if (s[i] !== '"') {
+      out += s[i];
+      i++;
+    } else if (s[i + 1] === '"') {
+      out += '"';
+      i += 2;
+    } else return [out, i + 1];
+  }
+  return [out, i];
+}
+
 /** A small CSV reader: quoted fields, doubled quotes and line breaks inside quotes. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
-  let quoted = false;
   const s = text.replace(/^\uFEFF/, '');
-  const endRow = () => {
+  const endField = () => {
     row.push(field);
-    if (row.some((f) => f !== '')) rows.push(row);
-    row = [];
     field = '';
   };
-  for (let i = 0; i < s.length; i++) {
+  const endRow = () => {
+    endField();
+    if (row.some((f) => f !== '')) rows.push(row);
+    row = [];
+  };
+  let i = 0;
+  while (i < s.length) {
     const ch = s[i];
-    if (quoted) {
-      // Inside quotes: a doubled quote is a quote, a single one ends the field.
-      const doubled = ch === '"' && s[i + 1] === '"';
-      if (doubled) i++;
-      if (ch === '"' && !doubled) quoted = false;
-      else field += ch;
-      continue;
-    }
-    if (ch === '"') quoted = true;
-    else if (ch === ',') {
-      row.push(field);
-      field = '';
-    } else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && s[i + 1] === '\n') i++;
+    i++;
+    if (ch === '"') {
+      const [quoted, next] = readQuoted(s, i);
+      field += quoted;
+      i = next;
+    } else if (ch === ',') endField();
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && s[i] === '\n') i++;
       endRow();
     } else field += ch;
   }
