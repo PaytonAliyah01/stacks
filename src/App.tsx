@@ -59,6 +59,7 @@ import { SERIES_FINDER_VERSION, isPublisherSeries, parseSeries, seriesFromTitle,
 import { TimerBar } from './components/ReadingTimer';
 import { loadActive, saveActive, startSession, type ActiveSession } from './lib/sessions';
 import { countOf } from './lib/labels';
+import { eachInTurn, pause } from './lib/inTurn';
 import { guessVibe, matchesVibe } from './lib/moods';
 import { ReadingStats } from './components/ReadingStats';
 import { AchievementsView } from './components/AchievementsView';
@@ -800,20 +801,20 @@ function StacksApp() {
     vibeBusy.current = true;
     (async () => {
       let filled = 0;
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
+        if (!b || !needs(b)) return;
         let g = guessVibe([...b.subjects, ...b.tags]);
         if (!g.moods.length) {
           try {
             g = guessVibe([...b.subjects, ...b.tags, ...(await fetchSubjects(b))]);
           } catch {
-            break; // offline or rate-limited: try again next time
+            return 'stop'; // offline or rate-limited: try again next time
           }
-          await new Promise((r) => setTimeout(r, 800));
+          await pause(800);
         }
         const latest = await store.get(id);
-        if (!latest || !needs(latest)) continue;
+        if (!latest || !needs(latest)) return;
         const found = g.moods.length > 0;
         const next: Book = {
           ...latest,
@@ -823,7 +824,7 @@ function StacksApp() {
         await store.put(next);
         setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
         if (found) filled++;
-      }
+      });
       vibeBusy.current = false;
       if (filled) setToast(`Added moods to ${filled} book${filled === 1 ? '' : 's'}. Open a book to adjust them.`);
     })().catch(() => {
@@ -842,14 +843,14 @@ function StacksApp() {
     discogsBusy.current = true;
     (async () => {
       let filled = 0;
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
+        if (!b || !needs(b)) return;
         let found: Awaited<ReturnType<typeof fetchDiscogsRelease>> = {};
         try {
           found = await fetchDiscogsRelease(b.discogsId!);
         } catch (err) {
-          if (!/HTTP 404/.test(String(err))) break; // offline or too many requests: try again next time
+          if (!/HTTP 404/.test(String(err))) return 'stop'; // offline or too many requests: try again next time
         }
         if (!b.coverUrl && !found.coverUrl && b.authors[0]) {
           try {
@@ -859,7 +860,7 @@ function StacksApp() {
           }
         }
         const latest = await store.get(id);
-        if (!latest) continue;
+        if (!latest) return;
         const next: Book = {
           ...latest,
           discogsChecked: true,
@@ -879,8 +880,8 @@ function StacksApp() {
         await store.put(next);
         setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
         if (next.coverUrl !== latest.coverUrl || next.trackCount !== latest.trackCount) filled++;
-        await new Promise((r) => setTimeout(r, getDiscogsToken() ? 1100 : 2600));
-      }
+        await pause(getDiscogsToken() ? 1100 : 2600);
+      });
       discogsBusy.current = false;
       setDiscogsDone((n) => n + 1);
       if (filled) setToast(`Added covers and details for ${filled} record${filled === 1 ? '' : 's'} from Discogs.`);
@@ -897,22 +898,22 @@ function StacksApp() {
     if (!loaded || tracksBusy.current || discogsBusy.current || !allBooks.some(needs)) return;
     tracksBusy.current = true;
     (async () => {
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
+        if (!b || !needs(b)) return;
         let tracks: Book['tracks'];
         try {
           tracks = await fetchTrackList(b);
         } catch {
-          break; // offline: try again next time
+          return 'stop'; // offline: try again next time
         }
         const latest = await store.get(id);
-        if (!latest || !needs(latest)) continue;
+        if (!latest || !needs(latest)) return;
         const next: Book = { ...latest, tracks, tracksChecked: true, trackCount: latest.trackCount ?? tracks?.length, updatedAt: new Date().toISOString() };
         await store.put(next);
         setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
-        await new Promise((r) => setTimeout(r, 2600));
-      }
+        await pause(2600);
+      });
       tracksBusy.current = false;
     })().catch(() => {
       tracksBusy.current = false;
@@ -930,9 +931,9 @@ function StacksApp() {
     seriesBusy.current = true;
     (async () => {
       let found = 0;
-      for (const { id } of allBooks.filter(needs)) {
+      await eachInTurn(allBooks.filter(needs), async ({ id }) => {
         const b = await store.get(id);
-        if (!b || !needs(b)) continue;
+        if (!b || !needs(b)) return;
         const candidates: BookSeries[] = [];
         const fromTitle = seriesFromTitle(b.title);
         if (fromTitle) candidates.push(fromTitle);
@@ -947,12 +948,12 @@ function StacksApp() {
               if (p && !isPublisherSeries(p.name)) candidates.push(p);
             }
           } catch {
-            break; // offline: try again next time
+            return 'stop'; // offline: try again next time
           }
-          await new Promise((r) => setTimeout(r, 800));
+          await pause(800);
         }
         const latest = await store.get(id);
-        if (!latest || !needs(latest)) continue;
+        if (!latest || !needs(latest)) return;
         // Keep the series the book already has and just add its number, when one turns up.
         // A publisher line picked up by an older version isn't a real series.
         const old = latest.series && !isPublisherSeries(latest.series.name) ? latest.series : undefined;
@@ -963,7 +964,7 @@ function StacksApp() {
         await store.put(next);
         setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
         if (changed) found++;
-      }
+      });
       seriesBusy.current = false;
       if (found) setToast(`Updated the series for ${found} book${found === 1 ? '' : 's'}. See Books → Series.`);
     })().catch(() => {
@@ -1328,9 +1329,10 @@ function StacksApp() {
     const cur = marketCurrency(currency);
     let priced = 0;
     let problem = '';
-    for (let i = 0; i < todo.length && !stopPrices.current; i++) {
-      const b = await store.get(todo[i].id);
-      if (!b) continue;
+    await eachInTurn(todo, async (item, i) => {
+      if (stopPrices.current) return 'stop';
+      const b = await store.get(item.id);
+      if (!b) return;
       let id = b.discogsId;
       try {
         if (!id && b.barcode) id = await discogsIdForBarcode(b.barcode);
@@ -1340,7 +1342,7 @@ function StacksApp() {
             m = await fetchMarketPrices(id, cur, b.mediaCondition);
           } catch (err) {
             if (!/HTTP 429/.test(String(err))) throw err;
-            await new Promise((r) => setTimeout(r, 15000)); // Discogs asked us to slow down
+            await pause(15000); // Discogs asked us to slow down
             m = await fetchMarketPrices(id, cur, b.mediaCondition);
           }
           const latest = (await store.get(b.id)) ?? b;
@@ -1350,13 +1352,13 @@ function StacksApp() {
           if (m.lowest !== undefined || m.suggested !== undefined) priced++;
         }
       } catch (err) {
-        if (/HTTP 404/.test(String(err))) continue;
+        if (/HTTP 404/.test(String(err))) return;
         problem = "Couldn't reach Discogs, so prices stopped updating. Try again later.";
-        break;
+        return 'stop';
       }
       setPriceRun({ done: i + 1, total: todo.length });
-      await new Promise((r) => setTimeout(r, token ? 2200 : 2600));
-    }
+      await pause(token ? 2200 : 2600);
+    });
     setPriceRun(null);
     setToast(problem || `Updated prices for ${priced} record${priced === 1 ? '' : 's'}.`);
   };
@@ -1422,7 +1424,7 @@ function StacksApp() {
   const removeFromWishlist = async (b: Book) => {
     const mine = readings.filter((r) => r.bookId === b.id);
     const want = mine.filter((r) => r.status === 'want');
-    for (const r of want) await store.removeReading(r.id);
+    await Promise.all(want.map((r) => store.removeReading(r.id)));
     // Nothing else to remember about it: drop the book altogether.
     if (mine.length === want.length) await store.remove(b.id);
     else await store.put({ ...b, wishlist: undefined, updatedAt: new Date().toISOString() });
@@ -1549,7 +1551,8 @@ function StacksApp() {
     const orphans = all.filter(
       (b) => b.placement?.bookcaseId === bc.id && (b.placement.shelf > bc.shelves || b.placement.section > bc.sections),
     );
-    for (const o of orphans) await moveTo(o.id, null);
+    // One at a time: each move renumbers the shelf it leaves.
+    await eachInTurn(orphans, (o) => moveTo(o.id, null));
     if (editingCase?.isNew && !scanSpot) setDefaultSpot({ bookcaseId: bc.id, shelf: 1, section: 1 });
     setToast(editingCase?.isNew ? `Added ${bc.name}.` : 'Saved.');
     setEditingCase(null);
@@ -2592,13 +2595,17 @@ function StacksApp() {
           onClose={() => setImportOpen(false)}
           onImport={async (plan: ImportPlan) => {
             await store.importMany([...plan.newBooks, ...plan.updatedBooks], [], plan.readings, [], plan.notes);
-            for (const id of plan.removedReadings) await store.removeReading(id);
+            await Promise.all(plan.removedReadings.map((id) => store.removeReading(id)));
             // Fold earlier imported copies into the book you own under another edition's title.
-            for (const m of plan.merges) {
-              for (const r of readings) if (r.bookId === m.from && !plan.removedReadings.includes(r.id)) await store.putReading({ ...r, bookId: m.into, updatedAt: new Date().toISOString() });
-              for (const n of notes) if (n.bookId === m.from) await store.putNote({ ...n, bookId: m.into, updatedAt: new Date().toISOString() });
-              await store.remove(m.from);
-            }
+            const now = new Date().toISOString();
+            await Promise.all(
+              plan.merges.map(async (m) => {
+                const moveReadings = readings.filter((r) => r.bookId === m.from && !plan.removedReadings.includes(r.id));
+                await Promise.all(moveReadings.map((r) => store.putReading({ ...r, bookId: m.into, updatedAt: now })));
+                await Promise.all(notes.filter((n) => n.bookId === m.from).map((n) => store.putNote({ ...n, bookId: m.into, updatedAt: now })));
+                await store.remove(m.from);
+              }),
+            );
             await reload();
             setImportOpen(false);
             setView('reading');

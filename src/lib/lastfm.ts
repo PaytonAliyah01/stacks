@@ -1,5 +1,6 @@
 import type { Book, Spin, Track } from '../types';
 import { SITE_URL, supabase } from './cloud';
+import { eachInTurn } from './inTurn';
 
 /**
  * Last.fm scrobbling. The "lastfm" Supabase Edge Function holds the secret
@@ -161,14 +162,15 @@ export async function flush(now = Date.now()): Promise<{ sent: number; error?: s
     const q = readQueue().filter((x) => now - x.timestamp * 1000 < MAX_AGE_MS);
     const ready = q.filter((x) => x.due <= now);
     let sent = 0;
-    for (let i = 0; i < ready.length; i += 50) {
-      const batch = ready.slice(i, i + 50);
+    const batches: (typeof ready)[] = [];
+    for (let i = 0; i < ready.length; i += 50) batches.push(ready.slice(i, i + 50));
+    await eachInTurn(batches, async (batch) => {
       await call('scrobble', { tracks: batch.map(({ spinId: _s, due: _d, ...t }) => t) });
       sent += batch.length;
       // Take them off the queue as soon as they're in, in case the next batch fails.
       const gone = new Set(batch);
       writeQueue(readQueue().filter((x) => ![...gone].some((g) => g.spinId === x.spinId && g.timestamp === x.timestamp && g.track === x.track)));
-    }
+    });
     if (q.length !== readQueue().length && !ready.length) writeQueue(q);
     return { sent };
   } catch (e) {

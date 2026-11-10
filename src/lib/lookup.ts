@@ -1,4 +1,5 @@
 import type { BookMetadata, Track } from '../types';
+import { firstInTurn, pause } from './inTurn';
 
 const TIMEOUT_MS = 8000;
 
@@ -56,15 +57,17 @@ async function fromOpenLibraryEdition(isbn13: string): Promise<Partial<BookMetad
     throw err;
   }
   if (!e?.title) return null;
-  const authors: string[] = [];
-  for (const a of (e.authors ?? []).slice(0, 4)) {
-    try {
-      const au = (await getJson(`https://openlibrary.org${a.key}.json`)) as any;
-      if (au?.name) authors.push(au.name);
-    } catch {
-      /* author names are a nice-to-have */
-    }
-  }
+  const names = await Promise.all(
+    (e.authors ?? []).slice(0, 4).map(async (a: any) => {
+      try {
+        const au = (await getJson(`https://openlibrary.org${a.key}.json`)) as any;
+        return au?.name as string | undefined;
+      } catch {
+        return undefined; // author names are a nice-to-have
+      }
+    }),
+  );
+  const authors = names.filter((n): n is string => !!n);
   return {
     title: e.title,
     subtitle: e.subtitle,
@@ -128,22 +131,19 @@ const isServerError = (err: unknown) => err instanceof Error && (/^HTTP 5\d\d$/.
  * Google Books often answers 503 ("try again") for a moment even when the key is fine,
  * so ask up to three times before giving up.
  */
-export async function getGoogle(url: string): Promise<unknown> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await getJson(url);
-    } catch (err) {
-      // The shared key only works on the Stacks website. If Google turns it down
-      // (opened from a file, a preview address, key switched off), carry on without it.
-      if (refusesBuiltInKey(url, err)) {
-        builtInKeyRefused = true;
-        url = url.replace(`&key=${encodeURIComponent(BUILT_IN_GOOGLE_KEY)}`, '');
-        attempt--;
-        continue;
-      }
-      if (attempt >= 2 || !isServerError(err)) throw err;
-      await new Promise((r) => setTimeout(r, attempt ? 1800 : 700));
+export async function getGoogle(url: string, attempt = 0): Promise<unknown> {
+  try {
+    return await getJson(url);
+  } catch (err) {
+    // The shared key only works on the Stacks website. If Google turns it down
+    // (opened from a file, a preview address, key switched off), carry on without it.
+    if (refusesBuiltInKey(url, err)) {
+      builtInKeyRefused = true;
+      return getGoogle(url.replace(`&key=${encodeURIComponent(BUILT_IN_GOOGLE_KEY)}`, ''), attempt);
     }
+    if (attempt >= 2 || !isServerError(err)) throw err;
+    await pause(attempt ? 1800 : 700);
+    return getGoogle(url, attempt + 1);
   }
 }
 
@@ -186,7 +186,8 @@ function fromGoogleVolume(item: any): Partial<BookMetadata> | null {
  */
 async function fromGoogleBooks(isbn13: string, isbn10?: string): Promise<Partial<BookMetadata> | null> {
   const queries = [`isbn:${isbn13}`, ...(isbn10 ? [`isbn:${isbn10}`] : []), isbn13];
-  for (const q of queries) {
+  // One query at a time, stopping at the first hit, to spare Google's daily limit.
+  return firstInTurn(queries, async (q) => {
     const data = (await getGoogle(googleUrl(q))) as any;
     // A bare-number search can match other books; only accept one that lists this ISBN.
     const items: any[] = data.items ?? [];
@@ -194,10 +195,8 @@ async function fromGoogleBooks(isbn13: string, isbn10?: string): Promise<Partial
       q.startsWith('isbn:')
         ? items[0]
         : items.find((it) => (it.volumeInfo?.industryIdentifiers ?? []).some((i: any) => i.identifier === isbn13 || i.identifier === isbn10));
-    const meta = fromGoogleVolume(match);
-    if (meta) return meta;
-  }
-  return null;
+    return fromGoogleVolume(match);
+  });
 }
 
 /**
@@ -432,12 +431,12 @@ export function setDiscogsToken(token: string) {
 async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> {
   const token = getDiscogsToken();
   if (!token) return null;
-  for (const v of barcodeVariants(code)) {
+  return firstInTurn(barcodeVariants(code), async (v) => {
     const data = (await getJson(
       `https://api.discogs.com/database/search?type=release&per_page=5&barcode=${encodeURIComponent(v)}&token=${encodeURIComponent(token)}`,
     )) as any;
     const r = data.results?.[0];
-    if (!r?.title) continue;
+    if (!r?.title) return null;
     // Search titles read "Artist - Album".
     const [artist, ...rest] = String(r.title).split(' - ');
     const formats: string[] = r.format ?? [];
@@ -466,8 +465,7 @@ async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> 
       /* the search result is enough */
     }
     return meta;
-  }
-  return null;
+  });
 }
 
 /**
@@ -503,9 +501,9 @@ export function jsonp(url: string, param = 'callback'): Promise<any> {
 }
 
 async function fromDeezer(code: string): Promise<Partial<BookMetadata> | null> {
-  for (const v of barcodeVariants(code)) {
+  return firstInTurn(barcodeVariants(code), async (v): Promise<Partial<BookMetadata> | null> => {
     const a = await jsonp(`https://api.deezer.com/album/upc:${v}?output=jsonp`);
-    if (!a?.title || a.error) continue;
+    if (!a?.title || a.error) return null;
     return {
       title: a.title,
       authors: a.artist?.name ? [a.artist.name] : [],
@@ -515,15 +513,14 @@ async function fromDeezer(code: string): Promise<Partial<BookMetadata> | null> {
       subjects: (a.genres?.data ?? []).map((g: any) => g.name).filter(Boolean),
       coverUrl: a.cover_xl || a.cover_big,
     };
-  }
-  return null;
+  });
 }
 
 async function fromItunes(code: string): Promise<Partial<BookMetadata> | null> {
-  for (const v of barcodeVariants(code)) {
+  return firstInTurn(barcodeVariants(code), async (v): Promise<Partial<BookMetadata> | null> => {
     const data = await jsonp(`https://itunes.apple.com/lookup?upc=${v}&entity=album`);
     const a = (data?.results ?? []).find((r: any) => r.wrapperType === 'collection');
-    if (!a?.collectionName) continue;
+    if (!a?.collectionName) return null;
     return {
       title: a.collectionName.replace(/ - (Single|EP)$/, ''),
       authors: a.artistName ? [a.artistName] : [],
@@ -532,8 +529,7 @@ async function fromItunes(code: string): Promise<Partial<BookMetadata> | null> {
       subjects: a.primaryGenreName ? [a.primaryGenreName] : [],
       coverUrl: a.artworkUrl100?.replace('100x100bb', '600x600bb'),
     };
-  }
-  return null;
+  });
 }
 
 /**

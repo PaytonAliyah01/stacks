@@ -109,26 +109,33 @@ function schedule(ms: number) {
   timer = window.setTimeout(() => void syncNow(), ms);
 }
 
+async function rowFor(uid: string, key: string) {
+  const [store, ...rest] = key.split('|');
+  const id = rest.join('|');
+  if (store === 'prefs') {
+    const p = PREFS[id];
+    return p ? { user_id: uid, store, id, data: { value: p.load() } as unknown, deleted: false } : undefined;
+  }
+  const item = await rawStore.rawGet(store as SyncStore, id);
+  return { user_id: uid, store, id, data: (item ?? null) as unknown, deleted: !item };
+}
+
 async function push(uid: string) {
   const keys = [...dirty];
   if (!keys.length) return;
   const sentGen = new Map(keys.map((k) => [k, gen.get(k) ?? 0]));
-  const rows = [];
-  for (const key of keys) {
-    const [store, ...rest] = key.split('|');
-    const id = rest.join('|');
-    if (store === 'prefs') {
-      const p = PREFS[id];
-      if (p) rows.push({ user_id: uid, store, id, data: { value: p.load() }, deleted: false });
-      continue;
-    }
-    const item = await rawStore.rawGet(store as SyncStore, id);
-    rows.push({ user_id: uid, store, id, data: item ?? null, deleted: !item });
-  }
-  for (let i = 0; i < rows.length; i += 400) {
-    const { error } = await supabase.from('items').upsert(rows.slice(i, i + 400), { onConflict: 'user_id,store,id' });
-    if (error) throw error;
-  }
+  const rows = (await Promise.all(keys.map((key) => rowFor(uid, key)))).filter((r) => r !== undefined);
+  const batches: (typeof rows)[] = [];
+  for (let i = 0; i < rows.length; i += 400) batches.push(rows.slice(i, i + 400));
+  // Batches go one after another so a big first sync doesn't flood the server.
+  await batches.reduce<Promise<void>>(
+    (prev, batch) =>
+      prev.then(async () => {
+        const { error } = await supabase.from('items').upsert(batch, { onConflict: 'user_id,store,id' });
+        if (error) throw error;
+      }),
+    Promise.resolve(),
+  );
   // Only forget what was sent; anything changed while sending goes next time.
   for (const k of keys) if ((gen.get(k) ?? 0) === sentGen.get(k)) dirty.delete(k);
   saveDirty();
@@ -140,7 +147,8 @@ async function pull(uid: string): Promise<boolean> {
   const from = since ? new Date(Date.parse(since) - 10_000).toISOString() : '1970-01-01T00:00:00Z';
   let newest = since ?? '';
   let any = false;
-  for (let page = 0; ; page++) {
+  // Pages are fetched one after another: each tells us whether there's another.
+  const fetchPage = async (page: number): Promise<void> => {
     const { data, error } = await supabase
       .from('items')
       .select('store,id,data,deleted,updated_at')
@@ -171,12 +179,11 @@ async function pull(uid: string): Promise<boolean> {
       else g.puts.push(r.data);
       byStore.set(r.store, g);
     }
-    for (const [name, g] of byStore) {
-      await rawStore.rawApply(name as SyncStore, g.puts, g.deletes);
-      any = true;
-    }
-    if (rows.length < 1000) break;
-  }
+    await Promise.all([...byStore].map(([name, g]) => rawStore.rawApply(name as SyncStore, g.puts, g.deletes)));
+    if (byStore.size) any = true;
+    if (rows.length === 1000) await fetchPage(page + 1);
+  };
+  await fetchPage(0);
   if (newest) write(sinceKey(uid), newest);
   return any;
 }
@@ -192,11 +199,14 @@ export function syncNow(): Promise<void> {
   setState({ kind: 'syncing' });
   running = (async () => {
     try {
-      do {
+      // Keep going while changes arrive during a round.
+      const round = async (): Promise<void> => {
         again = false;
         await push(uid);
         if (await pull(uid)) onRemoteChange?.();
-      } while (again);
+        if (again) await round();
+      };
+      await round();
       setState({ kind: 'synced', at: new Date().toISOString() });
     } catch (e) {
       const offline = !navigator.onLine || e instanceof TypeError || /fetch|network/i.test(String((e as Error)?.message));
@@ -210,10 +220,8 @@ export function syncNow(): Promise<void> {
 
 /** Everything already on this device goes to the account the first time it's linked. */
 async function adoptLocal() {
-  for (const name of SYNC_STORES) {
-    const all = await rawStore.rawAll(name);
-    all.forEach((x) => dirty.add(`${name}|${x.id}`));
-  }
+  const lists = await Promise.all(SYNC_STORES.map(async (name) => ({ name, all: await rawStore.rawAll(name) })));
+  for (const { name, all } of lists) all.forEach((x) => dirty.add(`${name}|${x.id}`));
   Object.keys(PREFS).forEach((k) => dirty.add(`prefs|${k}`));
   saveDirty();
 }

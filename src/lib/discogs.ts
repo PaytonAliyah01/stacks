@@ -96,7 +96,8 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
   if (!user) throw new Error('Type your Discogs username.');
   const token = getDiscogsToken();
   const items: DiscogsItem[] = [];
-  for (let page = 1; ; page++) {
+  // Pages come one after another: each says how many there are, and Discogs limits how fast we may ask.
+  const fetchPage = async (page: number): Promise<void> => {
     const path = list === 'wants' ? 'wants' : 'collection/folders/0/releases';
     const auth = token ? `&token=${encodeURIComponent(token)}` : '';
     const url = `https://api.discogs.com/users/${encodeURIComponent(user)}/${path}?per_page=100&page=${page}&sort=added&sort_order=desc${auth}`;
@@ -111,8 +112,7 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
       throw new Error(`That ${list === 'wants' ? 'wantlist' : 'collection'} is private. Make it public in Discogs (Settings → Privacy), add your Discogs token under Backup → Lookup keys, or use the CSV file instead.`);
     if (res.status === 429) {
       await pause(5000);
-      page--;
-      continue;
+      return fetchPage(page);
     }
     if (!res.ok) throw new Error(`Discogs answered with an error (${res.status}). Try again in a minute, or use the CSV file.`);
     const data = (await res.json()) as any;
@@ -143,10 +143,12 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
     }
     const pages = data.pagination?.pages ?? 1;
     onProgress?.(items.length, data.pagination?.items ?? items.length);
-    if (page >= pages) break;
+    if (page >= pages) return;
     // Discogs allows about one request a second without a token.
     await pause(token ? 1100 : 2600);
-  }
+    return fetchPage(page + 1);
+  };
+  await fetchPage(1);
   return items;
 }
 

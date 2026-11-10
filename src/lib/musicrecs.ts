@@ -169,24 +169,27 @@ export async function fromDeezer(records: Book[], t: MusicTaste, hidden: Set<str
   if (more.length) shelves.push({ id: 'music-artists', title: 'More from artists you spin', recs: more });
 
   // 2. Artists like your two favorites, each with their best-loved album.
-  for (const x of ids.slice(0, 2)) {
-    if (!x) continue;
-    let related: { id: number; name: string }[] = [];
-    try {
-      const r = await jsonp(`https://api.deezer.com/artist/${x.id}/related?limit=10&output=jsonp`);
-      related = ((r?.data ?? []) as { id: number; name: string }[]).filter((a) => !haveArtists.has(artistKey(a.name))).slice(0, 4);
-    } catch {
-      continue;
-    }
-    const picks = await Promise.allSettled(related.map((a) => deezerAlbums(a.id)));
-    const recs: Rec[] = [];
-    picks.forEach((res, i) => {
-      if (res.status !== 'fulfilled') return;
-      const best = res.value.filter((a) => ok(related[i].name, { ...a })).sort((a, b) => b.fans - a.fans)[0];
-      if (best) recs.push(rec(related[i].name, best, `Fans of ${x.mine.name} love it`));
-    });
-    if (recs.length) shelves.push({ id: `music-like:${artistKey(x.mine.name)}`, title: `Because you spin ${x.mine.name}`, recs });
-  }
+  const likeShelves = await Promise.all(
+    ids.slice(0, 2).map(async (x): Promise<Shelf | undefined> => {
+        if (!x) return undefined;
+        let related: { id: number; name: string }[] = [];
+        try {
+          const r = await jsonp(`https://api.deezer.com/artist/${x.id}/related?limit=10&output=jsonp`);
+          related = ((r?.data ?? []) as { id: number; name: string }[]).filter((a) => !haveArtists.has(artistKey(a.name))).slice(0, 4);
+        } catch {
+          return undefined;
+        }
+        const picks = await Promise.allSettled(related.map((a) => deezerAlbums(a.id)));
+        const recs: Rec[] = [];
+        picks.forEach((res, i) => {
+          if (res.status !== 'fulfilled') return;
+          const best = res.value.filter((a) => ok(related[i].name, { ...a })).sort((a, b) => b.fans - a.fans)[0];
+          if (best) recs.push(rec(related[i].name, best, `Fans of ${x.mine.name} love it`));
+        });
+        return recs.length ? { id: `music-like:${artistKey(x.mine.name)}`, title: `Because you spin ${x.mine.name}`, recs } : undefined;
+    }),
+  );
+  shelves.push(...likeShelves.filter((x): x is Shelf => !!x));
   return shelves;
 }
 

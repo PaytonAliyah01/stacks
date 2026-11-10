@@ -158,18 +158,18 @@ class IndexedDbStore implements LibraryStore {
   }
   async putMany(books: Book[]) {
     const tx = (await this.db).transaction('books', 'readwrite');
-    for (const b of books) await tx.store.put(b);
+    await Promise.all(books.map((b) => tx.store.put(b)));
     await tx.done;
     changed('books', ...books.map((b) => b.id));
   }
   async importMany(books: Book[], bookcases: Bookcase[] = [], readings: Reading[] = [], challenges: Challenge[] = [], notes: BookNote[] = [], spins: Spin[] = []) {
     const tx = (await this.db).transaction(['books', 'bookcases', 'readings', 'challenges', 'notes', 'spins'], 'readwrite');
-    for (const x of spins) await tx.objectStore('spins').put(x);
-    for (const n of notes) await tx.objectStore('notes').put(n);
-    for (const c of challenges) await tx.objectStore('challenges').put(c);
-    for (const b of books) await tx.objectStore('books').put(b);
-    for (const c of bookcases) await tx.objectStore('bookcases').put(c);
-    for (const r of readings) await tx.objectStore('readings').put(r);
+    await Promise.all(spins.map((x) => tx.objectStore('spins').put(x)));
+    await Promise.all(notes.map((n) => tx.objectStore('notes').put(n)));
+    await Promise.all(challenges.map((c) => tx.objectStore('challenges').put(c)));
+    await Promise.all(books.map((b) => tx.objectStore('books').put(b)));
+    await Promise.all(bookcases.map((c) => tx.objectStore('bookcases').put(c)));
+    await Promise.all(readings.map((r) => tx.objectStore('readings').put(r)));
     await tx.done;
     changed('spins', ...spins.map((x) => x.id));
     changed('notes', ...notes.map((x) => x.id));
@@ -190,14 +190,10 @@ class IndexedDbStore implements LibraryStore {
   async removeBookcase(id: string) {
     const tx = (await this.db).transaction(['books', 'bookcases'], 'readwrite');
     const books = tx.objectStore('books');
-    const moved: string[] = [];
-    for (const b of (await books.getAll()) as Book[]) {
-      if (b.placement?.bookcaseId === id) {
-        moved.push(b.id);
-        const rest = without(b, 'placement');
-        await books.put({ ...rest, updatedAt: new Date().toISOString() });
-      }
-    }
+    const toMove = ((await books.getAll()) as Book[]).filter((b) => b.placement?.bookcaseId === id);
+    const now = new Date().toISOString();
+    await Promise.all(toMove.map((b) => books.put({ ...without(b, 'placement'), updatedAt: now })));
+    const moved = toMove.map((b) => b.id);
     await tx.objectStore('bookcases').delete(id);
     await tx.done;
     changed('books', ...moved);
@@ -239,7 +235,7 @@ class IndexedDbStore implements LibraryStore {
   async removeNotesOf(bookId: string) {
     const tx = (await this.db).transaction('notes', 'readwrite');
     const keys = await tx.store.index('bookId').getAllKeys(bookId);
-    for (const key of keys) await tx.store.delete(key);
+    await Promise.all(keys.map((key) => tx.store.delete(key)));
     await tx.done;
     changed('notes', ...keys.map(String));
   }
@@ -257,14 +253,14 @@ class IndexedDbStore implements LibraryStore {
   async removeSpinsOf(bookId: string) {
     const tx = (await this.db).transaction('spins', 'readwrite');
     const keys = await tx.store.index('bookId').getAllKeys(bookId);
-    for (const key of keys) await tx.store.delete(key);
+    await Promise.all(keys.map((key) => tx.store.delete(key)));
     await tx.done;
     changed('spins', ...keys.map(String));
   }
   async removeReadingsOf(bookId: string) {
     const tx = (await this.db).transaction('readings', 'readwrite');
     const keys = await tx.store.index('bookId').getAllKeys(bookId);
-    for (const key of keys) await tx.store.delete(key);
+    await Promise.all(keys.map((key) => tx.store.delete(key)));
     await tx.done;
     changed('readings', ...keys.map(String));
   }
@@ -278,14 +274,14 @@ class IndexedDbStore implements LibraryStore {
   }
   async rawApply(name: SyncStore, puts: { id: string }[], deletes: string[]) {
     const tx = (await this.db).transaction(name, 'readwrite');
-    for (const x of puts) await tx.store.put(x);
-    for (const id of deletes) await tx.store.delete(id);
+    await Promise.all(puts.map((x) => tx.store.put(x)));
+    await Promise.all(deletes.map((id) => tx.store.delete(id)));
     await tx.done;
   }
   /** Empties every store, e.g. when someone signs out of a shared phone. */
   async rawClearAll() {
     const tx = (await this.db).transaction([...SYNC_STORES], 'readwrite');
-    for (const n of SYNC_STORES) await tx.objectStore(n).clear();
+    await Promise.all(SYNC_STORES.map((n) => tx.objectStore(n).clear()));
     await tx.done;
   }
 }

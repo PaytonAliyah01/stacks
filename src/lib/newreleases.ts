@@ -5,6 +5,7 @@ import { getGoogle, getJson, withGoogleKey } from './lookup';
 import { authorKey, recKey, type Rec } from './recommend';
 import { albumKey, artistKey, deezerAlbums, deezerArtist, musicTasteOf, NOT_NEW } from './musicrecs';
 import { countOf } from './labels';
+import { eachInTurn } from './inTurn';
 
 /**
  * New releases: books just out or coming soon from the authors you read, and
@@ -273,7 +274,11 @@ async function albumsBy(a: Followed, records: Book[], now: number): Promise<Rele
 /** A few at a time, so the services aren't flooded. */
 async function inTurns<T, R>(list: T[], n: number, fn: (x: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
   const out: PromiseSettledResult<R>[] = [];
-  for (let i = 0; i < list.length; i += n) out.push(...(await Promise.allSettled(list.slice(i, i + n).map(fn))));
+  const chunks: T[][] = [];
+  for (let i = 0; i < list.length; i += n) chunks.push(list.slice(i, i + n));
+  await eachInTurn(chunks, async (chunk) => {
+    out.push(...(await Promise.allSettled(chunk.map(fn))));
+  });
   return out;
 }
 
