@@ -90,7 +90,7 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
               ) : null}
             </p>
           )}
-          {hits && hits.length === 0 && !busy && <p className="muted">Nothing found. Try fewer words, or just the title.</p>}
+          {hits?.length === 0 && !busy && <p className="muted">Nothing found. Try fewer words, or just the title.</p>}
           {hits && hits.length > 0 && (
             <ul className="search-hits">
               {hits.map((h) => (

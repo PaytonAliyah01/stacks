@@ -27,7 +27,7 @@ export interface Followed {
   why: string;
 }
 
-const MONTH = 30 * 86400_000;
+const MONTH = 30 * 86_400_000;
 /** How far back counts as "new", and how far ahead "coming soon" looks. */
 const BACK = 12 * MONTH;
 const AHEAD = 18 * MONTH;
@@ -303,7 +303,7 @@ export const followId = (allBooks: Book[], readings: Reading[], spins: Spin[]) =
 export function cachedReleases(id: string): (ReleaseResult & { at: number }) | undefined {
   try {
     const c = JSON.parse(localStorage.getItem(CACHE) ?? 'null') as { id: string; at: number; res: ReleaseResult } | null;
-    if (c && c.id === id && Date.now() - c.at < 86400_000) return { ...c.res, at: c.at };
+    if (c?.id === id && Date.now() - c.at < 86_400_000) return { ...c.res, at: c.at };
   } catch {
     /* none */
   }

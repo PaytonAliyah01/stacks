@@ -20,7 +20,10 @@ export function paintBackdrop(g: CanvasRenderingContext2D, W: number, H: number,
   glow(0, H * 0.85, W * 0.8, pal.glowB);
   // Fine grain, the same every time.
   let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
   for (let i = 0; i < 9000; i++) {
     g.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.05)';
     g.fillRect(rnd() * W, rnd() * H, 2, 2);

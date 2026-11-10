@@ -134,7 +134,7 @@ export function fromShelves(books: Book[], readings: Reading[], t: Taste, hidden
       continue;
     const f = fit(b, t);
     // Books that have waited longest get a small nudge.
-    const waited = Math.min(1, (Date.now() - Date.parse(b.addedAt)) / (365 * 86400_000));
+    const waited = Math.min(1, (Date.now() - Date.parse(b.addedAt)) / (365 * 86_400_000));
     const queued = r?.status === 'want';
     out.push({
       waited: waited * 0.5,
@@ -289,7 +289,7 @@ export function fromFriends(feed: FeedEntry[], books: Book[], uid: string, hidde
   for (const e of feed) {
     if (e.user_id === uid || !(e.kind === 'finished' || e.kind === 'rated') || (e.extra.rating ?? 0) < 4) continue;
     const it = e.items[0];
-    if (!it || it.kind !== 'book') continue;
+    if (it?.kind !== 'book') continue;
     const key = recKey(it.title, it.by);
     if (have.has(key) || hidden.has(key) || alreadyHave(books, it.title, it.by)) continue;
     const who = e.display_name || `@${e.username}`;
@@ -340,7 +340,7 @@ export const tasteId = (t: Taste) => t.loved.slice(0, 6).map((x) => `${x.b.id}:$
 export function cachedShelves(id: string, key = CACHE): Shelf[] | undefined {
   try {
     const c = JSON.parse(localStorage.getItem(key) ?? 'null') as { id: string; at: number; shelves: Shelf[] } | null;
-    if (c && c.id === id && Date.now() - c.at < 3 * 86400_000) return c.shelves;
+    if (c?.id === id && Date.now() - c.at < 3 * 86_400_000) return c.shelves;
   } catch {
     /* none */
   }

@@ -19,7 +19,7 @@ export function valueOf(b: Book, fallbackCurrency: string): Valued | undefined {
   if (b.myValue !== undefined) return { amount: b.myValue, currency: b.currency ?? fallbackCurrency, source: 'yours' };
   if (b.market?.suggested !== undefined) return { amount: b.market.suggested, currency: b.market.currency, source: 'suggested' };
   if (b.market?.lowest !== undefined) return { amount: b.market.lowest, currency: b.market.currency, source: 'lowest' };
-  return;
+  return undefined;
 }
 
 export const isStale = (b: Book, now = Date.now()) => !b.market || now - Date.parse(b.market.checkedAt) > STALE_DAYS * 86_400_000;

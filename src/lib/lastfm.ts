@@ -24,7 +24,7 @@ export interface QueuedScrobble {
 const QUEUE = 'stacks.lastfm.queue';
 const ON = 'stacks.lastfm.on';
 /** Last.fm takes scrobbles up to two weeks old. */
-const MAX_AGE_MS = 13 * 86400_000;
+const MAX_AGE_MS = 13 * 86_400_000;
 
 class NotReady extends Error {}
 
@@ -117,7 +117,7 @@ export function plan(spin: Spin, b: Book, tracks: Track[]): QueuedScrobble[] {
   let side = '';
   const out: QueuedScrobble[] = [];
   for (const tr of tracks) {
-    const s = (tr.position ?? '').match(/^[A-Za-z]+/)?.[0] ?? '';
+    const s = /^[A-Za-z]+/.exec(tr.position ?? '')?.[0] ?? '';
     if (side && s && s !== side) t += FLIP;
     if (s) side = s;
     const dur = seconds(tr.duration);

@@ -81,7 +81,9 @@ function setState(s: SyncState) {
 export const syncState = () => state;
 export function watchSync(fn: (s: SyncState) => void) {
   listeners.add(fn);
-  return () => void listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 export const pendingCount = () => dirty.size;
 

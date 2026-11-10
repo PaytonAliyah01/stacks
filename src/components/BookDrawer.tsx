@@ -378,7 +378,7 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
               <span>Spine photo</span>
               <div className="spine-photo-row">
                 {draft.spineImage ? (
-                  <img className="spine-photo-preview" src={draft.spineImage} alt="Your photo of the spine" />
+                  <img className="spine-photo-preview" src={draft.spineImage} alt="Your spine" />
                 ) : (
                   <span className="hint">Shelves show the spine in the cover's colors. For the real thing, add a photo of the spine.</span>
                 )}

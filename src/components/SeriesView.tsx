@@ -18,7 +18,7 @@ function NumberFix({ entry, onUpdate }: { entry: { book: Book }; onUpdate: (b: B
   const [v, setV] = useState('');
   const save = () => {
     const n = Number(v.replace(',', '.'));
-    if (!(n > 0)) return;
+    if (Number.isNaN(n) || n <= 0) return;
     onUpdate({ ...entry.book, series: { ...entry.book.series!, number: n }, seriesManual: true });
   };
   return (
@@ -33,7 +33,7 @@ function NumberFix({ entry, onUpdate }: { entry: { book: Book }; onUpdate: (b: B
         placeholder="#"
         aria-label={`Number of ${entry.book.title} in the series`}
       />
-      <button className="btn ghost small-btn" onClick={save} disabled={!(Number(v) > 0)}>Set</button>
+      <button className="btn ghost small-btn" onClick={save} disabled={Number.isNaN(Number(v)) || Number(v) <= 0}>Set</button>
     </span>
   );
 }

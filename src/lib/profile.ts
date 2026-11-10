@@ -3,6 +3,7 @@ import { isMusic } from '../types';
 import { currentReading, progressPct } from './reading';
 import { nowSpinning } from './spins';
 import { SITE_URL, supabase } from './cloud';
+import { without } from './omit';
 
 /**
  * Your public face in Stacks. Your library itself stays private; a profile shows
@@ -82,13 +83,11 @@ export async function loadProfileByUsername(username: string): Promise<Profile |
 export class UsernameTaken extends Error {}
 
 export async function saveProfile(p: Profile): Promise<Profile> {
-  const { updated_at: _u, ...row } = p;
-  void _u;
+  const row = without(p, 'updated_at');
   let { data, error } = await supabase.from('profiles').upsert(row, { onConflict: 'id' }).select(COLUMNS).single();
   // Before the feed's SQL has been run there's no share_activity column yet.
   if (error?.code === 'PGRST204' && 'share_activity' in row) {
-    const { share_activity: _s, ...rest } = row;
-    void _s;
+    const rest = without(row, 'share_activity');
     ({ data, error } = await supabase.from('profiles').upsert(rest, { onConflict: 'id' }).select(COLUMNS).single());
   }
   if (error) {

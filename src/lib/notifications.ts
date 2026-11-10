@@ -24,7 +24,7 @@ export interface Notif {
 }
 
 const nameOf = (p: { display_name?: string | null; username: string }) => p.display_name || `@${p.username}`;
-const DAY = 86400_000;
+const DAY = 86_400_000;
 const recent = (iso: string | null | undefined, days: number, now: number) => !!iso && now - Date.parse(iso) < days * DAY;
 
 export interface NotifInput {
@@ -147,8 +147,8 @@ export function markNotifsRead(ids: string[]) {
 export function ago(iso: string, now = Date.now()): string {
   const ms = now - Date.parse(iso);
   if (ms < 60_000) return 'just now';
-  if (ms < 3600_000) return `${Math.floor(ms / 60_000)} min ago`;
-  if (ms < DAY) return `${Math.floor(ms / 3600_000)} h ago`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)} min ago`;
+  if (ms < DAY) return `${Math.floor(ms / 3_600_000)} h ago`;
   const d = Math.floor(ms / DAY);
   return d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }

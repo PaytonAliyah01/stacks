@@ -34,8 +34,8 @@ export function wrapMusic(year: string, books: Book[], spins: Spin[]): MusicWrap
   const inYear = spins
     .filter((s) => byId.has(s.bookId) && String(local(s.at).getFullYear()) === year)
     .sort((a, b) => a.at.localeCompare(b.at));
-  const perMonth = Array(12).fill(0) as number[];
-  const perWeekday = Array(7).fill(0) as number[];
+  const perMonth = new Array(12).fill(0) as number[];
+  const perWeekday = new Array(7).fill(0) as number[];
   const counts = new Map<string, number>();
   const artists = new Map<string, number>();
   const days = new Set<string>();

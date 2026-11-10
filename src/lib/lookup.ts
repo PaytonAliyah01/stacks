@@ -1,5 +1,4 @@
-import type { Track } from '../types';
-import type { BookMetadata } from '../types';
+import type { BookMetadata, Track } from '../types';
 
 const TIMEOUT_MS = 8000;
 
@@ -373,7 +372,7 @@ function queuedMusicBrainz(code: string): Promise<Partial<BookMetadata> | null> 
 const barcodeVariants = (code: string) => [...new Set([code, code.length === 13 && code.startsWith('0') ? code.slice(1) : '0' + code])];
 
 export const vinylSizeOf = (text: string) => {
-  const m = text.match(/(\d{1,2})"/);
+  const m = /(\d{1,2})"/.exec(text);
   const size = m ? Number(m[1]) : 12;
   return size === 7 ? 7 : size === 10 ? 10 : 12;
 };
@@ -390,7 +389,7 @@ async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | nu
     kind: vinyl ? 'vinyl' : 'cd',
     title: rel.title,
     authors: (rel['artist-credit'] ?? []).map((a: any) => a.name ?? a.artist?.name).filter(Boolean),
-    publisher: (rel['label-info'] ?? []).map((l: any) => l.label?.name).filter(Boolean)[0],
+    publisher: (rel['label-info'] ?? []).map((l: any) => l.label?.name).find(Boolean),
     publishedDate: rel.date,
     trackCount: rel['track-count'] || undefined,
     discCount: rel.media?.length || undefined,
@@ -691,7 +690,7 @@ export async function searchPressings(q: { barcode?: string; artist?: string; ti
 
 /** "https://www.discogs.com/release/1873013-Fleetwood-Mac-Rumours" or "r1873013" or "1873013" → 1873013. */
 export const discogsIdFrom = (s: string) => {
-  const m = s.trim().match(/release\/(\d+)|^\[?r?(\d+)\]?$/i);
+  const m = /release\/(\d+)|^\[?r?(\d+)\]?$/i.exec(s.trim());
   return m ? Number(m[1] ?? m[2]) : undefined;
 };
 

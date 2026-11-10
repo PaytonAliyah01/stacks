@@ -1,5 +1,6 @@
 import { BOOKCASE_PRESETS, spineCm, type Book, type Bookcase, type BookcaseType, type Placement } from '../types';
 import { newId } from './storage';
+import { without } from './omit';
 
 export interface Spot {
   bookcaseId: string;
@@ -64,8 +65,7 @@ export function moveBook(all: Book[], bookId: string, target: Spot | null, index
     list.splice(Math.max(0, Math.min(index, list.length)), 0, book);
     renumber(list, target);
   } else if (from) {
-    const { placement: _gone, ...rest } = book;
-    void _gone;
+    const rest = without(book, 'placement');
     changed.set(bookId, { ...rest, updatedAt: now });
   }
   return [...changed.values()];

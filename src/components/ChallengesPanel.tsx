@@ -90,7 +90,7 @@ function ChallengeForm({ initial, onSave, onCancel }: { initial?: Challenge; onS
               startOn: s,
               endOn: e,
               // Changing the goal or dates can change what's earned, so start the badges fresh.
-              badges: initial && initial.goal === n && initial.measure === measure && initial.startOn === s && initial.endOn === e ? initial.badges : {},
+              badges: initial?.goal === n && initial.measure === measure && initial.startOn === s && initial.endOn === e ? initial.badges : {},
               createdAt: initial?.createdAt ?? now,
               updatedAt: now,
             });

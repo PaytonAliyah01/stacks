@@ -13,8 +13,8 @@ const TEXT_TYPES = new Set(['text', 'search', '']);
  * characters without Shift (e.g. French or Belgian AZERTY: & é " ' ( …).
  */
 export function digitOf(e: KeyboardEvent | React.KeyboardEvent): string | null {
-  if (/^[0-9]$/.test(e.key)) return e.key;
-  const m = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+  if (/^\d$/.test(e.key)) return e.key;
+  const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
   return m ? m[1] : null;
 }
 

@@ -18,7 +18,7 @@ const stars = (n?: number) => (n ? '★'.repeat(Math.floor(n)) + (n % 1 ? '½' :
 
 export function hue(s: string) {
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + (s.codePointAt(i) ?? 0)) % 360;
   return h;
 }
 

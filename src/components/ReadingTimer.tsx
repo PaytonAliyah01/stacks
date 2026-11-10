@@ -78,16 +78,17 @@ export function TimerBar({
   onChange: (a: ActiveSession | null) => void;
   onSave: (r: Reading) => void;
 }) {
-  const [, tick] = useState(0);
+  const [now, setNow] = useState(Date.now);
   const [stopping, setStopping] = useState(false);
   useEffect(() => {
     if (!active.runningSince) return;
-    const t = setInterval(() => tick((n) => n + 1), 1000);
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [active.runningSince]);
 
   if (!book || !reading) return null;
-  const ms = elapsedMs(active);
+  const ms = elapsedMs(active, active.runningSince ? Math.max(now, Date.now()) : now);
   const paused = !active.runningSince;
   const pause = () => onChange({ ...active, bankedMs: ms, runningSince: undefined });
   const resume = () => onChange({ ...active, runningSince: Date.now() });

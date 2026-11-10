@@ -58,8 +58,8 @@ export function ReadingStats({ books, readings, onOpen }: Props) {
       perMonth = ys.map((y) => [y, byYear.get(y)!.n]);
       pagesPerMonth = ys.map((y) => [y, byYear.get(y)!.p]);
     } else {
-      const n = Array(12).fill(0);
-      const p = Array(12).fill(0);
+      const n = new Array(12).fill(0);
+      const p = new Array(12).fill(0);
       for (const x of read) {
         const m = Number(x.r.finishedOn!.slice(5, 7)) - 1;
         n[m]++;

@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { SCHEMA_VERSION, type Book, type BookNote, type Bookcase, type Challenge, type Reading, type Spin } from '../types';
+import { without } from './omit';
 
 /**
  * Everything the app needs from storage. The browser (IndexedDB) version is
@@ -68,10 +69,7 @@ export function onLocalChange(fn: ChangeListener | undefined) {
 const changed = (store: SyncStore, ...ids: string[]) => ids.length && changeListener?.(store, ids);
 
 
-class IndexedDbStore implements LibraryStore {
-  private db: Promise<IDBPDatabase>;
-
-  constructor() {
+function openLibrary(): Promise<IDBPDatabase> {
     // Started inside a promise so a browser with no storage at all fails here, not at startup.
     const opening: Promise<IDBPDatabase> = Promise.resolve().then(() => openDB(DB_NAME, SCHEMA_VERSION, {
       // An older Stacks tab must let go so this one can upgrade the library.
@@ -107,7 +105,7 @@ class IndexedDbStore implements LibraryStore {
     }));
     // If the browser never answers (storage blocked, or another Stacks tab won't
     // let go), fail with a reason instead of waiting forever.
-    this.db = Promise.race([
+    const ready = Promise.race([
       opening,
       new Promise<never>((_, reject) =>
         setTimeout(
@@ -122,6 +120,16 @@ class IndexedDbStore implements LibraryStore {
       ),
     ]);
     opening.catch(() => undefined);
+    return ready;
+}
+
+class IndexedDbStore implements LibraryStore {
+  private opened?: Promise<IDBPDatabase>;
+
+  /** Opened on first use, then shared. */
+  private get db(): Promise<IDBPDatabase> {
+    this.opened ??= openLibrary();
+    return this.opened;
   }
 
   async list() {
@@ -186,8 +194,7 @@ class IndexedDbStore implements LibraryStore {
     for (const b of (await books.getAll()) as Book[]) {
       if (b.placement?.bookcaseId === id) {
         moved.push(b.id);
-        const { placement: _gone, ...rest } = b;
-        void _gone;
+        const rest = without(b, 'placement');
         await books.put({ ...rest, updatedAt: new Date().toISOString() });
       }
     }
@@ -312,9 +319,18 @@ export function parseBackup(text: string): { books: Book[]; bookcases: Bookcase[
 }
 
 const csvCell = (v: unknown) => {
-  const s = v === undefined || v === null ? '' : String(v);
+  const s = cellText(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
+
+/** A CSV cell's text: plain values as they are, lists joined, anything else as JSON. */
+function cellText(v: unknown): string {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(cellText).join('; ');
+  return JSON.stringify(v);
+}
 
 export function toCsv(books: Book[], placeLabel: (b: Book) => string = () => ''): string {
   const cols: [string, (b: Book) => unknown][] = [

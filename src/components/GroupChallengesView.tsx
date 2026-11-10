@@ -173,7 +173,10 @@ function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupC
   };
   // Ties share a place.
   let place = 0;
-  const places = joined.map((m, i) => (i === 0 || m.progress !== joined[i - 1].progress ? (place = i + 1) : place));
+  const places = joined.map((m, i) => {
+        if (i === 0 || m.progress !== joined[i - 1].progress) place = i + 1;
+        return place;
+      });
 
   return (
     <article className={`panel group-card ${invited ? 'invite' : ''}`}>
@@ -182,7 +185,7 @@ function Card({ g, uid, friends, onChanged, onOpenProfile, onJoin }: { g: GroupC
           <h3 className="group-name">{g.name}</h3>
           <p className="muted small">
             {g.goal.toLocaleString()} {unit(g.measure, g.goal)} · {day(g.start_on)} to {day(g.end_on)}
-            {ended ? ' · finished' : notYet ? ' · starts soon' : ` · ${Math.ceil((Date.parse(`${g.end_on}T23:59:59`) - Date.now()) / 86400_000)} days left`}
+            {ended ? ' · finished' : notYet ? ' · starts soon' : ` · ${Math.ceil((Date.parse(`${g.end_on}T23:59:59`) - Date.now()) / 86_400_000)} days left`}
           </p>
         </div>
         {ended && leader && leader.progress > 0 && <span className="group-winner">🏆 {memberName(leader)}</span>}

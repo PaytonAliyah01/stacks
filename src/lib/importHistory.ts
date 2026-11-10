@@ -249,7 +249,7 @@ export function planImport(rows: ImportRow[], source: ImportSource, existing: Bo
       const twin = existing.find((b) => owned(b) && b.id !== book?.id && sameWork(b.title, b.authors[0], row.title, row.authors[0]));
       if (twin) {
         // An earlier import made a separate, not-owned copy: fold it into yours.
-        if (book && book.owned === false && !plan.merges.some((m) => m.from === book!.id)) plan.merges.push({ from: book.id, into: twin.id });
+        if (book?.owned === false && !plan.merges.some((m) => m.from === book!.id)) plan.merges.push({ from: book.id, into: twin.id });
         book = twin;
       }
     }
@@ -300,8 +300,8 @@ export function planImport(rows: ImportRow[], source: ImportSource, existing: Bo
       plan.notes.push({ id: newId(), bookId: book.id, kind: 'note', text: row.privateNotes, createdAt: now, updatedAt: now });
     }
 
-    const merged = plan.merges.filter((m) => m.into === book!.id).map((m) => m.from);
-    const logged = existingReadings.filter((r) => r.bookId === book!.id || merged.includes(r.bookId));
+    const merged = new Set(plan.merges.filter((m) => m.into === book!.id).map((m) => m.from));
+    const logged = existingReadings.filter((r) => r.bookId === book!.id || merged.has(r.bookId));
     // You marked it "Want to read" in Stacks, but Goodreads or StoryGraph says you read it (or are reading it):
     // drop the want, or it stays the book's current status and the read never shows.
     if (row.status !== 'want')

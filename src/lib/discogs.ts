@@ -34,18 +34,17 @@ export function kindOfFormat(format: string): Exclude<ItemKind, 'book'> | undefi
   const vinyl = has('lp|vinyl|ep|single|acetate|lathe') || /\d+"/.test(format);
   const cd = has('cd|cdr|sacd|hdcd');
   if (cd && !vinyl) return 'cd';
-  if (vinyl) return 'vinyl';
-  return;
+  return vinyl ? 'vinyl' : undefined;
 }
 
 /** "2xLP" → 2, "3xCD, Box Set" → 3. */
 const discCountOf = (format: string) => {
-  const m = format.match(/(\d+)\s*x\s*(lp|cd|vinyl|\d+")/i);
+  const m = /(\d+)\s*x\s*(lp|cd|vinyl|\d+")/i.exec(format);
   return m ? Number(m[1]) : undefined;
 };
 
 const yearOf = (s?: string | number) => {
-  const y = String(s ?? '').match(/\d{4}/)?.[0];
+  const y = /\d{4}/.exec(String(s ?? ''))?.[0];
   return y && y !== '0000' ? y : undefined;
 };
 
@@ -182,7 +181,7 @@ export function planDiscogsImport(items: DiscogsItem[], existing: Book[], wanted
       else plan.unchanged++;
       continue;
     }
-    if (match && match.owned === false) {
+    if (match?.owned === false) {
       // On your wantlist (or read-only) in Stacks, but in your Discogs collection: you have it now.
       plan.updated.push({ ...match, owned: undefined, wishlist: undefined, discogsId: match.discogsId ?? it.releaseId, coverUrl: match.coverUrl ?? it.coverUrl, catalogNumber: match.catalogNumber ?? it.catalogNumber, mediaCondition: it.mediaCondition, sleeveCondition: it.sleeveCondition, updatedAt: now });
       continue;

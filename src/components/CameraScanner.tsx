@@ -36,7 +36,8 @@ async function makeDetector(): Promise<Detect> {
   reader.setHints(hints);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-  return async (v) => {
+  return (v) => Promise.resolve(readBand(v));
+  function readBand(v: HTMLVideoElement): string | undefined {
     // Read a band across the middle of the picture, where the guide box is. Smaller is faster.
     const w = Math.min(v.videoWidth, 960);
     const scale = w / v.videoWidth;
@@ -56,7 +57,7 @@ async function makeDetector(): Promise<Detect> {
     } finally {
       reader.reset();
     }
-  };
+  }
 }
 
 function cameraError(e: unknown): string {

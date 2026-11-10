@@ -317,7 +317,7 @@ export function ReadCard(props: Props & { read: BuddyRead; club?: string }) {
             ))}
           </ul>
 
-          {local && myReading && myReading.status === 'reading' && <QuickProgress book={local} reading={myReading} onChange={props.onSaveReading} />}
+          {local && myReading?.status === 'reading' && <QuickProgress book={local} reading={myReading} onChange={props.onSaveReading} />}
           {local && (!myReading || myReading.status === 'want') && (
             <p className="muted small">Open the book and press “Reading” to start. Your progress shows here as you update it.</p>
           )}

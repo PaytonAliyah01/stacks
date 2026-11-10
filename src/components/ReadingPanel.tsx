@@ -74,7 +74,7 @@ export function ReadingPanel({ book, readings, onChange, onRemove }: Props) {
       next.finishedOn = undefined;
     }
     if (status === 'read' || status === 'dnf') next.finishedOn ??= today;
-    if (status === 'read' && !(pct === 100)) {
+    if (status === 'read' && pct !== 100) {
       next.updates = [...next.updates, pages ? { at: new Date().toISOString(), page: pages } : { at: new Date().toISOString(), percent: 100 }];
     }
     save(next);

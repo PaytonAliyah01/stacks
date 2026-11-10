@@ -12,7 +12,7 @@ const clearanceCm = (bc?: Bookcase) => (bc?.type.startsWith('kallax') ? 33 : 28)
 
 function hash(s: string) {
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + (s.codePointAt(i) ?? 0)) >>> 0;
   return h;
 }
 

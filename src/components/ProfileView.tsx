@@ -63,14 +63,25 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
     setP(undefined);
     setFailed(false);
     setCard(undefined);
-    loadProfileByUsername(username).then(
-      (x) => {
-        if (!live) return;
-        setP(x);
-        if (!x && signedIn) findUser(username).then((c) => live && setCard(c), () => live && setCard(null));
-      },
-      () => live && setFailed(true),
-    );
+    const load = async () => {
+      let x: Awaited<ReturnType<typeof loadProfileByUsername>>;
+      try {
+        x = await loadProfileByUsername(username);
+      } catch {
+        if (live) setFailed(true);
+        return;
+      }
+      if (!live) return;
+      setP(x);
+      if (x || !signedIn) return;
+      try {
+        const c = await findUser(username);
+        if (live) setCard(c);
+      } catch {
+        if (live) setCard(null);
+      }
+    };
+    load().catch(() => undefined);
     return () => {
       live = false;
     };

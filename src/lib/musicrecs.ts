@@ -81,7 +81,8 @@ export function fromCrates(records: Book[], spins: Spin[], t: MusicTaste, hidden
       },
     });
   }
-  return out.sort((a, b) => b.score - a.score).slice(0, 8).map((x) => x.rec);
+  out.sort((a, b) => b.score - a.score);
+  return out.slice(0, 8).map((x) => x.rec);
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -153,7 +154,7 @@ export async function fromDeezer(records: Book[], t: MusicTaste, hidden: Set<str
     const x = ids[i];
     if (!x || res.status !== 'fulfilled') return;
     const why = x.mine.spins > 1 ? `You've spun ${x.mine.name} ${x.mine.spins} times` : `You have ${x.mine.owned === 1 ? 'a record' : `${x.mine.owned} records`} by ${x.mine.name}`;
-    const recent = (d?: string) => !!d && Date.now() - Date.parse(d) < 365 * 86400_000;
+    const recent = (d?: string) => !!d && Date.now() - Date.parse(d) < 365 * 86_400_000;
     const list = res.value.filter((a) => ok(x.mine.name, a)).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
     for (const a of list.slice(0, 3)) more.push(rec(x.mine.name, a, recent(a.date) ? `New from ${x.mine.name}` : why));
   });

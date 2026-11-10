@@ -199,7 +199,7 @@ export default function App() {
 }
 
 function StacksApp() {
-  const [allBooks, setBooks] = useState<Book[]>([]);
+  const [allBooks, setAllBooks] = useState<Book[]>([]);
   // The library is what you own; books you've only read (e.g. imported) live in Reading.
   const books = useMemo(() => allBooks.filter((b) => b.owned !== false), [allBooks]);
   const [includeUnowned, setIncludeUnowned] = useState(false);
@@ -210,18 +210,18 @@ function StacksApp() {
   const plays = useMemo(() => playsByRecord(spins), [spins]);
   const [musicTab, setMusicTab] = useState<'collection' | 'foryou' | 'new' | 'listening' | 'value' | 'wantlist' | 'wrap'>('collection');
   const [discogsWants, setDiscogsWants] = useState(false);
-  const [styluses, setStylusList] = useState<Stylus[]>(loadStyluses);
-  const setStyluses = (list: Stylus[]) => {
+  const [styluses, setStyluses] = useState<Stylus[]>(loadStyluses);
+  const changeStyluses = (list: Stylus[]) => {
     saveStyluses(list);
     prefChanged('styluses');
-    setStylusList(list);
+    setStyluses(list);
   };
   const [priceRun, setPriceRun] = useState<PriceRun | null>(null);
   const stopPrices = useRef(false);
-  const [activeSession, setActive] = useState<ActiveSession | null>(loadActive);
-  const setActiveSession = (a: ActiveSession | null) => {
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(loadActive);
+  const changeActiveSession = (a: ActiveSession | null) => {
     saveActive(a);
-    setActive(a);
+    setActiveSession(a);
   };
   const [loaded, setLoaded] = useState(false);
   const [scans, setScans] = useState<ScanItem[]>([]);
@@ -318,7 +318,7 @@ function StacksApp() {
     await clearAutoPurchaseDates();
     const [b, c, r, ch, n, sp] = await Promise.all([store.list(), store.listBookcases(), store.listReadings(), store.listChallenges(), store.listNotes(), store.listSpins()]);
     setSpins(sp);
-    setBooks(b);
+    setAllBooks(b);
     setBookcases(c);
     setReadings(r);
     setChallenges(ch);
@@ -329,7 +329,7 @@ function StacksApp() {
   useEffect(() => {
     onRemote(() => {
       void reload();
-      setStylusList(loadStyluses());
+      setStyluses(loadStyluses());
     });
     const unwatch = watchSync(setSync);
     // If the sign-in check hangs (offline), don't keep the page blank.
@@ -448,7 +448,7 @@ function StacksApp() {
   // Lending: your loans both ways, refreshed like friends.
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loansError, setLoansError] = useState<string>();
-  const [lendOpen, setLendOpenState] = useState<boolean>();
+  const [lendOpen, setLendOpen] = useState<boolean>();
   const refreshLoans = useCallback(() => {
     listLoans().then(
       (l) => {
@@ -461,11 +461,11 @@ function StacksApp() {
   useEffect(() => {
     if (!user || !profile) {
       setLoans([]);
-      setLendOpenState(undefined);
+      setLendOpen(undefined);
       return;
     }
     refreshLoans();
-    getLendOpen(user.id).then(setLendOpenState, () => setLendOpenState(false));
+    getLendOpen(user.id).then(setLendOpen, () => setLendOpen(false));
     const t = window.setInterval(() => !document.hidden && refreshLoans(), 60_000);
     window.addEventListener('focus', refreshLoans);
     return () => {
@@ -475,12 +475,12 @@ function StacksApp() {
   }, [user, profile?.id, refreshLoans]);
   const changeLendOpen = async (open: boolean) => {
     if (!user) return;
-    setLendOpenState(open);
+    setLendOpen(open);
     try {
       await saveLendOpen(user.id, open);
       setToast(open ? 'Friends can now browse your shelves and ask to borrow.' : 'Your shelves are closed for borrowing.');
     } catch (e) {
-      setLendOpenState(!open);
+      setLendOpen(!open);
       setToast((e as Error).message);
     }
   };
@@ -498,7 +498,9 @@ function StacksApp() {
       }
     }
     if (!fixes.length) return;
-    store.putMany(fixes).then(() => setBooks((l) => l.map((b) => fixes.find((f) => f.id === b.id) ?? b))).catch(() => undefined);
+    const fixed = new Map(fixes.map((f) => [f.id, f]));
+    const applyFixes = (l: Book[]) => l.map((b) => fixed.get(b.id) ?? b);
+    store.putMany(fixes).then(() => setAllBooks(applyFixes)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loans, user, loaded]);
   const loanAsks = user ? loans.filter((l) => l.owner === user.id && l.status === 'requested').length : 0;
@@ -511,14 +513,14 @@ function StacksApp() {
       b.placement = undefined;
       b.notes = `Borrowed from ${loanFriendName(l.other)}`;
       await store.put(b);
-      setBooks((x) => [...x, b!]);
+      setAllBooks((x) => [...x, b!]);
     }
     await ensureReading(b);
     setToast(`Enjoy “${l.item.title}”. It's under Currently reading.`);
   };
   const onPage = !!profileName || (friendsOpen && !!user);
   const goView = (v: View) => {
-    if (onPage) showProfile(undefined);
+    if (onPage) showProfile();
     setView(v);
   };
   const goHome = (where: HomeTarget) => {
@@ -685,7 +687,7 @@ function StacksApp() {
     if (!user || !loaded || !groups.length) return;
     const t = setTimeout(() => {
       const byId = new Map(allBooks.map((b) => [b.id, b]));
-      const cutoff = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+      const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
       const sends = groups.flatMap((g) => {
         const me = g.members.find((m) => m.user_id === user.id);
         if (me?.status !== 'joined' || g.end_on < cutoff) return [];
@@ -737,7 +739,7 @@ function StacksApp() {
       b.owned = false;
       b.placement = undefined;
       await store.put(b);
-      setBooks((l) => [...l, b!]);
+      setAllBooks((l) => [...l, b!]);
     }
     const r = await ensureReading(b);
     await joinBuddyRead(read.id, user.id, b.id, progressOfReading(r, b));
@@ -787,7 +789,7 @@ function StacksApp() {
           ...(found ? { moods: g.moods, pace: g.pace, contentWarnings: latest.contentWarnings?.length ? latest.contentWarnings : g.contentWarnings.length ? g.contentWarnings : undefined, vibeGuessed: true } : {}),
         };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
         if (found) filled++;
       }
       vibeBusy.current = false;
@@ -843,7 +845,7 @@ function StacksApp() {
           updatedAt: new Date().toISOString(),
         };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
         if (next.coverUrl !== latest.coverUrl || next.trackCount !== latest.trackCount) filled++;
         await new Promise((r) => setTimeout(r, getDiscogsToken() ? 1100 : 2600));
       }
@@ -876,7 +878,7 @@ function StacksApp() {
         if (!latest || !needs(latest)) continue;
         const next: Book = { ...latest, tracks, tracksChecked: true, trackCount: latest.trackCount ?? tracks?.length, updatedAt: new Date().toISOString() };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
         await new Promise((r) => setTimeout(r, 2600));
       }
       tracksBusy.current = false;
@@ -891,7 +893,7 @@ function StacksApp() {
   const seriesBusy = useRef(false);
   useEffect(() => {
     const needs = (b: Book) =>
-      !isMusic(b) && !b.seriesManual && (b.seriesV ?? 0) < SERIES_FINDER_VERSION && (!b.series || b.series.number === undefined);
+      !isMusic(b) && !b.seriesManual && (b.seriesV ?? 0) < SERIES_FINDER_VERSION && b.series?.number === undefined;
     if (!loaded || seriesBusy.current || !allBooks.some(needs)) return;
     seriesBusy.current = true;
     (async () => {
@@ -927,7 +929,7 @@ function StacksApp() {
         const changed = best?.name !== latest.series?.name || best?.number !== latest.series?.number;
         const next: Book = { ...latest, seriesChecked: true, seriesV: SERIES_FINDER_VERSION, series: best };
         await store.put(next);
-        setBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
         if (changed) found++;
       }
       seriesBusy.current = false;
@@ -941,12 +943,12 @@ function StacksApp() {
   const patchBook = async (b: Book) => {
     const next = { ...b, updatedAt: new Date().toISOString() };
     await store.put(next);
-    setBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
+    setAllBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
   };
 
   // A timer for a reading that's since been deleted can't be finished, so drop it.
   useEffect(() => {
-    if (loaded && activeSession && readings.length && !readings.some((r) => r.id === activeSession.readingId)) setActiveSession(null);
+    if (loaded && activeSession && readings.length && !readings.some((r) => r.id === activeSession.readingId)) changeActiveSession(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, readings]);
 
@@ -1255,7 +1257,7 @@ function StacksApp() {
     try {
       const incoming = parseBackup(await file.text());
       const n = await store.importMany(incoming.books, incoming.bookcases, incoming.readings, incoming.challenges, incoming.notes, incoming.spins);
-      if (incoming.styluses.length && !styluses.length) setStyluses(incoming.styluses as Stylus[]);
+      if (incoming.styluses.length && !styluses.length) changeStyluses(incoming.styluses as Stylus[]);
       setToast(`Restored ${n} book${n === 1 ? '' : 's'}.`);
       reload();
     } catch (err) {
@@ -1317,7 +1319,7 @@ function StacksApp() {
           const latest = (await store.get(b.id)) ?? b;
           const next: Book = { ...latest, discogsId: id, market: { ...m, checkedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() };
           await store.put(next);
-          setBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
+          setAllBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
           if (m.lowest !== undefined || m.suggested !== undefined) priced++;
         }
       } catch (err) {
@@ -1355,7 +1357,7 @@ function StacksApp() {
         const latest = (await store.get(b.id)) ?? b;
         const next: Book = { ...latest, tracks, tracksChecked: true, trackCount: latest.trackCount ?? tracks.length, updatedAt: new Date().toISOString() };
         await store.put(next);
-        setBooks((l) => l.map((y) => (y.id === b.id ? next : y)));
+        setAllBooks((l) => l.map((y) => (y.id === b.id ? next : y)));
       }
     }
     if (!tracks?.length) {
@@ -1656,7 +1658,7 @@ function StacksApp() {
             setAccountOpen(false);
             chooseLocalOnly(false);
             void reload();
-            setStylusList(loadStyluses());
+            setStyluses(loadStyluses());
             setToast('Signed out.');
           }}
         />
@@ -1789,7 +1791,7 @@ function StacksApp() {
           mine={profile}
           signedIn={!!user}
           onEdit={() => setProfileEditing(true)}
-          onBack={() => showProfile(undefined)}
+          onBack={() => showProfile()}
           onSignIn={() => openAccount('signin')}
           uid={user?.id}
           friends={friends}
@@ -1807,7 +1809,7 @@ function StacksApp() {
           onChanged={refreshFriends}
           onOpenProfile={(n) => showProfile(n)}
           onEditProfile={() => setProfileEditing(true)}
-          onBack={() => showProfile(undefined)}
+          onBack={() => showProfile()}
           key={friendsTab ?? 'friends'}
           initialTab={friendsTab}
           lendingBadge={loanAsks}
@@ -1832,7 +1834,7 @@ function StacksApp() {
       <main className={`layout ${view === 'home' ? 'on-home' : ''}`} hidden={!!profileName || (friendsOpen && !!user)}>
         {view === 'reading' && (
           <aside className="scan-panel" aria-label="Currently reading">
-            <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => setActiveSession(startSession(r, b))} />
+            <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => changeActiveSession(startSession(r, b))} />
           </aside>
         )}
         <section className="scan-panel" aria-label="Scan books" hidden={view === 'reading'}>
@@ -2036,7 +2038,7 @@ function StacksApp() {
             active={activeSession}
             onOpen={(b) => setOpen({ book: b })}
             onSaveReading={saveReading}
-            onStartTimer={(r, b) => setActiveSession(startSession(r, b))}
+            onStartTimer={(r, b) => changeActiveSession(startSession(r, b))}
             onSpin={(b) => void spinRecord(b)}
             onGo={goHome}
             onOpenProfile={(n) => showProfile(n)}
@@ -2263,7 +2265,7 @@ function StacksApp() {
               onRemoveSpin={removeSpin}
               allRecords={allBooks.filter(isMusic)}
               styluses={styluses}
-              onStylusChange={setStyluses}
+              onStylusChange={changeStyluses}
               extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
             />
           </section>
@@ -2492,7 +2494,7 @@ function StacksApp() {
           active={activeSession}
           book={allBooks.find((b) => b.id === activeSession.bookId)}
           reading={readings.find((r) => r.id === activeSession.readingId)}
-          onChange={setActiveSession}
+          onChange={changeActiveSession}
           onSave={saveReading}
         />
       )}
