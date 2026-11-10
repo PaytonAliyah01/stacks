@@ -40,88 +40,110 @@ export interface NotifInput {
   now?: number;
 }
 
+interface Ctx {
+  uid: string;
+  now: number;
+  nowIso: string;
+}
+
+function friendNotifs(friends: Friend[]): Notif[] {
+  return friends
+    .filter((f) => f.status === 'pending' && f.incoming)
+    .map((f) => ({ id: `friend:${f.id}`, icon: '👋', text: `${nameOf(f)} wants to be friends`, at: f.since, target: 'people', action: true }));
+}
+
+function dueNotifs(l: Loan, who: string, c: Ctx): Notif[] {
+  if (l.status !== 'lent' || !l.due_on) return [];
+  const out: Notif[] = [];
+  const left = daysLeft(l.due_on) ?? 99;
+  if (l.borrower === c.uid && left <= 3)
+    out.push({ id: `due:${l.id}:${l.due_on}:${left < 0 ? 'late' : 'soon'}`, icon: '⏰', text: dueText(l.item.title, who, left), at: c.nowIso, target: 'lending' });
+  if (l.owner === c.uid && left < 0)
+    out.push({ id: `late:${l.id}:${l.due_on}`, icon: '⏰', text: `${who} still has your “${l.item.title}” (it was due back)`, at: `${l.due_on}T12:00:00Z`, target: 'lending' });
+  return out;
+}
+
+function loanNotifs(l: Loan, c: Ctx): Notif[] {
+  const who = nameOf(l.other);
+  const out: Notif[] = [];
+  const mine = l.borrower === c.uid;
+  if (l.owner === c.uid && l.status === 'requested')
+    out.push({ id: `ask:${l.id}`, icon: '📚', text: `${who} asks to borrow “${l.item.title}”`, detail: l.note || undefined, at: l.created_at, target: 'lending', action: true });
+  if (mine && l.status === 'lent' && l.lent_at && recent(l.lent_at, 14, c.now))
+    out.push({ id: `lent:${l.id}`, icon: '🤝', text: `${who} said yes: you can borrow “${l.item.title}”`, detail: l.reply || undefined, at: l.lent_at, target: 'lending' });
+  if (mine && l.status === 'declined' && recent(l.returned_at ?? l.created_at, 14, c.now))
+    out.push({ id: `declined:${l.id}`, icon: '📕', text: `${who} can't lend “${l.item.title}” right now`, detail: l.reply || undefined, at: l.created_at, target: 'lending' });
+  return [...out, ...dueNotifs(l, who, c)];
+}
+
+function buddyNotif(r: BuddyRead, uid: string): Notif | undefined {
+  if (r.club_id) return undefined;
+  const me = r.members.find((m) => m.user_id === uid);
+  const owner = r.members.find((m) => m.user_id === r.owner);
+  if (me?.status !== 'invited' || !owner) return undefined;
+  return { id: `buddy:${r.id}`, icon: '👯', text: `${nameOf(owner)} wants to read “${r.book.title}” with you`, at: r.created_at, target: 'buddy', action: true };
+}
+
+const MEETING_SOON = new Set(['today', 'tomorrow', 'now']);
+
+function clubNotifs(club: Club, c: Ctx): Notif[] {
+  const me = club.members.find((m) => m.user_id === c.uid);
+  if (me?.status === 'invited') {
+    const host = club.members.find((m) => m.user_id === club.owner);
+    return [{ id: `club:${club.id}`, icon: '☕', text: `${host ? nameOf(host) : 'A friend'} invited you to the book club ${club.name}`, at: me.joined_at ?? club.created_at, target: 'clubs', action: true }];
+  }
+  const now0 = club.books[0];
+  if (!now0) return [];
+  const out: Notif[] = [];
+  if (club.owner !== c.uid && recent(now0.created_at, 14, c.now))
+    out.push({ id: `clubbook:${now0.read_id}`, icon: '📖', text: `${club.name} is reading “${now0.book.title}” next`, at: now0.created_at, target: 'clubs' });
+  const soon = now0.meet_at ? meetingSoon(now0.meet_at, c.now) : undefined;
+  if (now0.meet_at && soon && MEETING_SOON.has(soon))
+    out.push({ id: `meet:${now0.read_id}:${now0.meet_at}`, icon: '🗓️', text: `${club.name} meets ${soon}`, detail: [meetingLabel(now0.meet_at), now0.meet_where].filter(Boolean).join(' · '), at: c.nowIso, target: 'clubs' });
+  return out;
+}
+
+function groupNotif(g: GroupChallenge, uid: string): Notif | undefined {
+  const me = g.members.find((m) => m.user_id === uid);
+  if (me?.status !== 'invited') return undefined;
+  const owner = g.members.find((m) => m.user_id === g.owner);
+  return { id: `group:${g.id}`, icon: '🏁', text: `${owner ? nameOf(owner) : 'A friend'} challenged you: ${g.name}`, at: g.created_at, target: 'groups', action: true };
+}
+
+const RELEASE_WORDS = {
+  books: { icon: '✨', things: 'books', makers: 'authors', target: 'newbooks' },
+  music: { icon: '💿', things: 'albums', makers: 'artists', target: 'newmusic' },
+} as const;
+
+function releaseNotif(kind: 'books' | 'music', releases: Release[], seen: Set<string>, nowIso: string): Notif | undefined {
+  const fresh = releases.filter((r) => !seen.has(r.key));
+  if (!fresh.length) return undefined;
+  const w = RELEASE_WORDS[kind];
+  const first = fresh[0];
+  const many = fresh.length > 1;
+  return {
+    id: `rel:${kind}:${fresh.map((r) => r.key).sort((a, b) => a.localeCompare(b)).join(',')}`,
+    icon: w.icon,
+    text: many ? `${fresh.length} new ${w.things} from ${w.makers} you follow` : `New from ${first.authors[0]}: “${first.title}”`,
+    detail: many ? fresh.slice(0, 3).map((r) => r.title).join(', ') : undefined,
+    at: nowIso,
+    target: w.target,
+  };
+}
+
+const present = <T,>(v: T | undefined): v is T => v !== undefined;
+
 export function gatherNotifications(x: NotifInput): Notif[] {
   const now = x.now ?? Date.now();
-  const nowIso = new Date(now).toISOString();
-  const out: Notif[] = [];
-
-  for (const f of x.friends)
-    if (f.status === 'pending' && f.incoming)
-      out.push({ id: `friend:${f.id}`, icon: '👋', text: `${nameOf(f)} wants to be friends`, at: f.since, target: 'people', action: true });
-
-  for (const l of x.loans) {
-    const who = nameOf(l.other);
-    if (l.owner === x.uid && l.status === 'requested')
-      out.push({ id: `ask:${l.id}`, icon: '📚', text: `${who} asks to borrow “${l.item.title}”`, detail: l.note || undefined, at: l.created_at, target: 'lending', action: true });
-    if (l.borrower === x.uid && l.status === 'lent' && recent(l.lent_at, 14, now))
-      out.push({ id: `lent:${l.id}`, icon: '🤝', text: `${who} said yes: you can borrow “${l.item.title}”`, detail: l.reply || undefined, at: l.lent_at!, target: 'lending' });
-    if (l.borrower === x.uid && l.status === 'declined' && recent(l.returned_at ?? l.created_at, 14, now))
-      out.push({ id: `declined:${l.id}`, icon: '📕', text: `${who} can't lend “${l.item.title}” right now`, detail: l.reply || undefined, at: l.created_at, target: 'lending' });
-    if (l.status === 'lent' && l.due_on) {
-      const left = daysLeft(l.due_on) ?? 99;
-      if (l.borrower === x.uid && left <= 3)
-        out.push({
-          id: `due:${l.id}:${l.due_on}:${left < 0 ? 'late' : 'soon'}`,
-          icon: '⏰',
-          text: dueText(l.item.title, who, left),
-          at: nowIso,
-          target: 'lending',
-        });
-      if (l.owner === x.uid && left < 0)
-        out.push({ id: `late:${l.id}:${l.due_on}`, icon: '⏰', text: `${who} still has your “${l.item.title}” (it was due back)`, at: `${l.due_on}T12:00:00Z`, target: 'lending' });
-    }
-  }
-
-  for (const r of x.buddyReads) {
-    if (r.club_id) continue;
-    const me = r.members.find((m) => m.user_id === x.uid);
-    const owner = r.members.find((m) => m.user_id === r.owner);
-    if (me?.status === 'invited' && owner)
-      out.push({ id: `buddy:${r.id}`, icon: '👯', text: `${nameOf(owner)} wants to read “${r.book.title}” with you`, at: r.created_at, target: 'buddy', action: true });
-  }
-
-  for (const c of x.clubs) {
-    const me = c.members.find((m) => m.user_id === x.uid);
-    const host = c.members.find((m) => m.user_id === c.owner);
-    if (me?.status === 'invited') {
-      out.push({ id: `club:${c.id}`, icon: '☕', text: `${host ? nameOf(host) : 'A friend'} invited you to the book club ${c.name}`, at: me.joined_at ?? c.created_at, target: 'clubs', action: true });
-      continue;
-    }
-    const now0 = c.books[0];
-    if (!now0) continue;
-    if (c.owner !== x.uid && recent(now0.created_at, 14, now))
-      out.push({ id: `clubbook:${now0.read_id}`, icon: '📖', text: `${c.name} is reading “${now0.book.title}” next`, at: now0.created_at, target: 'clubs' });
-    if (now0.meet_at) {
-      const soon = meetingSoon(now0.meet_at, now);
-      if (soon === 'today' || soon === 'tomorrow' || soon === 'now')
-        out.push({ id: `meet:${now0.read_id}:${now0.meet_at}`, icon: '🗓️', text: `${c.name} meets ${soon === 'now' ? 'now' : soon}`, detail: [meetingLabel(now0.meet_at), now0.meet_where].filter(Boolean).join(' · '), at: nowIso, target: 'clubs' });
-    }
-  }
-
-  for (const g of x.groups) {
-    const me = g.members.find((m) => m.user_id === x.uid);
-    const owner = g.members.find((m) => m.user_id === g.owner);
-    if (me?.status === 'invited')
-      out.push({ id: `group:${g.id}`, icon: '🏁', text: `${owner ? nameOf(owner) : 'A friend'} challenged you: ${g.name}`, at: g.created_at, target: 'groups', action: true });
-  }
-
-  for (const kind of ['books', 'music'] as const) {
-    const fresh = x.releases[kind].filter((r) => !x.seenReleases.has(r.key));
-    if (!fresh.length) continue;
-    const first = fresh[0];
-    out.push({
-      id: `rel:${kind}:${fresh.map((r) => r.key).sort((a, b) => a.localeCompare(b)).join(',')}`,
-      icon: kind === 'books' ? '✨' : '💿',
-      text:
-        fresh.length === 1
-          ? `New from ${first.authors[0]}: “${first.title}”`
-          : `${fresh.length} new ${kind === 'books' ? 'books' : 'albums'} from ${kind === 'books' ? 'authors' : 'artists'} you follow`,
-      detail: fresh.length > 1 ? fresh.slice(0, 3).map((r) => r.title).join(', ') : undefined,
-      at: nowIso,
-      target: kind === 'books' ? 'newbooks' : 'newmusic',
-    });
-  }
-
+  const c: Ctx = { uid: x.uid, now, nowIso: new Date(now).toISOString() };
+  const out: Notif[] = [
+    ...friendNotifs(x.friends),
+    ...x.loans.flatMap((l) => loanNotifs(l, c)),
+    ...x.buddyReads.map((r) => buddyNotif(r, x.uid)).filter(present),
+    ...x.clubs.flatMap((club) => clubNotifs(club, c)),
+    ...x.groups.map((g) => groupNotif(g, x.uid)).filter(present),
+    ...(['books', 'music'] as const).map((kind) => releaseNotif(kind, x.releases[kind], x.seenReleases, c.nowIso)).filter(present),
+  ];
   // Things to do first, then newest first.
   return out.sort((a, b) => Number(!!b.action) - Number(!!a.action) || b.at.localeCompare(a.at));
 }

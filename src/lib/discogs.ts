@@ -26,7 +26,7 @@ export interface DiscogsItem {
 }
 
 /** "Prince (2)" → "Prince", "Sade*" → "Sade". */
-const cleanArtist = (a: string) => dropDiscogsNumber(a.trim()).replace(/\*$/, '').trim();
+const cleanArtist = (a: string) => dropDiscogsNumber(a.trim().replace(/\*$/, ''));
 
 /** Vinyl, CD, or something Stacks doesn't keep (cassettes, files, DVDs). */
 export function kindOfFormat(format: string): Exclude<ItemKind, 'book'> | undefined {
@@ -180,7 +180,7 @@ export function planDiscogsImport(items: DiscogsItem[], existing: Book[], wanted
       plan.skipped.push({ title: it.title, format: it.format });
       continue;
     }
-    const k = key(it.artists[0], it.title, kind);
+    const k = key(it.artists[0] ?? 'Various artists', it.title, kind);
     const match = (it.releaseId && byRelease.get(it.releaseId)) || byKey.get(k);
     if (match && wanted) {
       if (match.owned !== false) plan.alreadyOwned.push(match);
