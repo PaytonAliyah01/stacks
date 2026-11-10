@@ -150,7 +150,7 @@ export function ReadingStats({ books, readings, onOpen }: Readonly<Props>) {
         </div>
         <div className="stat">
           <span className="stat-label">Days per book</span>
-          <span className="stat-value">{s.avgDays ? (s.avgDays < 10 ? s.avgDays.toFixed(1) : Math.round(s.avgDays)) : '–'}</span>
+          <span className="stat-value">{s.avgDays ? daysText(s.avgDays) : '–'}</span>
           <span className="muted">{s.avgDays ? 'from start to finish' : 'needs start and finish dates'}</span>
         </div>
       </div>
@@ -229,3 +229,5 @@ export function ReadingStats({ books, readings, onOpen }: Readonly<Props>) {
     </div>
   );
 }
+
+const daysText = (d: number) => (d < 10 ? d.toFixed(1) : String(Math.round(d)));

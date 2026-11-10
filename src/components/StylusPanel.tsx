@@ -75,7 +75,7 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
       ) : (
         w && (
           <div className="stylus-wear">
-            <div className={`stylus-meter ${w.pct >= 100 ? 'over' : w.pct >= 85 ? 'warn' : ''}`}>
+            <div className={`stylus-meter ${wearClass(w.pct)}`}>
               <i style={{ width: `${w.pct}%` }} />
             </div>
             <div className="stylus-numbers">
@@ -136,4 +136,9 @@ export function StylusPanel({ records, spins, styluses, onChange }: Readonly<Pro
       )}
     </section>
   );
+}
+
+function wearClass(pct: number): string {
+  if (pct >= 100) return 'over';
+  return pct >= 85 ? 'warn' : '';
 }

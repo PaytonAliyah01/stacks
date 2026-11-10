@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Cover } from './Cover';
 import { formatIsbn13 } from '../lib/isbn';
 import { claimGift, friendWishlist, getWishlistOpen, setWishlistOpen, unclaimGift, type WishItem } from '../lib/gifts';
+import { formatWord } from '../lib/labels';
 
 interface Props {
   uid: string;
@@ -86,7 +87,7 @@ export function FriendWishlist({ uid, friendId, friendName, onChanged, heading =
                 <span className="wish-gift-text">
                   <strong>{w.title}</strong>
                   <span className="muted small">
-                    {[w.author, w.kind === 'vinyl' ? 'Vinyl' : w.kind === 'cd' ? 'CD' : undefined, w.year].filter(Boolean).join(' · ')}
+                    {[w.author, formatWord(w.kind), w.year].filter(Boolean).join(' · ')}
                   </span>
                   {w.isbn && <span className="muted small mono">ISBN {formatIsbn13(w.isbn)}</span>}
                 </span>

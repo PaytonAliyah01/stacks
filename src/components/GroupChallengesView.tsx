@@ -13,6 +13,7 @@ import {
   timePassed,
   type GroupChallenge,
 } from '../lib/groupchallenges';
+import { unitWord } from '../lib/labels';
 
 interface Props {
   uid: string;
@@ -28,7 +29,7 @@ interface Props {
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const day = (s: string) => new Date(`${s}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-const unit = (m: ChallengeMeasure, n: number) => (m === 'books' ? (n === 1 ? 'book' : 'books') : n === 1 ? 'page' : 'pages');
+const unit = (m: ChallengeMeasure, n: number) => unitWord(m, n);
 
 /** Ready-made challenges, so starting one is two taps. */
 function presets(now = new Date()) {

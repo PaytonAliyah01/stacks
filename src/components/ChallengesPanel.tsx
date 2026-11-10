@@ -3,6 +3,7 @@ import type { Book, Challenge, ChallengeMeasure, Reading } from '../types';
 import { BADGES, progressOf } from '../lib/challenges';
 import { formatDay, todayIso } from '../lib/reading';
 import { newId } from '../lib/storage';
+import { unitWord } from '../lib/labels';
 
 interface Props {
   challenges: Challenge[];
@@ -81,7 +82,7 @@ function ChallengeForm({ initial, onSave, onCancel }: Readonly<{ initial?: Chall
             const e = period === 'year' ? `${yearValue}-12-31` : endOn;
             if (!s || !e || e < s) return setError('The end date has to be after the start date.');
             const now = new Date().toISOString();
-            const unit = measure === 'books' ? (n === 1 ? 'book' : 'books') : 'pages';
+            const unit = measure === 'books' ? unitWord('books', n) : 'pages';
             onSave({
               id: initial?.id ?? newId(),
               name: name.trim() || (period === 'year' ? `${n.toLocaleString()} ${unit} in ${yearValue}` : `${n.toLocaleString()} ${unit}`),

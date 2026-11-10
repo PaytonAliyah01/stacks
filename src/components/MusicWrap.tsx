@@ -101,7 +101,8 @@ async function drawShareImage(w: Wrap): Promise<Blob | null> {
     }
   });
 
-  let y = shown.length > 6 ? 970 : shown.length ? 812 : 620;
+  let y = 620;
+  if (shown.length) y = shown.length > 6 ? 970 : 812;
   const line = (label: string, value: string) => {
     if (y > H - 200) return;
     g.fillStyle = soft;

@@ -4,6 +4,7 @@ import { formatMoney } from '../types';
 import { Cover } from './Cover';
 import { discogsReleaseUrl, isStale, summarize, valueOf } from '../lib/value';
 import { formatDay } from '../lib/reading';
+import { gainClass } from '../lib/labels';
 
 export interface PriceRun {
   done: number;
@@ -48,7 +49,7 @@ export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, 
         </div>
         <div className="stat">
           <span className="stat-label">{gain >= 0 ? 'Gained' : 'Lost'}</span>
-          <span className={`stat-value ${s.compared ? (gain >= 0 ? 'gain' : 'loss') : ''}`}>{s.compared ? `${gain >= 0 ? '+' : '−'}${money(Math.abs(gain))}` : '–'}</span>
+          <span className={`stat-value ${s.compared ? gainClass(gain) : ''}`}>{s.compared ? `${gain >= 0 ? '+' : '−'}${money(Math.abs(gain))}` : '–'}</span>
           <span className="muted">{s.compared && s.paid ? `${gain >= 0 ? '+' : ''}${Math.round((gain / s.paid) * 100)}% on what you paid` : ' '}</span>
         </div>
         <div className="stat">
@@ -145,7 +146,7 @@ export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, 
                       <span className="muted small value-source">{SOURCE_LABEL[v.source]}</span>
                     </td>
                     <td className="num">{b.pricePaid !== undefined ? formatMoney(b.pricePaid, b.currency ?? currency) : <span className="muted">–</span>}</td>
-                    <td className={`num ${g === undefined ? '' : g >= 0 ? 'gain' : 'loss'}`}>{g === undefined ? <span className="muted">–</span> : `${g >= 0 ? '+' : '−'}${formatMoney(Math.abs(g), currency)}`}</td>
+                    <td className={`num ${gainClass(g)}`}>{g === undefined ? <span className="muted">–</span> : `${g >= 0 ? '+' : '−'}${formatMoney(Math.abs(g), currency)}`}</td>
                     <td className="num">
                       {b.discogsId ? (
                         <a href={discogsReleaseUrl(b.discogsId)} target="_blank" rel="noreferrer">{b.market?.forSale ?? '–'}</a>

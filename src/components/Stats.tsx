@@ -26,7 +26,7 @@ export function Stats({ books, bookcases, onOpen }: Readonly<{ books: Book[]; bo
       const m = new Map<K, number>();
       for (const b of books) {
         const k = keyOf(b);
-        for (const x of Array.isArray(k) ? k : k ? [k] : []) m.set(x, (m.get(x) ?? 0) + 1);
+        for (const x of [k].flat().filter(Boolean) as K[]) m.set(x, (m.get(x) ?? 0) + 1);
       }
       return [...m.entries()].sort((a, b) => b[1] - a[1]);
     };

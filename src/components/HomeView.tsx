@@ -44,7 +44,9 @@ interface Props {
 
 function greeting(d = new Date()) {
   const h = d.getHours();
-  return h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  if (h < 5) return 'Up late';
+  if (h < 12) return 'Good morning';
+  return h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;

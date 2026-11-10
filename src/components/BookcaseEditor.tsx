@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BOOKCASE_PRESETS, type Bookcase, type BookcaseType } from '../types';
+import { bookcaseName } from '../lib/labels';
 
 interface Props {
   bookcase: Bookcase;
@@ -31,7 +32,7 @@ export function BookcaseEditor({ bookcase, isNew, bookCount, onSave, onDelete, o
   const pickType = (type: BookcaseType) => {
     const p = BOOKCASE_PRESETS[type];
     // Keep the name in step with the type until the person names it themselves.
-    const autoName = (t: string) => (t.startsWith('billy') ? 'Billy' : t.startsWith('kallax') ? 'Kallax' : 'Bookcase');
+    const autoName = bookcaseName;
     setD((x) => ({
       ...x,
       type,

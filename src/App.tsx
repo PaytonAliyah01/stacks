@@ -198,6 +198,11 @@ export default function App() {
   return token ? <SharedShelf key={token} token={token} /> : <StacksApp />;
 }
 
+function noMatchText(view: string, sectionCount: number): string {
+  if (view === 'music') return 'Nothing matches these filters.';
+  return sectionCount === 0 ? 'No books yet. Your records and CDs are under Music.' : 'No books match these filters.';
+}
+
 function StacksApp() {
   const [allBooks, setAllBooks] = useState<Book[]>([]);
   // The library is what you own; books you've only read (e.g. imported) live in Reading.
@@ -310,7 +315,7 @@ function StacksApp() {
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileName, setProfileName] = useState(usernameFromHash);
   const [friendsOpen, setFriendsOpen] = useState(() => location.hash === '#friends' || location.hash === '#lending' || location.hash === '#gifts');
-  const [friendsTab, setFriendsTab] = useState<'feed' | 'people' | 'lending' | 'gifts' | undefined>(() => (location.hash === '#lending' ? 'lending' : location.hash === '#gifts' ? 'gifts' : undefined));
+  const [friendsTab, setFriendsTab] = useState<'feed' | 'people' | 'lending' | 'gifts' | undefined>(() => ({ '#lending': 'lending', '#gifts': 'gifts' } as const)[location.hash as '#lending' | '#gifts']);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [friendsError, setFriendsError] = useState<string>();
 
@@ -786,7 +791,7 @@ function StacksApp() {
         const next: Book = {
           ...latest,
           vibeChecked: true,
-          ...(found ? { moods: g.moods, pace: g.pace, contentWarnings: latest.contentWarnings?.length ? latest.contentWarnings : g.contentWarnings.length ? g.contentWarnings : undefined, vibeGuessed: true } : {}),
+          ...(found ? { moods: g.moods, pace: g.pace, contentWarnings: [latest.contentWarnings, g.contentWarnings].find((w) => w?.length), vibeGuessed: true } : {}),
         };
         await store.put(next);
         setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
@@ -1065,7 +1070,7 @@ function StacksApp() {
           const guessedKind = isMusic(book) && !book.sources.some((x) => x === 'musicbrainz' || x === 'discogs');
           patchScan(key, {
             state: 'added', bookId: book.id, kind: kindOf(book), title: book.title, author: book.authors[0], coverUrl: book.coverUrl,
-            message: scanTarget === 'wishlist' ? 'Added to your wishlist.' : guessedKind ? 'Saved as a CD. If it’s vinyl, open it and switch to Vinyl.' : undefined,
+            message: scanTarget === 'wishlist' ? 'Added to your wishlist.' : guessedKind && 'Saved as a CD. If it’s vinyl, open it and switch to Vinyl.' || undefined,
           });
           reload();
         } else if (result.status === 'not-found') {
@@ -2447,7 +2452,7 @@ function StacksApp() {
                 <p className="muted">No scanner handy? Type the 13-digit ISBN printed above the barcode into the box on the left.</p>
               </div>
             ) : shown.length === 0 ? (
-              <div className="empty"><p>{view === 'music' ? 'Nothing matches these filters.' : sectionCount === 0 ? 'No books yet. Your records and CDs are under Music.' : 'No books match these filters.'}</p></div>
+              <div className="empty"><p>{noMatchText(view, sectionCount)}</p></div>
             ) : (
               <ul className="grid">
                 {shown.map((b) => (

@@ -28,7 +28,9 @@ function moveTo(queue: Props['queue'], from: number, to: number): Reading | unde
   const rest = queue.filter((_, i) => i !== from).map((x) => queueKey(x.r));
   const before = rest[to - 1];
   const after = rest[to];
-  const order = before === undefined ? after - 60_000 : after === undefined ? before + 60_000 : (before + after) / 2;
+  let order = (before + after) / 2;
+  if (before === undefined) order = after - 60_000;
+  else if (after === undefined) order = before + 60_000;
   return { ...queue[from].r, queueOrder: order, updatedAt: new Date().toISOString() };
 }
 

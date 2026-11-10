@@ -3,6 +3,7 @@ import { Cover } from './Cover';
 import { Avatar } from './ProfileEditor';
 import { ShelvesView } from './ShelvesView';
 import { asBook, fetchSharedShelf, type SharedItem, type SharedShelf as Shelf } from '../lib/share';
+import { formatWord } from '../lib/labels';
 
 type Tab = 'books' | 'music' | 'wishlist';
 const stars = (r: number) => '★'.repeat(Math.floor(r)) + (r % 1 ? '½' : '');
@@ -22,7 +23,7 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
       (s) => {
         setShelf(s);
         if (s) {
-          setTab(s.show.books ? 'books' : s.show.music ? 'music' : 'wishlist');
+          setTab(s.show.books ? 'books' : (s.show.music && 'music') || 'wishlist');
           if (s.show.shelves && s.bookcases.length) setView('shelves');
           document.title = `${s.title || `${s.name}’s shelves`} · Stacks`;
         }
@@ -155,7 +156,7 @@ export function SharedShelf({ token }: Readonly<{ token: string }>) {
               <h2>{open.title}</h2>
               {open.authors?.length ? <p>{open.authors.join(', ')}</p> : null}
               <p className="muted small">
-                {[open.kind === 'vinyl' ? 'Vinyl' : open.kind === 'cd' ? 'CD' : null, open.year, open.pages && open.kind === 'book' ? `${open.pages} pages` : null, open.series ? `${open.series.name}${open.series.number != null ? ` #${open.series.number}` : ''}` : null]
+                {[formatWord(open.kind), open.year, open.pages && open.kind === 'book' ? `${open.pages} pages` : null, open.series ? `${open.series.name}${open.series.number != null ? ` #${open.series.number}` : ''}` : null]
                   .filter(Boolean)
                   .join(' · ')}
               </p>

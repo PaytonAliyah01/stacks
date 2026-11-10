@@ -77,7 +77,10 @@ function Row({ l, children, onOpenProfile, line }: Readonly<{ l: Loan; children?
 
 function Due({ due }: Readonly<{ due: string | null }>) {
   const d = daysLeft(due);
-  return <span className={`loan-due ${d !== undefined && d < 0 ? 'late' : d !== undefined && d <= 3 ? 'soon' : ''}`}>{dueLabel(due)}</span>;
+  let cls = '';
+  if (d !== undefined && d < 0) cls = 'late';
+  else if (d !== undefined && d <= 3) cls = 'soon';
+  return <span className={`loan-due ${cls}`}>{dueLabel(due)}</span>;
 }
 
 /** Answer a request: yes with a due date, or no, with an optional note either way. */

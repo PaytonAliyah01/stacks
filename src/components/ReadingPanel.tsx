@@ -20,7 +20,8 @@ export function Stars({ value, onChange }: Readonly<{ value?: number; onChange?:
   return (
     <div className="stars" role={onChange ? 'radiogroup' : 'img'} aria-label={value ? `${value} out of 5 stars` : 'Not rated'} onMouseLeave={() => setHover(undefined)}>
       {[1, 2, 3, 4, 5].map((n) => {
-        const fill = shown >= n ? 'full' : shown >= n - 0.5 ? 'half' : 'empty';
+        let fill = shown >= n - 0.5 ? 'half' : 'empty';
+        if (shown >= n) fill = 'full';
         return (
           <span key={n} className={`star ${fill}`}>
             ★

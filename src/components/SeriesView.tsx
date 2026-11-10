@@ -158,9 +158,11 @@ export function SeriesView({ books, readings, onOpen, onUpdate, onFindMissing }:
   const groups = useMemo(() => groupSeries(books, readings), [books, readings]);
   const [filter, setFilter] = useState<'all' | 'gaps' | 'unfinished'>('all');
   const [editing, setEditing] = useState<string | null>(null);
-  const shown = groups.filter((g) =>
-    filter === 'gaps' ? g.missing.length > 0 : filter === 'unfinished' ? g.read < g.entries.length : true,
-  );
+  const shown = groups.filter((g) => {
+    if (filter === 'gaps') return g.missing.length > 0;
+    if (filter === 'unfinished') return g.read < g.entries.length;
+    return true;
+  });
 
   if (groups.length === 0) {
     return (
