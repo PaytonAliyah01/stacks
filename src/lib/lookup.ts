@@ -4,6 +4,9 @@ import { dropDiscogsNumber } from './text';
 
 const TIMEOUT_MS = 8000;
 
+/** No value: missing, an empty string or an empty list. */
+const isBlank = (v: unknown) => v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+
 export async function getJson(url: string): Promise<unknown> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -342,8 +345,7 @@ export async function lookupIsbn(isbn13: string, isbn10?: string): Promise<Looku
 
   const pick = <K extends keyof BookMetadata>(k: K) => {
     const av = a?.[k];
-    const empty = av === undefined || av === '' || (Array.isArray(av) && av.length === 0);
-    return (empty ? b?.[k] : av) as BookMetadata[K];
+    return (isBlank(av) ? b?.[k] : av) as BookMetadata[K];
   };
 
   return {
@@ -573,7 +575,7 @@ export async function lookupBarcode(code: string): Promise<LookupResult> {
   const pick = <K extends keyof BookMetadata>(k: K) => {
     for (const { m } of found) {
       const v = m![k];
-      if (v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)) return v as BookMetadata[K];
+      if (!isBlank(v)) return v as BookMetadata[K];
     }
     return undefined;
   };

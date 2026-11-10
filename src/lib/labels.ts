@@ -1,7 +1,6 @@
-import type { ItemKind } from '../types';
 
 /** "Vinyl" or "CD" for records, nothing for books. */
-export function formatWord(kind?: ItemKind | string): string | undefined {
+export function formatWord(kind?: string): string | undefined {
   if (kind === 'vinyl') return 'Vinyl';
   if (kind === 'cd') return 'CD';
   return undefined;
@@ -35,3 +34,6 @@ export function outside(v: number, lo: number, hi: number): number {
 export function countOf(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/** "a record" or "3 records". */
+export const recordsText = (n: number) => (n === 1 ? 'a record' : countOf(n, 'record'));

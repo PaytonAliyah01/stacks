@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BOOKCASE_PRESETS, itemHeightCm, kindOf, spineCm, type Book, type Bookcase } from '../types';
 import { useCoverColor } from '../lib/coverColor';
 import { allSpotsOf, booksAt, spotName, spotsOf, topSpot, usedCm, type Spot } from '../lib/shelving';
-import { outside } from '../lib/labels';
+import { countOf, outside } from '../lib/labels';
 
 // Drawing scale at full size; "fit to window" shrinks it so the tallest bookcase fits.
 const PX_PER_CM = 7;
@@ -347,8 +347,8 @@ export function ShelvesView({ books, bookcases, highlightId, onOpenBook, onMove,
           <h3>Not on a bookcase</h3>
           <span className="muted small">
             {(unshelved.length === 0) ? 'Every book has a spot.' : null}
-            {unshelved.length !== 0 && readOnly ? `${unshelved.length} ${unshelved.length === 1 ? 'item' : 'items'}` : null}
-            {unshelved.length !== 0 && !readOnly ? `${unshelved.length} ${unshelved.length === 1 ? 'book' : 'books'}. Drag them onto a shelf, or drag a book here to take it off.` : null}
+            {unshelved.length !== 0 && readOnly ? countOf(unshelved.length, 'item') : null}
+            {unshelved.length !== 0 && !readOnly ? `${countOf(unshelved.length, 'book')}. Drag them onto a shelf, or drag a book here to take it off.` : null}
           </span>
         </div>
         {unshelved.length > 0 && (

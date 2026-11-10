@@ -42,8 +42,8 @@ export function cleanSeriesName(name: string): string {
 export function parseSeries(raw: string): BookSeries | undefined {
   const s = raw.replace(/^series\s*:\s*/i, '').replace(/_/g, ' ').trim();
   if (!s || s.length > 90) return;
-  const m = s.match(TRAILING_NUMBER);
-  const lead = s.match(LEADING_NUMBER);
+  const m = TRAILING_NUMBER.exec(s);
+  const lead = LEADING_NUMBER.exec(s);
   const name = cleanSeriesName(m ? m[1] : s);
   if (!name || /^\d+$/.test(name) || name.length < 2) return;
   return { name, number: num(m ? m[2] : lead?.[1]) };
@@ -51,7 +51,7 @@ export function parseSeries(raw: string): BookSeries | undefined {
 
 /** Goodreads-style titles: "Leviathan Wakes (The Expanse, #1)", "(Mistborn Book 2)", "(Dune #1)". */
 export function seriesFromTitle(title: string): BookSeries | undefined {
-  const m = title.match(new RegExp(String.raw`\(([^()]+?),?\s*${NUMBER}\)\s*$`, 'i'));
+  const m = new RegExp(String.raw`\(([^()]+?),?\s*${NUMBER}\)\s*$`, 'i').exec(title);
   if (!m) return;
   const name = cleanSeriesName(m[1]);
   if (!name) return;

@@ -144,7 +144,10 @@ function drawMonthBars(g: CanvasRenderingContext2D, p: Palette, perMonth: number
   });
 }
 
-const stars = (n?: number) => (n ? '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '') : '');
+const stars = (n?: number) => {
+  if (!n) return '';
+  return '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '');
+};
 const BOOK_PALETTE: Palette = { ink: '#f3efe4', soft: '#b9c8bf', gold: '#d8ad55' };
 
 /** Where the label rows start, under however many rows of covers there are. */

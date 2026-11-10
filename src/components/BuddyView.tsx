@@ -167,7 +167,7 @@ function Chat({ read, uid, myPage, finished, onOpenProfile }: Readonly<{ read: B
 {msgs && !msgs.length ? (
         <p className="muted small">No messages yet. Say what you think so far. Messages are tagged with your page, so nobody gets spoiled.</p>
       ) : null}
-{msgs && msgs.length ? <ul className="chat-list">
+{msgs?.length ? <ul className="chat-list">
           {msgs.map((m) => {
             const spoiler = !finished && m.page != null && m.page > myPage && m.user_id !== uid && !shown.has(m.id);
             return (

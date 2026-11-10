@@ -79,7 +79,7 @@ export function LastfmPanel({ signedIn, onSignIn, tick }: Readonly<Props>) {
 {signedIn && !error && !status ? (
         <p className="muted small">Checking…</p>
       ) : null}
-{signedIn && !error && status && status.username ? (
+{signedIn && !error && status?.username ? (
         <div className="lastfm-linked">
           <p className="lastfm-row">
             <span>

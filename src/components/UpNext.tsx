@@ -26,11 +26,11 @@ const SHOWN = 8;
 function moveTo(queue: Props['queue'], from: number, to: number): Reading | undefined {
   if (from === to || to < 0 || to >= queue.length) return;
   const rest = queue.filter((_, i) => i !== from).map((x) => queueKey(x.r));
-  const before = rest[to - 1];
-  const after = rest[to];
-  let order = (before + after) / 2;
-  if (before === undefined) order = after - 60_000;
-  else if (after === undefined) order = before + 60_000;
+  // Halfway between the new neighbours, or a minute past the end.
+  let order: number;
+  if (to === 0) order = rest[to] - 60_000;
+  else if (to >= rest.length) order = rest[to - 1] + 60_000;
+  else order = (rest[to - 1] + rest[to]) / 2;
   return { ...queue[from].r, queueOrder: order, updatedAt: new Date().toISOString() };
 }
 

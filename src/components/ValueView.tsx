@@ -4,7 +4,7 @@ import { formatMoney } from '../types';
 import { Cover } from './Cover';
 import { discogsReleaseUrl, isStale, summarize } from '../lib/value';
 import { formatDay } from '../lib/reading';
-import { gainClass } from '../lib/labels';
+import { countOf, gainClass } from '../lib/labels';
 import { dropTrailingNote } from '../lib/text';
 
 export interface PriceRun {
@@ -30,10 +30,13 @@ type TopRow = Summary['top'][number];
 
 const signed = (n: number, money: (n: number) => string) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n))}`;
 
+const staleText = (n: number) => `${n} ${n === 1 ? 'needs' : 'need'}`;
+
 function ValueStats({ s, records, money, onOpen }: Readonly<{ s: Summary; records: Book[]; money: (n: number) => string; onOpen: (b: Book) => void }>) {
   const gain = s.worthOfPaid - s.paid;
   const compared = s.compared > 0;
-  const gainPct = compared && s.paid ? `${gain >= 0 ? '+' : ''}${Math.round((gain / s.paid) * 100)}% on what you paid` : ' ';
+  const sign = gain >= 0 ? '+' : '';
+  const gainPct = compared && s.paid ? `${sign}${Math.round((gain / s.paid) * 100)}% on what you paid` : ' ';
   return (
     <div className="stat-row stat-row-4">
       <div className="stat">
@@ -44,7 +47,7 @@ function ValueStats({ s, records, money, onOpen }: Readonly<{ s: Summary; record
       <div className="stat">
         <span className="stat-label">You paid</span>
         <span className="stat-value">{compared ? money(s.paid) : '–'}</span>
-        <span className="muted">{compared ? `for ${s.compared} record${s.compared === 1 ? '' : 's'} with a price and a value` : 'add prices paid to compare'}</span>
+        <span className="muted">{compared ? `for ${countOf(s.compared, 'record')} with a price and a value` : 'add prices paid to compare'}</span>
       </div>
       <div className="stat">
         <span className="stat-label">{gain >= 0 ? 'Gained' : 'Lost'}</span>
@@ -92,7 +95,7 @@ function PricePanel({ s, records, hasToken, run, onUpdate, onStop, onOpenSetting
           <p className="muted small">
             {s.lastChecked ? `Last updated ${formatDay(s.lastChecked)}. ` : ''}
             {linked} of {records.length} records are linked to a Discogs release
-            {stale ? `, ${stale} need${stale === 1 ? 's' : ''} a price update` : ''}.
+            {stale ? `, ${staleText(stale)} a price update` : ''}.
           </p>
         </div>
         {run ? (

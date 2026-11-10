@@ -84,6 +84,7 @@ function WishItem({ b, music, onOpen, onBought, onRemove }: Readonly<{ b: Book; 
 
 export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRemove, onAddByTitle, onScanToWishlist, scanningToWishlist, music = false, onImportDiscogs }: Readonly<Props>) {
   const mine = useMemo(() => books.filter((b) => isMusic(b) === music), [books, music]);
+  const listName = music ? 'wantlist' : 'wishlist';
   const list = useMemo(
     () => wishlistOf(mine, readings).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })),
     [mine, readings],
@@ -136,7 +137,7 @@ export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRem
             <button className="btn ghost small-btn" onClick={onAddByTitle}>{music ? '+ Add a record' : '+ Add by title'}</button>
             {onImportDiscogs && <button className="btn ghost small-btn" onClick={onImportDiscogs}>Import Discogs wantlist</button>}
             <button className={`btn ghost small-btn ${scanningToWishlist ? 'on' : ''}`} onClick={onScanToWishlist}>
-              {scanningToWishlist ? `Scans go to your ${music ? 'wantlist' : 'wishlist'}` : `Scan to ${music ? 'wantlist' : 'wishlist'}`}
+              {scanningToWishlist ? `Scans go to your ${listName}` : `Scan to ${listName}`}
             </button>
             {list.length > 0 && <button className="btn ghost small-btn" onClick={copy}>{copied === 'ok' ? 'Copied' : 'Copy shopping list'}</button>}
           </div>

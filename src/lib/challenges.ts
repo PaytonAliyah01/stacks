@@ -102,7 +102,8 @@ export const BADGES: BadgeDef[] = [
     earnedOn: (c, p, today) => {
       if (!p.started || p.ended || p.done === 0) return null;
       const weekOfPages = (c.goal / Math.max(1, dayNum(c.endOn) - dayNum(c.startOn) + 1)) * 7;
-      return p.done - p.expected >= (c.measure === 'books' ? 1 : weekOfPages) ? today : null;
+      const ahead = c.measure === 'books' ? 1 : weekOfPages;
+      return p.done - p.expected >= ahead ? today : null;
     },
   },
   {

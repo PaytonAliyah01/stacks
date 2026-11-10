@@ -55,7 +55,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString
 
 type Go = (where: HomeTarget) => void;
 
-function HomeClubs({ clubs, onGo }: Readonly<{ clubs?: Props['clubs']; onGo: Go }>) {
+function HomeClubs({ clubs, onGo }: Readonly<{ clubs: Props['clubs']; onGo: Go }>) {
   if (!clubs?.length) return null;
   return (
     <section className="panel">
@@ -77,7 +77,7 @@ function HomeClubs({ clubs, onGo }: Readonly<{ clubs?: Props['clubs']; onGo: Go 
   );
 }
 
-function HomeBuddy({ buddy, onGo }: Readonly<{ buddy?: Props['buddy']; onGo: Go }>) {
+function HomeBuddy({ buddy, onGo }: Readonly<{ buddy: Props['buddy']; onGo: Go }>) {
   if (!buddy?.length) return null;
   return (
     <section className="panel">
@@ -99,7 +99,7 @@ function HomeBuddy({ buddy, onGo }: Readonly<{ buddy?: Props['buddy']; onGo: Go 
   );
 }
 
-function HomeLending({ lending, onGo }: Readonly<{ lending?: Props['lending']; onGo: Go }>) {
+function HomeLending({ lending, onGo }: Readonly<{ lending: Props['lending']; onGo: Go }>) {
   if (!lending || (lending.asks <= 0 && lending.items.length <= 0)) return null;
   return (
     <section className="panel">
@@ -141,7 +141,7 @@ function groupLine(g: NonNullable<Props['groups']>[number]): string {
   return g.of > 1 ? `With friends · you're ${ordinal(g.place)} of ${g.of}` : 'With friends · waiting for them to join';
 }
 
-function HomeGoals({ goals, groups, onGo }: Readonly<{ goals: Goal[]; groups?: Props['groups']; onGo: Go }>) {
+function HomeGoals({ goals, groups, onGo }: Readonly<{ goals: Goal[]; groups: Props['groups']; onGo: Go }>) {
   return (
       <section className="panel">
         <div className="home-head">
@@ -270,7 +270,7 @@ function HomeMusic({ spinning, pick, setPick, records, plays, spinsWeek, listenS
   );
 }
 
-function HomeReleases({ releases, onGo }: Readonly<{ releases?: Props['releases']; onGo: Go }>) {
+function HomeReleases({ releases, onGo }: Readonly<{ releases: Props['releases']; onGo: Go }>) {
   if (!releases || releases.books.length + releases.music.length <= 0) return null;
   const { books: nb, music: nm, unseen } = releases;
   // Unseen first, then what's out soonest or most recently.

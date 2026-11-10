@@ -156,13 +156,14 @@ export function RecsView(props: Readonly<Props>) {
     </ul>
   );
   const noTaste = !recs.taste.loved.length;
+  const lovedBooks = recs.taste.loved.length === 1 ? 'book' : countOf(recs.taste.loved.length, 'book');
 
   return (
     <div className="recs-page">
       <p className="muted recs-intro">
         {noTaste
           ? 'Rate the books you finish (4 stars and up counts as loved) and Stacks learns what you like. Until then, here are unread books from your shelves.'
-          : `Picked from the ${recs.taste.loved.length === 1 ? 'book' : countOf(recs.taste.loved.length, 'book')} you loved, their genres and moods, and what your friends rated highly.`}
+          : `Picked from the ${lovedBooks} you loved, their genres and moods, and what your friends rated highly.`}
       </p>
 
       <section className="panel">

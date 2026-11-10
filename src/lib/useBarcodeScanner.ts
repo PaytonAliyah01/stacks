@@ -26,14 +26,15 @@ function setInputValue(el: HTMLInputElement, value: string) {
 
 const PLAIN_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit']);
 
-/** Where a key went: a text box, somewhere on the page, or somewhere a scan should leave alone. */
-function whereTyped(e: KeyboardEvent, box: HTMLInputElement | null): HTMLInputElement | 'page' | 'ignore' {
-  const el = e.target as HTMLElement | null;
-  if (!el || el === box || el.dataset.scanInput !== undefined) return 'ignore';
+/** Where a key went: a text box (the event's target), somewhere on the page, or somewhere a scan should leave alone. */
+function whereTyped(e: KeyboardEvent, box: HTMLInputElement | null): 'text' | 'page' | 'ignore' {
+  if (!e.target || Object.is(e.target, box)) return 'ignore';
+  const el = e.target as HTMLElement;
+  if ('scanInput' in el.dataset) return 'ignore';
   if (e.ctrlKey || e.metaKey || e.altKey) return 'ignore';
   if (el instanceof HTMLTextAreaElement || el.isContentEditable) return 'ignore';
   if (!(el instanceof HTMLInputElement)) return 'page';
-  if (TEXT_TYPES.has(el.type)) return el;
+  if (TEXT_TYPES.has(el.type)) return 'text';
   // Dates, numbers, prices.
   return PLAIN_INPUTS.has(el.type) ? 'page' : 'ignore';
 }
@@ -83,7 +84,7 @@ export function useBarcodeScanner(
         if (digit && box) handToScanBox(e, digit, box);
         return;
       }
-      const textBox = where;
+      const textBox = e.target as HTMLInputElement;
 
       // Inside a text box: judge by when the key was pressed, not when the
       // page got round to handling it, so a busy moment doesn't split a scan.

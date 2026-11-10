@@ -4,7 +4,7 @@ import { readingsOf } from './reading';
 import { getGoogle, getJson, withGoogleKey } from './lookup';
 import { authorKey, recKey, type Rec } from './recommend';
 import { albumKey, artistKey, deezerAlbums, deezerArtist, musicTasteOf, NOT_NEW } from './musicrecs';
-import { countOf } from './labels';
+import { recordsText } from './labels';
 import { eachInTurn } from './inTurn';
 
 /**
@@ -167,7 +167,7 @@ export function followedArtists(records: Book[], spins: Spin[]): Followed[] {
     .map(([, a]) => ({
       name: a.name,
       weight: a.weight,
-      why: a.spins > 1 ? `You've spun ${a.name} ${a.spins} times` : `You have ${a.owned === 1 ? 'a record' : countOf(a.owned, 'record')} by ${a.name}`,
+      why: a.spins > 1 ? `You've spun ${a.name} ${a.spins} times` : `You have ${recordsText(a.owned)} by ${a.name}`,
     }));
 }
 

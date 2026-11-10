@@ -48,7 +48,7 @@ export function insideParens(s: string): string | undefined {
   return close > open + 1 ? s.slice(open + 1, close) : undefined;
 }
 
-const isSpace = (c: string | undefined) => c !== undefined && c.trim() === '';
+const isSpace = (c: string | undefined) => c?.trim() === '';
 
 /** Trims any of these characters (and whitespace) off the end. */
 export function trimEndOf(s: string, chars: string): string {
@@ -89,8 +89,7 @@ export function dropTrailingBookNumber(s: string): string {
   const word = NUMBER_WORDS.find((w) => lower.endsWith(w) && (w !== 'book' || bare.length < head.length));
   if (word) head = bare.slice(0, bare.length - word.length);
   head = trimEndOf(head, ',;:#-');
-  const last = head[head.length - 1];
-  return last === undefined || isDigit(last) ? s : head;
+  return head.length === 0 || isDigit(head[head.length - 1]) ? s : head;
 }
 
 const DURATION = /^\d{1,2}:\d{2}(?::\d{2})?$/;

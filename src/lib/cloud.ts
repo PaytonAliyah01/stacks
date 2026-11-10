@@ -254,7 +254,7 @@ export function startSync() {
   booted = true;
   supabase.auth.onAuthStateChange((event, s) => {
     if (s && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-      if (!session || session.user.id !== s.user.id) void started(s);
+      if (session?.user.id !== s.user.id) void started(s);
       else session = s;
     } else if (s && event === 'TOKEN_REFRESHED') session = s;
     else if (!s) {

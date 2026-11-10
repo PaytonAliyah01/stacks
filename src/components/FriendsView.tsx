@@ -46,7 +46,7 @@ export function FriendButton({ uid, them, friends, onChanged }: Readonly<{ uid: 
       {!f ? (
         <button className="btn primary small-btn" disabled={busy} onClick={() => act(() => sendRequest(uid, them.id))}>Add friend</button>
       ) : null}
-{f && (f.status === 'accepted') ? (
+{f?.status === 'accepted' ? (
         <span className="friend-badge">✓ Friends</span>
       ) : null}
 {f && f.status !== 'accepted' && f.incoming ? (
@@ -220,6 +220,12 @@ function YourFriends({ accepted, ctx }: Readonly<{ accepted: Friend[]; ctx: List
   );
 }
 
+/** "2 mutual friends", beside someone you may know. */
+function mutualFriends(f: Found) {
+  const mutual = (f as Found & { mutual: number }).mutual;
+  return <span className="muted small mutual">{mutual} mutual {mutual === 1 ? 'friend' : 'friends'}</span>;
+}
+
 function PeoplePage({ me, ctx, suggested, incoming, accepted, outgoing, loadError, onEditProfile }: Readonly<{ me: Profile; ctx: ListCtx; suggested: (Found & { mutual: number })[]; incoming: Friend[]; accepted: Friend[]; outgoing: Friend[]; loadError?: string; onEditProfile: () => void }>) {
   return (
     <>
@@ -228,10 +234,7 @@ function PeoplePage({ me, ctx, suggested, incoming, accepted, outgoing, loadErro
         title="People you may know"
         people={suggested}
         ctx={ctx}
-        extra={(f) => {
-          const mutual = (f as Found & { mutual: number }).mutual;
-          return <span className="muted small mutual">{mutual} mutual {mutual === 1 ? 'friend' : 'friends'}</span>;
-        }}
+        extra={mutualFriends}
       />
       {loadError && <p className="account-error">{loadError}</p>}
       <PeoplePanel title="Friend requests" people={incoming} ctx={ctx} />
@@ -278,8 +281,8 @@ export function FriendsView({ uid, me, friends, loadError, onChanged, onOpenProf
         </div>
       );
     }
-    if (tab === 'lending' && lending) return lending;
-    if (tab === 'gifts' && gifts) return gifts;
+    if (tab === 'lending' && lending) return <>{lending}</>;
+    if (tab === 'gifts' && gifts) return <>{gifts}</>;
     if (tab === 'feed') return <FeedView uid={uid} onOpenProfile={onOpenProfile} hasFriends={accepted.length > 0} onFindFriends={findPeople} />;
     return <PeoplePage me={me} ctx={ctx} suggested={suggested} incoming={incoming} accepted={accepted} outgoing={outgoing} loadError={loadError} onEditProfile={onEditProfile} />;
   };

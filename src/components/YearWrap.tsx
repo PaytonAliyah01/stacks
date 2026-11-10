@@ -15,7 +15,10 @@ interface Props {
   onOpen: (b: Book) => void;
 }
 
-const stars = (n?: number) => (n ? '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '') : '');
+const stars = (n?: number) => {
+  if (!n) return '';
+  return '★'.repeat(Math.floor(n)) + (n % 1 ? '½' : '');
+};
 const plural = (n: number, word: string) => `${word}${n === 1 ? '' : 's'}`;
 
 interface CardProps {

@@ -267,7 +267,8 @@ export async function fromOpenLibrary(books: Book[], t: Taste, hidden: Set<strin
   byAuthor.forEach((res, i) => {
     if (res.status !== 'fulfilled') return;
     const seed = t.loved.find((x) => authorKey(x.b.authors[0] ?? '') === authorKey(topAuthors[i]));
-    const reason = seed ? `You ${seed.weight >= 2 ? 'loved' : 'read'} ${seed.b.title}${stars(seed.rating)}` : `More by ${topAuthors[i]}`;
+    const verb = seed && seed.weight >= 2 ? 'loved' : 'read';
+    const reason = seed ? `You ${verb} ${seed.b.title}${stars(seed.rating)}` : `More by ${topAuthors[i]}`;
     const docs = res.value
       .filter((d) => (d.author_name ?? []).some((n: string) => authorKey(n) === authorKey(topAuthors[i])))
       .sort((a, b) => score(b) - score(a));

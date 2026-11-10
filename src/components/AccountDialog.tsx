@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { Avatar } from './ProfileEditor';
 import type { Profile } from '../lib/profile';
+import { countOf } from '../lib/labels';
 import { SITE_URL, pendingCount, signOut, supabase, syncNow, type SyncState } from '../lib/cloud';
 
 interface Props {
@@ -49,7 +50,7 @@ export function syncLabel(s: SyncState): string {
     case 'synced':
       return Date.now() - Date.parse(s.at) < 60_000 ? 'Synced just now' : `Synced at ${new Date(s.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
     case 'offline':
-      return s.pending ? `Offline · ${s.pending} change${s.pending === 1 ? '' : 's'} to send` : 'Offline';
+      return s.pending ? `Offline · ${countOf(s.pending, 'change')} to send` : 'Offline';
     case 'error':
       return 'Sync problem';
   }

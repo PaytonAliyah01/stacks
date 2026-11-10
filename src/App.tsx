@@ -209,7 +209,7 @@ function ownedMessage(toWishlist: boolean, copies: number): string | undefined {
 
 function recordLine(b: Book, plays?: number): string {
   const grades = b.mediaCondition && [gradeShort(b.mediaCondition), gradeShort(b.sleeveCondition)].filter(Boolean).join('/');
-  const playText = plays ? `${plays} ${plays === 1 ? 'play' : 'plays'}` : undefined;
+  const playText = plays ? countOf(plays, 'play') : undefined;
   return [KIND_LABELS[kindOf(b)].one, b.trackCount && `${b.trackCount} tracks`, b.publishedDate?.slice(0, 4), grades, playText].filter(Boolean).join(' · ');
 }
 
@@ -300,6 +300,8 @@ function backupOverdue(count: number, days: number, snoozedUntil: number): boole
 
 function StacksApp() {
   const [allBooks, setAllBooks] = useState<Book[]>([]);
+  /** Puts a changed book in place of its old version. */
+  const replaceBook = (next: Book) => setAllBooks((l) => l.map((x) => (x.id === next.id ? next : x)));
   // The library is what you own; books you've only read (e.g. imported) live in Reading.
   const books = useMemo(() => allBooks.filter((b) => b.owned !== false), [allBooks]);
   const [includeUnowned, setIncludeUnowned] = useState(false);
@@ -890,7 +892,7 @@ function StacksApp() {
           ...(found ? { moods: g.moods, pace: g.pace, contentWarnings: [latest.contentWarnings, g.contentWarnings].find((w) => w?.length), vibeGuessed: true } : {}),
         };
         await store.put(next);
-        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        replaceBook(next);
         if (found) filled++;
       });
       vibeBusy.current = false;
@@ -946,7 +948,7 @@ function StacksApp() {
           updatedAt: new Date().toISOString(),
         };
         await store.put(next);
-        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        replaceBook(next);
         if (next.coverUrl !== latest.coverUrl || next.trackCount !== latest.trackCount) filled++;
         await pause(getDiscogsToken() ? 1100 : 2600);
       });
@@ -979,7 +981,7 @@ function StacksApp() {
         if (!latest || !needs(latest)) return;
         const next: Book = { ...latest, tracks, tracksChecked: true, trackCount: latest.trackCount ?? tracks?.length, updatedAt: new Date().toISOString() };
         await store.put(next);
-        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        replaceBook(next);
         await pause(2600);
       });
       tracksBusy.current = false;
@@ -1017,7 +1019,7 @@ function StacksApp() {
         const changed = best?.name !== latest.series?.name || best?.number !== latest.series?.number;
         const next: Book = { ...latest, seriesChecked: true, seriesV: SERIES_FINDER_VERSION, series: best };
         await store.put(next);
-        setAllBooks((l) => l.map((x) => (x.id === id ? next : x)));
+        replaceBook(next);
         if (changed) found++;
       });
       seriesBusy.current = false;
@@ -1031,7 +1033,7 @@ function StacksApp() {
   const patchBook = async (b: Book) => {
     const next = { ...b, updatedAt: new Date().toISOString() };
     await store.put(next);
-    setAllBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
+    replaceBook(next);
   };
 
   // A timer for a reading that's since been deleted can't be finished, so drop it.
@@ -1391,7 +1393,7 @@ function StacksApp() {
           const latest = (await store.get(b.id)) ?? b;
           const next: Book = { ...latest, discogsId: id, market: { ...m, checkedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() };
           await store.put(next);
-          setAllBooks((l) => l.map((x) => (x.id === b.id ? next : x)));
+          replaceBook(next);
           if (m.lowest !== undefined || m.suggested !== undefined) priced++;
         }
       } catch (err) {
