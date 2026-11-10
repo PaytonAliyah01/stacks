@@ -198,6 +198,20 @@ export default function App() {
   return token ? <SharedShelf key={token} token={token} /> : <StacksApp />;
 }
 
+function ownedMessage(toWishlist: boolean, copies: number): string | undefined {
+  const several = copies > 1;
+  if (toWishlist) return `You already own this${several ? ` (${copies} copies)` : ''}. No need to buy it.`;
+  return several ? `You have ${copies} copies.` : undefined;
+}
+
+function recordLine(b: Book, plays?: number): string {
+  const grades = b.mediaCondition && [gradeShort(b.mediaCondition), gradeShort(b.sleeveCondition)].filter(Boolean).join('/');
+  const playText = plays ? `${plays} ${plays === 1 ? 'play' : 'plays'}` : undefined;
+  return [KIND_LABELS[kindOf(b)].one, b.trackCount && `${b.trackCount} tracks`, b.publishedDate?.slice(0, 4), grades, playText].filter(Boolean).join(' · ');
+}
+
+const pagesLine = (b: Book) => (b.pageCount ? `${b.pageCount.toLocaleString()} pages` : 'Pages unknown');
+
 function noMatchText(view: string, sectionCount: number): string {
   if (view === 'music') return 'Nothing matches these filters.';
   return sectionCount === 0 ? 'No books yet. Your records and CDs are under Music.' : 'No books match these filters.';
@@ -1016,12 +1030,7 @@ function StacksApp() {
         title: b.title,
         author: b.authors[0],
         coverUrl: b.coverUrl,
-        message:
-          scanTarget === 'wishlist'
-            ? `You already own this${b.copies > 1 ? ` (${b.copies} copies)` : ''}. No need to buy it.`
-            : b.copies > 1
-              ? `You have ${b.copies} copies.`
-              : undefined,
+        message: ownedMessage(scanTarget === 'wishlist', b.copies),
       });
       // A book Stacks knows but you don't own (wishlist or read elsewhere): scanning it changes that.
       const fromUnowned = async (b: Book) => {
@@ -1640,6 +1649,9 @@ function StacksApp() {
     />
   );
   const sectionCount = books.filter((b) => (view === 'music') === isMusic(b)).length;
+  const noMusicYet = loaded && view === 'music' && sectionCount === 0;
+  const noBooksYet = !noMusicYet && loaded && books.length === 0;
+  const noMatches = !noMusicYet && !noBooksYet && shown.length === 0;
   const sessionAdded = scans.filter((s) => s.state === 'added').length;
   const filtersOn = (view === 'music' ? kindFilter !== 'all' : formatFilter !== 'all' || statusFilter !== 'all' || vibeFilter !== 'any') || shelfFilter !== 'all' || lentOnly || query;
 
@@ -2429,7 +2441,7 @@ function StacksApp() {
               </p>
             )}
 
-            {loaded && view === 'music' && sectionCount === 0 ? (
+            {noMusicYet && (
               <div className="empty">
                 <h3>No records or CDs yet</h3>
                 <p>Scan the barcode on the back of a record or CD, the same way you scan books. Stacks looks it up on MusicBrainz, Deezer and iTunes (and Discogs, if you add a token) and adds it here.</p>
@@ -2444,16 +2456,17 @@ function StacksApp() {
                   </button>
                 </p>
               </div>
-            ) : loaded && books.length === 0 ? (
+            )}
+            {noBooksYet && (
               <div className="empty">
                 <div className="empty-shelf" aria-hidden="true"><i /><i /><i /><i /><i /></div>
                 <h3>Your shelves are empty</h3>
                 <p>Plug in your barcode scanner and scan the first book from your stack. It lands here with its cover, author and page count filled in.</p>
                 <p className="muted">No scanner handy? Type the 13-digit ISBN printed above the barcode into the box on the left.</p>
               </div>
-            ) : shown.length === 0 ? (
-              <div className="empty"><p>{noMatchText(view, sectionCount)}</p></div>
-            ) : (
+            )}
+            {noMatches && <div className="empty"><p>{noMatchText(view, sectionCount)}</p></div>}
+            {!noMusicYet && !noBooksYet && !noMatches && (
               <ul className="grid">
                 {shown.map((b) => (
                   <li key={b.id}>
@@ -2469,9 +2482,7 @@ function StacksApp() {
                       <span className="book-author">{b.authors.join(', ') || 'Unknown author'}</span>
                       {b.series && <span className="book-series">{seriesLabel(b.series)}</span>}
                       <span className="book-pages">
-                        {isMusic(b)
-                          ? [KIND_LABELS[kindOf(b)].one, b.trackCount && `${b.trackCount} tracks`, b.publishedDate?.slice(0, 4), b.mediaCondition && [gradeShort(b.mediaCondition), gradeShort(b.sleeveCondition)].filter(Boolean).join('/'), plays.get(b.id) && `${plays.get(b.id)!.count} ${plays.get(b.id)!.count === 1 ? 'play' : 'plays'}`].filter(Boolean).join(' · ')
-                          : b.pageCount ? `${b.pageCount.toLocaleString()} pages` : 'Pages unknown'}
+                        {isMusic(b) ? recordLine(b, plays.get(b.id)?.count) : pagesLine(b)}
                       </span>
                       {(() => {
                         // Found by a song title: say which song.

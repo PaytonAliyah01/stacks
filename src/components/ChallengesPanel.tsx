@@ -15,6 +15,26 @@ interface Props {
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
+type Progress = ReturnType<typeof progressOf>;
+
+function paceText(c: Challenge, p: Progress): string {
+  if (!p.started) return `Starts ${formatDay(c.startOn)}`;
+  if (p.done >= c.goal) return 'Goal reached!';
+  if (p.ended) return `Ended ${formatDay(c.endOn)}`;
+  const diff = p.done - p.expected;
+  if (Math.abs(diff) < (c.measure === 'books' ? 0.5 : c.goal / 100)) return 'Right on pace';
+  const u = c.measure === 'books' ? 'book' : 'page';
+  const plural = Math.round(Math.abs(diff)) === 1 ? '' : 's';
+  return `${fmt(Math.abs(diff))} ${u}${plural} ${diff > 0 ? 'ahead of' : 'behind'} pace`;
+}
+
+function needText(c: Challenge, p: Progress): string {
+  if (!p.started || p.ended || p.done >= c.goal) return '';
+  if (c.measure !== 'books') return `About ${fmt(p.perWeekNeeded / 7)} pages a day to finish on time.`;
+  const rate = p.perWeekNeeded < 1 ? `1 book every ${Math.max(1, Math.round(7 / Math.max(p.perWeekNeeded, 0.01)))} days` : `${p.perWeekNeeded.toFixed(1)} books a week`;
+  return `About ${rate} to finish on time.`;
+}
+
 function ChallengeForm({ initial, onSave, onCancel }: Readonly<{ initial?: Challenge; onSave: (c: Challenge) => void; onCancel: () => void }>) {
   const year = new Date().getFullYear();
   const [measure, setMeasure] = useState<ChallengeMeasure>(initial?.measure ?? 'books');
@@ -148,25 +168,9 @@ export function ChallengesPanel({ challenges, books, readings, onSave, onRemove 
             );
           }
           const p = progressOf(c, readings, byId, today);
-          const diff = p.done - p.expected;
           const u = c.measure === 'books' ? 'book' : 'page';
-          const pace = !p.started
-            ? `Starts ${formatDay(c.startOn)}`
-            : p.done >= c.goal
-              ? 'Goal reached!'
-              : p.ended
-                ? `Ended ${formatDay(c.endOn)}`
-                : Math.abs(diff) < (c.measure === 'books' ? 0.5 : c.goal / 100)
-                  ? 'Right on pace'
-                  : diff > 0
-                    ? `${fmt(diff)} ${u}${Math.round(diff) === 1 ? '' : 's'} ahead of pace`
-                    : `${fmt(-diff)} ${u}${Math.round(-diff) === 1 ? '' : 's'} behind pace`;
-          const need =
-            p.started && !p.ended && p.done < c.goal
-              ? c.measure === 'books'
-                ? `About ${p.perWeekNeeded < 1 ? `1 book every ${Math.max(1, Math.round(7 / Math.max(p.perWeekNeeded, 0.01)))} days` : `${p.perWeekNeeded.toFixed(1)} books a week`} to finish on time.`
-                : `About ${fmt(p.perWeekNeeded / 7)} pages a day to finish on time.`
-              : '';
+          const pace = paceText(c, p);
+          const need = needText(c, p);
           return (
             <li key={c.id} className="challenge">
               <div className="challenge-top">

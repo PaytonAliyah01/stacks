@@ -105,14 +105,12 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
 
   if (p === undefined && !failed) return <div className="profile-page">{back}<p className="muted">Loading @{username}…</p></div>;
   // What lets you become friends with someone, whatever state you're in.
-  const addFriend = (them: Found) =>
-    !signedIn ? (
-      <button className="btn primary" onClick={onSignIn}>Sign in to add as a friend</button>
-    ) : !mine ? (
-      <button className="btn primary" onClick={onEdit}>Make your profile to add friends</button>
-    ) : uid && friends && onFriendsChanged ? (
-      <FriendButton uid={uid} them={them} friends={friends} onChanged={onFriendsChanged} />
-    ) : null;
+  const addFriend = (them: Found) => {
+    if (!signedIn) return <button className="btn primary" onClick={onSignIn}>Sign in to add as a friend</button>;
+    if (!mine) return <button className="btn primary" onClick={onEdit}>Make your profile to add friends</button>;
+    if (uid && friends && onFriendsChanged) return <FriendButton uid={uid} them={them} friends={friends} onChanged={onFriendsChanged} />;
+    return null;
+  };
 
   if (!p && card && !own)
     return (
@@ -134,13 +132,7 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
         <div className="profile-missing">
           <h2>@{username}</h2>
           <p>
-            {failed
-              ? 'Stacks couldn’t load this profile. Check your connection and try again.'
-              : signedIn
-                ? card === undefined
-                  ? 'Looking…'
-                  : 'There’s nobody with that username. Check the spelling with your friend.'
-                : 'Sign in to see this profile and add them as a friend.'}
+            {missingText(failed, signedIn, card === undefined)}
           </p>
           {!signedIn && !failed && <button className="btn primary" onClick={onSignIn}>Sign in</button>}
         </div>
@@ -205,4 +197,10 @@ export function ProfileView({ username, mine, signedIn, onEdit, onBack, onSignIn
       )}
     </div>
   );
+}
+
+function missingText(failed: boolean, signedIn: boolean, stillLooking: boolean): string {
+  if (failed) return 'Stacks couldn’t load this profile. Check your connection and try again.';
+  if (!signedIn) return 'Sign in to see this profile and add them as a friend.';
+  return stillLooking ? 'Looking…' : 'There’s nobody with that username. Check the spelling with your friend.';
 }

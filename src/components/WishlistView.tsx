@@ -82,13 +82,7 @@ export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRem
                         <span className="muted small">{b.authors.join(', ')}</span>
                       </span>
                       <span className={`own-answer ${owned ? 'yes' : 'no'}`}>
-                        {owned
-                          ? `You own this${music ? ` on ${KIND_LABELS[kindOf(b)].one}` : ''}${b.copies > 1 ? ` (${b.copies} copies)` : ''}${placeOf(b) ? ` · ${placeOf(b)}` : ''}`
-                          : onList
-                            ? music ? 'On your wantlist' : 'On your wishlist'
-                            : read?.status === 'read'
-                              ? "Read, but you don't own it"
-                              : "You don't own this"}
+                        {owned ? ownedText(b, music, placeOf(b)) : notOwnedText(onList, music, read?.status === 'read')}
                       </span>
                     </button>
                   </li>
@@ -155,4 +149,15 @@ export function WishlistView({ books, readings, placeOf, onOpen, onBought, onRem
       </section>
     </div>
   );
+}
+
+function ownedText(b: Book, music: boolean, place: string): string {
+  const format = music ? ` on ${KIND_LABELS[kindOf(b)].one}` : '';
+  const copies = b.copies > 1 ? ` (${b.copies} copies)` : '';
+  return `You own this${format}${copies}${place ? ` · ${place}` : ''}`;
+}
+
+function notOwnedText(onList: boolean, music: boolean, read: boolean): string {
+  if (onList) return music ? 'On your wantlist' : 'On your wishlist';
+  return read ? "Read, but you don't own it" : "You don't own this";
 }

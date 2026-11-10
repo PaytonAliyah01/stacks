@@ -119,13 +119,9 @@ function RecCard({ r, books, readings, onOpen, onWant, onWish, onRead, onHide }:
         {by && <span className="muted small">{by}{r.year ? ` · ${r.year}` : ''}</span>}
         <span className="rec-why small">{r.reason}</span>
         <span className="rec-actions">
-          {local ? (
-            queued ? (
-              <span className="muted small">On your to-read list</span>
-            ) : (
-              <button className="btn small-btn" onClick={() => onWant(r)}>Want to read</button>
-            )
-          ) : (
+          {local && queued && <span className="muted small">On your to-read list</span>}
+          {local && !queued && <button className="btn small-btn" onClick={() => onWant(r)}>Want to read</button>}
+          {!local && (
             <>
               <button className="btn small-btn" onClick={() => onWant(r)}>Want to read</button>
               <button className="link small" onClick={() => onWish(r)}>Wishlist</button>
