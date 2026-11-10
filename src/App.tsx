@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FORMAT_LABELS, KIND_LABELS, STATUS_LABELS, guessCurrency, type BookNote, type Spin, type BookSeries, type Challenge, type ReadStatus, type Reading, isMusic, kindOf, type ItemKind, type Book, type BookFormat, type BookMetadata, type Bookcase } from './types';
 import { formatIsbn13, parseScan } from './lib/isbn';
 import { fetchDiscogsRelease, fetchSeries, fetchSubjects, findAlbumCover, fetchTrackList, getDiscogsToken, fetchMarketPrices, discogsIdForBarcode, lookupBarcode, lookupIsbn, type SearchHit } from './lib/lookup';
@@ -228,6 +228,16 @@ function collectionImportText(added: number, updated: number): string {
 function noMatchText(view: string, sectionCount: number): string {
   if (view === 'music') return 'Nothing matches these filters.';
   return sectionCount === 0 ? 'No books yet. Your records and CDs are under Music.' : 'No books match these filters.';
+}
+
+/** Whole days since a date, or Infinity when there is none. */
+function daysSince(iso: string | null | undefined): number {
+  return iso ? Math.floor((Date.now() - Date.parse(iso)) / 86_400_000) : Infinity;
+}
+
+/** A library worth losing that hasn't been backed up for two weeks, unless you said "later". */
+function backupOverdue(count: number, days: number, snoozedUntil: number): boolean {
+  return count >= 5 && days >= 14 && Date.now() > snoozedUntil;
 }
 
 function StacksApp() {
@@ -1635,8 +1645,8 @@ function StacksApp() {
     writePref(PREF_LAST_BACKUP, today);
     setBackupNote(today);
   };
-  const daysSinceBackup = backupNote ? Math.floor((Date.now() - Date.parse(backupNote)) / 86_400_000) : Infinity;
-  const backupDue = !user && books.length >= 5 && daysSinceBackup >= 14 && Date.now() > snoozedUntil;
+  const daysSinceBackup = daysSince(backupNote);
+  const backupDue = !user && backupOverdue(books.length, daysSinceBackup, snoozedUntil);
 
   const inBooks = BOOK_PAGES.some(([k]) => k === view);
   const booksNav = (
@@ -1666,11 +1676,15 @@ function StacksApp() {
     />
   );
   const sectionCount = books.filter((b) => (view === 'music') === isMusic(b)).length;
-  const noMusicYet = loaded && view === 'music' && sectionCount === 0;
-  const noBooksYet = !noMusicYet && loaded && books.length === 0;
-  const noMatches = !noMusicYet && !noBooksYet && shown.length === 0;
   const sessionAdded = scans.filter((s) => s.state === 'added').length;
-  const filtersOn = (view === 'music' ? kindFilter !== 'all' : formatFilter !== 'all' || statusFilter !== 'all' || vibeFilter !== 'any') || shelfFilter !== 'all' || lentOnly || query;
+  /** Why the library grid is empty, if it is, and whether any filter is on. */
+  const libraryState = () => {
+    const noMusicYet = loaded && view === 'music' && sectionCount === 0;
+    const noBooksYet = !noMusicYet && loaded && books.length === 0;
+    const noMatches = !noMusicYet && !noBooksYet && shown.length === 0;
+    const filtersOn = (view === 'music' ? kindFilter !== 'all' : formatFilter !== 'all' || statusFilter !== 'all' || vibeFilter !== 'any') || shelfFilter !== 'all' || lentOnly || query;
+    return { noMusicYet, noBooksYet, noMatches, filtersOn };
+  };
 
   const accountDialog = accountOpen && (
         <AccountDialog
@@ -1711,114 +1725,117 @@ function StacksApp() {
     );
   }
 
-  return (
-    <div className="app">
-      <header className="topbar">
-        <button className="brand" onClick={() => { goView('home'); window.scrollTo(0, 0); }} aria-label="Stacks, go home" title="Home">
-          <span className="brand-mark" aria-hidden="true">
-            <i /><i /><i /><i />
-          </span>
-          <span className="brand-name">Stacks</span>
+  /** The Home, Books, Music, Reading and Friends tabs. */
+  const viewTabs = () => (
+    <nav className="tabs" aria-label="Views">
+      <button className={view === 'home' && !onPage ? 'active' : ''} onClick={() => goView('home')}>Home</button>
+      <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
+      <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
+      <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>
+        Reading{buddyInvites + groupInvites + clubInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites + groupInvites + clubInvites} invites`}>{buddyInvites + groupInvites + clubInvites}</span>}
+      </button>
+      {user && (
+        <button className={friendsOpen ? 'active' : ''} onClick={() => showFriends()}>
+          Friends{friendRequests + loanAsks > 0 && <span className="tab-badge" aria-label={`${friendRequests + loanAsks} new`}>{friendRequests + loanAsks}</span>}
         </button>
-        <nav className="tabs" aria-label="Views">
-          <button className={view === 'home' && !onPage ? 'active' : ''} onClick={() => goView('home')}>Home</button>
-          <button className={inBooks && !onPage ? 'active' : ''} onClick={() => goView(lastBooksPage)}>Books</button>
-          <button className={view === 'music' && !onPage ? 'active' : ''} onClick={() => goView('music')}>Music</button>
-          <button className={view === 'reading' && !onPage ? 'active' : ''} onClick={() => goView('reading')}>
-            Reading{buddyInvites + groupInvites + clubInvites > 0 && <span className="tab-badge" aria-label={`${buddyInvites + groupInvites + clubInvites} invites`}>{buddyInvites + groupInvites + clubInvites}</span>}
-          </button>
-          {user && (
-            <button className={friendsOpen ? 'active' : ''} onClick={() => showFriends()}>
-              Friends{friendRequests + loanAsks > 0 && <span className="tab-badge" aria-label={`${friendRequests + loanAsks} new`}>{friendRequests + loanAsks}</span>}
-            </button>
-          )}
-        </nav>
-        <dl className="totals" aria-label="Library totals">
-          <div><dt>Books</dt><dd>{totals.titles.toLocaleString()}</dd></div>
-          {totals.vinyl + totals.cds > 0 ? (
-            <>
-              <div><dt>Vinyl</dt><dd>{totals.vinyl.toLocaleString()}</dd></div>
-              <div><dt>CDs</dt><dd>{totals.cds.toLocaleString()}</dd></div>
-            </>
-          ) : (
-            <>
-              <div><dt>Copies</dt><dd>{totals.copies.toLocaleString()}</dd></div>
-              <div><dt>Authors</dt><dd>{totals.authors.toLocaleString()}</dd></div>
-            </>
-          )}
-          <div><dt>Pages</dt><dd>{totals.pages.toLocaleString()}</dd></div>
-        </dl>
-        <div className="topbar-actions">
-          {user && <NotificationBell notifs={notifs} onGo={(t: NotifTarget) => goHome(t === 'people' ? 'friends' : t)} />}
-          <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => openAccount('signin')} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
-            {user ? (
-              <>
-                {profile ? <Avatar p={profile} size={22} /> : null}
-                <span className={`sync-dot ${sync.kind}`} aria-hidden="true" /> {profile ? `@${profile.username}` : 'Account'}
-              </>
-            ) : (
-              'Sign in'
-            )}
-          </button>
-          <details className="menu" ref={menuRef}>
-            <summary className="btn ghost" aria-label="More">More ▾</summary>
-            <div className="menu-pop">
-              <button onClick={async () => { closeMenu(); setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true }); }}>
-                Add {view === 'music' ? 'a record or CD' : 'a book'} by hand…
-              </button>
-              <button onClick={() => { closeMenu(); if (user) setShareOpen(true); else openAccount('signin'); }}>
-                Share my shelves…
-              </button>
-              <hr className="menu-sep" />
-              <button onClick={() => { closeMenu(); downloadBackup(); }}>
-                Download backup (.json)
-              </button>
-              <button onClick={() => { closeMenu(); downloadFile(`stacks-library-${today}.csv`, toCsv(allBooks, label), 'text/csv'); }}>
-                Export spreadsheet (.csv)
-              </button>
-              <button onClick={() => { closeMenu(); importRef.current?.click(); }}>Restore from backup…</button>
-              <button onClick={() => { closeMenu(); setImportOpen(true); }}>Import from Goodreads or StoryGraph…</button>
-              <button onClick={() => { closeMenu(); setDiscogsOpen(true); }}>Import from Discogs…</button>
-              <button onClick={() => { closeMenu(); setSettingsOpen(true); }}>Lookup keys…</button>
-            </div>
-          </details>
-          <input
-            ref={importRef}
-            id="import-file"
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void onImport(f);
-              e.target.value = '';
-            }}
-          />
-        </div>
-      </header>
-
-      {backupDue && (
-        <div className="backup-nudge" role="note">
-          <p>
-            <strong>{backupNote ? `Your last backup was ${daysSinceBackup} days ago.` : "You haven't backed up your library yet."}</strong>{' '}
-            Your {books.length} items are stored only in this browser. Clearing browsing data or switching browsers would lose them.
-          </p>
-          <div className="backup-nudge-actions">
-            <button className="btn primary" onClick={downloadBackup}>Download backup</button>
-            <button
-              className="btn ghost"
-              onClick={() => {
-                const until = Date.now() + 3 * 86_400_000;
-                writePref(PREF_BACKUP_SNOOZE, String(until));
-                setSnoozedUntil(until);
-              }}
-            >
-              Remind me in 3 days
-            </button>
-          </div>
-        </div>
       )}
+    </nav>
+  );
 
+  const totalsList = () => (
+    <dl className="totals" aria-label="Library totals">
+      <div><dt>Books</dt><dd>{totals.titles.toLocaleString()}</dd></div>
+      {totals.vinyl + totals.cds > 0 ? (
+        <>
+          <div><dt>Vinyl</dt><dd>{totals.vinyl.toLocaleString()}</dd></div>
+          <div><dt>CDs</dt><dd>{totals.cds.toLocaleString()}</dd></div>
+        </>
+      ) : (
+        <>
+          <div><dt>Copies</dt><dd>{totals.copies.toLocaleString()}</dd></div>
+          <div><dt>Authors</dt><dd>{totals.authors.toLocaleString()}</dd></div>
+        </>
+      )}
+      <div><dt>Pages</dt><dd>{totals.pages.toLocaleString()}</dd></div>
+    </dl>
+  );
+
+  /** Notifications, the account button and the More menu. */
+  const topActions = () => (
+    <div className="topbar-actions">
+      {user && <NotificationBell notifs={notifs} onGo={(t: NotifTarget) => goHome(t === 'people' ? 'friends' : t)} />}
+      <button className={`btn ghost account-btn ${user ? 'in' : ''}`} onClick={() => openAccount('signin')} title={user ? syncLabel(sync) : 'Sign in to sync your library'}>
+        {user ? (
+          <>
+            {profile ? <Avatar p={profile} size={22} /> : null}
+            <span className={`sync-dot ${sync.kind}`} aria-hidden="true" /> {profile ? `@${profile.username}` : 'Account'}
+          </>
+        ) : (
+          'Sign in'
+        )}
+      </button>
+      <details className="menu" ref={menuRef}>
+        <summary className="btn ghost" aria-label="More">More ▾</summary>
+        <div className="menu-pop">
+          <button onClick={async () => { closeMenu(); setOpen({ book: await freshBook({ ...blankMeta(), kind: view === 'music' ? 'vinyl' : 'book' }), isNew: true }); }}>
+            Add {view === 'music' ? 'a record or CD' : 'a book'} by hand…
+          </button>
+          <button onClick={() => { closeMenu(); if (user) setShareOpen(true); else openAccount('signin'); }}>
+            Share my shelves…
+          </button>
+          <hr className="menu-sep" />
+          <button onClick={() => { closeMenu(); downloadBackup(); }}>
+            Download backup (.json)
+          </button>
+          <button onClick={() => { closeMenu(); downloadFile(`stacks-library-${today}.csv`, toCsv(allBooks, label), 'text/csv'); }}>
+            Export spreadsheet (.csv)
+          </button>
+          <button onClick={() => { closeMenu(); importRef.current?.click(); }}>Restore from backup…</button>
+          <button onClick={() => { closeMenu(); setImportOpen(true); }}>Import from Goodreads or StoryGraph…</button>
+          <button onClick={() => { closeMenu(); setDiscogsOpen(true); }}>Import from Discogs…</button>
+          <button onClick={() => { closeMenu(); setSettingsOpen(true); }}>Lookup keys…</button>
+        </div>
+      </details>
+      <input
+        ref={importRef}
+        id="import-file"
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void onImport(f);
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+
+  const backupNudge = () => (
+    <div className="backup-nudge" role="note">
+      <p>
+        <strong>{backupNote ? `Your last backup was ${daysSinceBackup} days ago.` : "You haven't backed up your library yet."}</strong>{' '}
+        Your {books.length} items are stored only in this browser. Clearing browsing data or switching browsers would lose them.
+      </p>
+      <div className="backup-nudge-actions">
+        <button className="btn primary" onClick={downloadBackup}>Download backup</button>
+        <button
+          className="btn ghost"
+          onClick={() => {
+            const until = Date.now() + 3 * 86_400_000;
+            writePref(PREF_BACKUP_SNOOZE, String(until));
+            setSnoozedUntil(until);
+          }}
+        >
+          Remind me in 3 days
+        </button>
+      </div>
+    </div>
+  );
+
+  /** Someone’s profile, or the Friends page. */
+  const peoplePage = () => (
+    <>
       {profileName && (
         <ProfileView
           username={profileName}
@@ -1865,675 +1882,789 @@ function StacksApp() {
           }
         />
       )}
-      <main className={`layout ${view === 'home' ? 'on-home' : ''}`} hidden={!!profileName || (friendsOpen && !!user)}>
-        {view === 'reading' && (
-          <aside className="scan-panel" aria-label="Currently reading">
-            <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => changeActiveSession(startSession(r, b))} />
-          </aside>
-        )}
-        <section className="scan-panel" aria-label="Scan books" hidden={view === 'reading'}>
-          {storageProblem && (
-            <div className="setup-callout storage-problem" role="alert">
-              <h2>Your library couldn't open</h2>
-              <p>{storageProblem}</p>
-            </div>
-          )}
-          {loaded && !storageProblem && bookcases.length === 0 && (
-            <div className="setup-callout" role="note">
-              <h2>Start by adding your bookcase</h2>
-              <p>Tell Stacks what bookcase you have, like a black IKEA Billy, and every book you scan goes straight onto the shelf you pick, in order.</p>
-              <button className="btn primary" onClick={() => setEditingCase({ bc: newBookcase('billy-80', 0), isNew: true })}>
-                Add a bookcase
-              </button>
-              <p className="muted small">You can still scan without one. Those books wait in “Not on a bookcase”.</p>
-            </div>
-          )}
-          <input
-            ref={sinkRef}
-            id="scanner-sink"
-            className="scanner-sink"
-            aria-label="Barcode scanner"
-            tabIndex={-1}
-            autoComplete="off"
-            inputMode="none"
-            onKeyDown={onSinkKey}
-          />
-          <form className={`scan-field ${flash ? 'flash' : ''}`} onSubmit={submitEntry}>
-            <div className="scan-head">
-              <div className="barcode" aria-hidden="true">
-                {[1, 3, 1, 2, 1, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 1, 1, 4, 2, 1].map((w, i) => (
-                  <i key={i} style={{ width: w * 2 }} />
-                ))}
-              </div>
-              <div>
-                {(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) ? (
-                  <>
-                    <p className="scan-status paused"><span className="dot" /> Scanner paused</p>
-                    <p className="scan-hint">Close the panel on the right to scan again.</p>
-                  </>
-                ) : null}
-                {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && pageFocused ? (
-                  <>
-                    <p className="scan-status"><span className="dot" /> Scanner ready</p>
-                    <p className="scan-hint">Scan the barcode on the back of a book, record or CD. You don't need to click anything first.</p>
-                  </>
-                ) : null}
-                {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && !pageFocused ? <>
-                    <p className="scan-status paused"><span className="dot" /> Click this page to scan</p>
-                    <p className="scan-hint">Your scanner types into whichever window is active. Click anywhere on Stacks first, then scan.</p>
-                  </> : null}
-              </div>
-            </div>
-            <label className="sr-only" htmlFor="scan-input">ISBN</label>
-            <div className="scan-input-row">
-              <input
-                ref={scanFieldRef}
-                id="scan-input"
-                data-scan-input=""
-                value={entry}
-                onChange={(e) => setEntry(e.target.value)}
-                onKeyDown={(e) => {
-                  // Some scanners end with Tab instead of Enter.
-                  if (e.key === 'Tab' && entry.trim()) {
-                    e.preventDefault();
-                    e.currentTarget.form?.requestSubmit();
-                    return;
-                  }
-                  // Keyboard layouts like AZERTY type é, &, " on the number row; read the digit instead.
-                  const d = digitOf(e);
-                  if (d && d !== e.key && !e.ctrlKey && !e.metaKey) {
-                    e.preventDefault();
-                    setEntry((v) => v + d);
-                  }
-                }}
-                placeholder="Or type an ISBN, then Enter"
-                inputMode="numeric"
-                autoComplete="off"
-              />
-              <button className="btn primary" type="submit">Add</button>
-            </div>
-            <button
-              type="button"
-              className="btn camera-btn"
-              onClick={() => (cameraSupported() && !cameraNeedsHttps() ? setCameraOpen(true) : setCameraNote(!cameraNote))}
-            >
-              <span aria-hidden="true">📷</span> Scan with camera
-            </button>
-            {cameraNote && (
-              <p className="muted small camera-note">
-                {cameraNeedsHttps()
-                  ? 'Phones only let a web page use the camera when it’s opened from an https:// web address. Open Stacks from its web link instead of a saved file.'
-                  : 'This browser can’t use a camera. Try Chrome or Safari.'}
-              </p>
-            )}
-          </form>
-          {cameraOpen && <CameraScanner onCode={handleCode} onClose={() => setCameraOpen(false)} />}
+    </>
+  );
 
-          <div className={`scan-target ${scanTarget}`} role="radiogroup" aria-label="Scans go to">
-            <span className="scan-target-label">Scans go to</span>
-            {(['library', 'wishlist'] as const).map((t) => (
-              <button key={t} type="button" role="radio" aria-checked={scanTarget === t} className={`status-option ${scanTarget === t ? 'on' : ''}`} onClick={() => setScanTarget(t)}>
-                {t === 'library' ? 'My library' : 'My wishlist'}
-              </button>
+  const setupCallouts = () => (
+    <>
+      {storageProblem && (
+        <div className="setup-callout storage-problem" role="alert">
+          <h2>Your library couldn't open</h2>
+          <p>{storageProblem}</p>
+        </div>
+      )}
+      {loaded && !storageProblem && bookcases.length === 0 && (
+        <div className="setup-callout" role="note">
+          <h2>Start by adding your bookcase</h2>
+          <p>Tell Stacks what bookcase you have, like a black IKEA Billy, and every book you scan goes straight onto the shelf you pick, in order.</p>
+          <button className="btn primary" onClick={() => setEditingCase({ bc: newBookcase('billy-80', 0), isNew: true })}>
+            Add a bookcase
+          </button>
+          <p className="muted small">You can still scan without one. Those books wait in “Not on a bookcase”.</p>
+        </div>
+      )}
+    </>
+  );
+
+  const scannerStatus = () => (
+    <>
+      {(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) ? (
+        <>
+          <p className="scan-status paused"><span className="dot" /> Scanner paused</p>
+          <p className="scan-hint">Close the panel on the right to scan again.</p>
+        </>
+      ) : null}
+      {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && pageFocused ? (
+        <>
+          <p className="scan-status"><span className="dot" /> Scanner ready</p>
+          <p className="scan-hint">Scan the barcode on the back of a book, record or CD. You don't need to click anything first.</p>
+        </>
+      ) : null}
+      {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && !pageFocused ? <>
+          <p className="scan-status paused"><span className="dot" /> Click this page to scan</p>
+          <p className="scan-hint">Your scanner types into whichever window is active. Click anywhere on Stacks first, then scan.</p>
+        </> : null}
+    </>
+  );
+
+  const scanForm = () => (
+    <form className={`scan-field ${flash ? 'flash' : ''}`} onSubmit={submitEntry}>
+      <div className="scan-head">
+        <div className="barcode" aria-hidden="true">
+          {[1, 3, 1, 2, 1, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 1, 1, 4, 2, 1].map((w, i) => (
+            <i key={i} style={{ width: w * 2 }} />
+          ))}
+        </div>
+        <div>
+          {scannerStatus()}
+        </div>
+      </div>
+      <label className="sr-only" htmlFor="scan-input">ISBN</label>
+      <div className="scan-input-row">
+        <input
+          ref={scanFieldRef}
+          id="scan-input"
+          data-scan-input=""
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          onKeyDown={(e) => {
+            // Some scanners end with Tab instead of Enter.
+            if (e.key === 'Tab' && entry.trim()) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+              return;
+            }
+            // Keyboard layouts like AZERTY type é, &, " on the number row; read the digit instead.
+            const d = digitOf(e);
+            if (d && d !== e.key && !e.ctrlKey && !e.metaKey) {
+              e.preventDefault();
+              setEntry((v) => v + d);
+            }
+          }}
+          placeholder="Or type an ISBN, then Enter"
+          inputMode="numeric"
+          autoComplete="off"
+        />
+        <button className="btn primary" type="submit">Add</button>
+      </div>
+      <button
+        type="button"
+        className="btn camera-btn"
+        onClick={() => (cameraSupported() && !cameraNeedsHttps() ? setCameraOpen(true) : setCameraNote(!cameraNote))}
+      >
+        <span aria-hidden="true">📷</span> Scan with camera
+      </button>
+      {cameraNote && (
+        <p className="muted small camera-note">
+          {cameraNeedsHttps()
+            ? 'Phones only let a web page use the camera when it’s opened from an https:// web address. Open Stacks from its web link instead of a saved file.'
+            : 'This browser can’t use a camera. Try Chrome or Safari.'}
+        </p>
+      )}
+    </form>
+  );
+
+  const scanTargetPicker = () => (
+    <>
+      {cameraOpen && <CameraScanner onCode={handleCode} onClose={() => setCameraOpen(false)} />}
+
+      <div className={`scan-target ${scanTarget}`} role="radiogroup" aria-label="Scans go to">
+        <span className="scan-target-label">Scans go to</span>
+        {(['library', 'wishlist'] as const).map((t) => (
+          <button key={t} type="button" role="radio" aria-checked={scanTarget === t} className={`status-option ${scanTarget === t ? 'on' : ''}`} onClick={() => setScanTarget(t)}>
+            {t === 'library' ? 'My library' : 'My wishlist'}
+          </button>
+        ))}
+      </div>
+      {scanTarget === 'wishlist' ? (
+        <p className="muted small wish-note">Scanned books go on your wishlist. If you already own one, Stacks tells you instead.</p>
+      ) : (
+      <div className="scan-defaults">
+        <label className="field">
+          <span>New books are</span>
+          <select id="default-format" value={defaultFormat} onChange={(e) => setDefaultFormat(e.target.value as BookFormat)}>
+            {Object.entries(FORMAT_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
             ))}
-          </div>
-          {scanTarget === 'wishlist' ? (
-            <p className="muted small wish-note">Scanned books go on your wishlist. If you already own one, Stacks tells you instead.</p>
-          ) : (
-          <div className="scan-defaults">
-            <label className="field">
-              <span>New books are</span>
-              <select id="default-format" value={defaultFormat} onChange={(e) => setDefaultFormat(e.target.value as BookFormat)}>
-                {Object.entries(FORMAT_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>And go on</span>
+          <select
+            id="default-spot"
+            value={scanSpot ? `${scanSpot.bookcaseId}|${scanSpot.shelf}|${scanSpot.section}` : ''}
+            onChange={(e) => {
+              const [bookcaseId, shelf, section] = e.target.value.split('|');
+              setDefaultSpot(bookcaseId ? { bookcaseId, shelf: Number(shelf), section: Number(section) } : null);
+            }}
+          >
+            <option value="">No shelf yet</option>
+            {bookcases.map((bc) => (
+              <optgroup key={bc.id} label={bc.name}>
+                {allSpotsOf(bc).map((sp) => (
+                  <option key={`${sp.shelf}|${sp.section}`} value={`${bc.id}|${sp.shelf}|${sp.section}`}>
+                    {bc.name}: {spotName(bc, sp)}
+                  </option>
                 ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>And go on</span>
-              <select
-                id="default-spot"
-                value={scanSpot ? `${scanSpot.bookcaseId}|${scanSpot.shelf}|${scanSpot.section}` : ''}
-                onChange={(e) => {
-                  const [bookcaseId, shelf, section] = e.target.value.split('|');
-                  setDefaultSpot(bookcaseId ? { bookcaseId, shelf: Number(shelf), section: Number(section) } : null);
-                }}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+      </div>
+      )}
+
+      {scanTarget === 'library' && bookcases.length > 0 && !scanSpot && (
+        <p className="spot-hint">Pick a shelf under <strong>And go on</strong> so the books you scan are put on it.</p>
+      )}
+
+    </>
+  );
+
+  const sessionList = () => (
+    <>
+      <div className="session-head">
+        <h2>This session</h2>
+        <span className="muted">{sessionAdded ? `${sessionAdded} added` : null}
+        {!sessionAdded && scans.length ? '' : null}
+        {!sessionAdded && !scans.length ? 'Nothing scanned yet' : null}</span>
+        {scans.length > 0 && <button className="link" onClick={() => setScans([])}>Clear</button>}
+      </div>
+      {scans.length === 0 ? (
+        <p className="empty-small">Each book you scan shows up here so you can check it, fix it or undo it.</p>
+      ) : (
+        <ol className="scan-list">
+          {scans.map((s) => (
+            <li key={s.key} className={`scan-item state-${s.state}`}>
+              <button
+                className="scan-thumb"
+                onClick={() => openScan(s)}
+                disabled={s.state === 'undone' || s.state === 'invalid' || s.state === 'looking'}
+                aria-label={`Open ${s.title ?? s.raw}`}
               >
-                <option value="">No shelf yet</option>
-                {bookcases.map((bc) => (
-                  <optgroup key={bc.id} label={bc.name}>
-                    {allSpotsOf(bc).map((sp) => (
-                      <option key={`${sp.shelf}|${sp.section}`} value={`${bc.id}|${sp.shelf}|${sp.section}`}>
-                        {bc.name}: {spotName(bc, sp)}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-          </div>
-          )}
+                {s.title ? <Cover url={s.coverUrl} title={s.title} size="sm" /> : <span className="cover cover-sm cover-pending" />}
+              </button>
+              <div className="scan-body">
+                <p className="scan-title">{s.title ?? (s.isbn13 ? formatIsbn13(s.isbn13) : s.raw)}</p>
+                <p className="scan-meta">
+                  <span className={`pill pill-${s.state}`}>{STATE_LABEL[s.state]}</span>
+                  {s.kind && s.kind !== 'book' && <span className="kind-tag">{KIND_LABELS[s.kind].one}</span>}
+                  {s.author && <span className="muted">{s.author}</span>}
+                </p>
+                {s.message && <p className="scan-msg">{s.message}</p>}
+              </div>
+              <div className="scan-actions">
+                {s.state === 'added' && <button className="link" onClick={() => undoScan(s)}>Undo</button>}
+                {s.state === 'duplicate' && <button className="link" onClick={() => addCopy(s)}>Add a copy</button>}
+                {(s.state === 'not-found' || s.state === 'error') && s.isbn13 && (
+                  <button className="link" onClick={() => setSearchFor(s)}>Search by title</button>
+                )}
+                {s.state === 'not-found' && <button className="link" onClick={() => openScan(s)}>Enter details</button>}
+                {(s.state === 'error' || (s.state === 'not-found' && s.barcode)) && <button className="link" onClick={() => retryScan(s)}>Retry</button>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
+  );
 
-          {scanTarget === 'library' && bookcases.length > 0 && !scanSpot && (
-            <p className="spot-hint">Pick a shelf under <strong>And go on</strong> so the books you scan are put on it.</p>
-          )}
+  const scanPanel = () => (
+    <section className="scan-panel" aria-label="Scan books" hidden={view === 'reading'}>
+      {setupCallouts()}
+      <input
+        ref={sinkRef}
+        id="scanner-sink"
+        className="scanner-sink"
+        aria-label="Barcode scanner"
+        tabIndex={-1}
+        autoComplete="off"
+        inputMode="none"
+        onKeyDown={onSinkKey}
+      />
+      {scanForm()}
+      {scanTargetPicker()}
+      {sessionList()}
+    </section>
+  );
 
-          <div className="session-head">
-            <h2>This session</h2>
-            <span className="muted">{sessionAdded ? `${sessionAdded} added` : null}
-            {!sessionAdded && scans.length ? '' : null}
-            {!sessionAdded && !scans.length ? 'Nothing scanned yet' : null}</span>
-            {scans.length > 0 && <button className="link" onClick={() => setScans([])}>Clear</button>}
-          </div>
-          {scans.length === 0 ? (
-            <p className="empty-small">Each book you scan shows up here so you can check it, fix it or undo it.</p>
-          ) : (
-            <ol className="scan-list">
-              {scans.map((s) => (
-                <li key={s.key} className={`scan-item state-${s.state}`}>
-                  <button
-                    className="scan-thumb"
-                    onClick={() => openScan(s)}
-                    disabled={s.state === 'undone' || s.state === 'invalid' || s.state === 'looking'}
-                    aria-label={`Open ${s.title ?? s.raw}`}
-                  >
-                    {s.title ? <Cover url={s.coverUrl} title={s.title} size="sm" /> : <span className="cover cover-sm cover-pending" />}
-                  </button>
-                  <div className="scan-body">
-                    <p className="scan-title">{s.title ?? (s.isbn13 ? formatIsbn13(s.isbn13) : s.raw)}</p>
-                    <p className="scan-meta">
-                      <span className={`pill pill-${s.state}`}>{STATE_LABEL[s.state]}</span>
-                      {s.kind && s.kind !== 'book' && <span className="kind-tag">{KIND_LABELS[s.kind].one}</span>}
-                      {s.author && <span className="muted">{s.author}</span>}
-                    </p>
-                    {s.message && <p className="scan-msg">{s.message}</p>}
-                  </div>
-                  <div className="scan-actions">
-                    {s.state === 'added' && <button className="link" onClick={() => undoScan(s)}>Undo</button>}
-                    {s.state === 'duplicate' && <button className="link" onClick={() => addCopy(s)}>Add a copy</button>}
-                    {(s.state === 'not-found' || s.state === 'error') && s.isbn13 && (
-                      <button className="link" onClick={() => setSearchFor(s)}>Search by title</button>
-                    )}
-                    {s.state === 'not-found' && <button className="link" onClick={() => openScan(s)}>Enter details</button>}
-                    {(s.state === 'error' || (s.state === 'not-found' && s.barcode)) && <button className="link" onClick={() => retryScan(s)}>Retry</button>}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+  const bookYearNudge = () => (
+    <div className="wrap-nudge">
+      <span>
+        <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in books is ready.</strong> See your highlights and save a picture to share.
+      </span>
+      <button className="btn primary small-btn" onClick={() => setReadingTab('wrap')}>See your year</button>
+    </div>
+  );
 
-        {(view === 'home') ? (
-          <HomeView
-            allBooks={allBooks}
+  /** What a Together page shows before you sign in and make a profile. */
+  const profileNeeded = (intro: string) => (
+    <div className="profile-missing">
+      <p>{intro} {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
+      <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
+    </div>
+  );
+
+  /** Reading > Overview: the year nudge, challenges and what you are reading. */
+  const readingOverview = () => (
+    <>
+      {[11, 0].includes(new Date().getMonth()) && bookYearNudge()}
+      <ChallengesPanel challenges={challenges} books={allBooks} readings={readings} onSave={saveChallenge} onRemove={removeChallenge} />
+      <ReadingView books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} />
+    </>
+  );
+
+  /** Reading > For you. */
+  const bookRecsPage = () => (
+    <RecsView
+      books={allBooks}
+      readings={readings}
+      uid={user?.id}
+      social={!!(user && profile)}
+      onOpen={(b) => setOpen({ book: b })}
+      onWant={wantRec}
+      onWish={wishRec}
+      onRead={readRec}
+      onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
+    />
+  );
+
+  /** The page under the Reading tab. */
+  const readingTabContent = () => {
+    switch (readingTab) {
+      case 'overview':
+        return readingOverview();
+      case 'new':
+        return releasesView('book');
+      case 'foryou':
+        return bookRecsPage();
+      case 'groups':
+        if (!user || !profile) return profileNeeded('Race your friends to a reading goal, like 24 books this year.');
+        return (
+          <GroupChallengesView
+            uid={user.id}
+            books={allBooks}
             readings={readings}
-            challenges={challenges}
-            spins={spins}
-            profile={profile}
-            uid={user?.id}
-            active={activeSession}
+            friends={friends}
+            groups={groups}
+            error={groupsError}
+            onChanged={refreshGroups}
+            onOpenProfile={(n) => showProfile(n)}
+            onFindFriends={() => showFriends()}
+          />
+        );
+      case 'clubs':
+        if (!user || !profile) return profileNeeded('Book clubs are for reading with friends.');
+        return (
+          <ClubsView
+            uid={user.id}
+            books={allBooks}
+            readings={readings}
+            friends={friends}
+            clubs={clubs}
+            reads={buddyReads}
+            error={clubsError}
+            onRefresh={refreshBuddy}
             onOpen={(b) => setOpen({ book: b })}
             onSaveReading={saveReading}
-            onStartTimer={(r, b) => changeActiveSession(startSession(r, b))}
-            onSpin={(b) => void spinRecord(b)}
-            onGo={goHome}
+            onJoinRead={joinBuddy}
             onOpenProfile={(n) => showProfile(n)}
-            onSignIn={() => openAccount('signin')}
-            clubs={
-              user
-                ? clubs.map((c) => {
-                    const now = c.books[0];
-                    const upcoming = now?.meet_at && meetingSoon(now.meet_at) !== 'past' ? now.meet_at : undefined;
-                    return { name: c.name, book: now?.book.title, meet: upcoming ? `${meetingSoon(upcoming)}, ${new Date(upcoming).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : undefined, invite: c.members.find((m) => m.user_id === user.id)?.status === 'invited' };
-                  })
-                : undefined
-            }
-            releases={{ ...visibleReleases, unseen: new Set([...visibleReleases.books, ...visibleReleases.music].map((r) => r.key).filter((k) => !releasesSeen.has(k))) }}
-            groups={
-              user
-                ? groups
-                    .filter((g) => g.end_on >= todayIsoDate() && g.members.some((m) => m.user_id === user.id))
-                    .map((g) => {
-                      const joined = g.members.filter((m) => m.status === 'joined').sort((a, b) => b.progress - a.progress);
-                      const me = g.members.find((m) => m.user_id === user.id)!;
-                      return { name: g.name, goal: g.goal, measure: g.measure, mine: me.progress, invite: me.status === 'invited', place: joined.findIndex((m) => m.progress === me.progress) + 1, of: joined.length };
-                    })
-                : undefined
-            }
-            lending={
-              user
-                ? {
-                    asks: loanAsks,
-                    items: loans
-                      .filter((l) => l.status === 'lent' && (l.borrower === user.id ? (daysLeft(l.due_on) ?? 99) <= 7 : (daysLeft(l.due_on) ?? 0) < 0))
-                      .map((l) => ({ title: l.item.title, line: l.borrower === user.id ? `from ${loanFriendName(l.other)}` : `with ${loanFriendName(l.other)}`, due: l.due_on })),
-                  }
-                : undefined
-            }
-            buddy={
-              user
-                ? buddyReads.filter((read) => !read.club_id).map((read) => {
-                    const me = read.members.find((m) => m.user_id === user.id);
-                    const others = read.members.filter((m) => m.user_id !== user.id);
-                    const pctOf = (m: (typeof read.members)[number]) => memberPct(m, read.book.pages);
-                    return {
-                      title: read.book.title,
-                      others: me?.status === 'invited' ? memberName(read.members.find((m) => m.user_id === read.owner) ?? others[0]) : others.map(memberName).join(', '),
-                      invite: me?.status === 'invited',
-                      myPct: me ? pctOf(me) : 0,
-                      leaderPct: Math.max(0, ...others.filter((m) => m.status === 'joined').map(pctOf)),
-                    };
-                  })
-                : undefined
-            }
+            onFindFriends={() => showFriends()}
           />
-        ) : null}
-        {view !== 'home' && (view === 'wishlist') ? (
-          <section className="library" aria-label="Wishlist">
-            <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
-            {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
-            <WishlistView
-              books={allBooks.filter((b) => !isMusic(b))}
-              readings={readings}
-              placeOf={label}
-              onOpen={(b) => setOpen({ book: b })}
-              onBought={buyFromWishlist}
-              onRemove={removeFromWishlist}
-              onAddByTitle={() => {
-                wishSeries.current = undefined;
-                setWishSearch('');
-              }}
-              onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
-              scanningToWishlist={scanTarget === 'wishlist'}
-            />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && (view === 'reading') ? (
-          <section className="library" aria-label="Reading">
-            <div className="library-tools">
-              <h2>Your reading</h2>
-              <GroupedTabs
-                label="Reading pages"
-                current={readingTab}
-                onPick={setReadingTab}
-                groups={[
-                  { label: 'Overview', pages: [['overview', 'Overview']] },
-                  { label: 'Discover', pages: [['foryou', 'For you'], ['new', 'New releases']] },
-                  { label: 'Together', pages: [['buddy', 'Buddy reads', buddyInvites], ['clubs', 'Book clubs', clubInvites], ['groups', 'Challenges', groupInvites]] },
-                  { label: 'Notes', pages: [['notes', 'Quotes and notes']] },
-                  { label: 'Stats', pages: [['stats', 'Reading stats'], ['achievements', 'Achievements'], ['wrap', 'Year in books']] },
-                ]}
-              />
-            </div>
-            {readingTab === 'overview' && (
-              <>
-                {[11, 0].includes(new Date().getMonth()) && (
-                  <div className="wrap-nudge">
-                    <span>
-                      <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in books is ready.</strong> See your highlights and save a picture to share.
-                    </span>
-                    <button className="btn primary small-btn" onClick={() => setReadingTab('wrap')}>See your year</button>
-                  </div>
-                )}
-                <ChallengesPanel challenges={challenges} books={allBooks} readings={readings} onSave={saveChallenge} onRemove={removeChallenge} />
-                <ReadingView books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} />
-              </>
-            )}
-            {readingTab === 'new' && releasesView('book')}
-            {readingTab === 'foryou' && (
-              <RecsView
-                books={allBooks}
-                readings={readings}
-                uid={user?.id}
-                social={!!(user && profile)}
-                onOpen={(b) => setOpen({ book: b })}
-                onWant={wantRec}
-                onWish={wishRec}
-                onRead={readRec}
-                onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
-              />
-            )}
-            {readingTab === 'groups' &&
-              (user && profile ? (
-                <GroupChallengesView
-                  uid={user.id}
-                  books={allBooks}
-                  readings={readings}
-                  friends={friends}
-                  groups={groups}
-                  error={groupsError}
-                  onChanged={refreshGroups}
-                  onOpenProfile={(n) => showProfile(n)}
-                  onFindFriends={() => showFriends()}
-                />
-              ) : (
-                <div className="profile-missing">
-                  <p>Race your friends to a reading goal, like 24 books this year. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
-                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
-                </div>
-              ))}
-            {readingTab === 'stats' && <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />}
-            {readingTab === 'notes' && <NotesView books={allBooks} notes={notes} onOpen={(b) => setOpen({ book: b })} onSave={saveNote} onRemove={removeNote} />}
-            {readingTab === 'wrap' && <YearWrap books={allBooks} readings={readings} notes={notes} challenges={challenges} onOpen={(b) => setOpen({ book: b })} />}
-            {readingTab === 'clubs' &&
-              (user && profile ? (
-                <ClubsView
-                  uid={user.id}
-                  books={allBooks}
-                  readings={readings}
-                  friends={friends}
-                  clubs={clubs}
-                  reads={buddyReads}
-                  error={clubsError}
-                  onRefresh={refreshBuddy}
-                  onOpen={(b) => setOpen({ book: b })}
-                  onSaveReading={saveReading}
-                  onJoinRead={joinBuddy}
-                  onOpenProfile={(n) => showProfile(n)}
-                  onFindFriends={() => showFriends()}
-                />
-              ) : (
-                <div className="profile-missing">
-                  <p>Book clubs are for reading with friends. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
-                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
-                </div>
-              ))}
-            {readingTab === 'buddy' &&
-              (user && profile ? (
-                <BuddyView
-                  uid={user.id}
-                  books={allBooks}
-                  readings={readings}
-                  friends={friends}
-                  reads={buddyReads}
-                  error={buddyError}
-                  onRefresh={refreshBuddy}
-                  onOpen={(b) => setOpen({ book: b })}
-                  onSaveReading={saveReading}
-                  onStart={startBuddy}
-                  onJoin={joinBuddy}
-                  onOpenProfile={(n) => showProfile(n)}
-                  onFindFriends={() => showFriends()}
-                />
-              ) : (
-                <div className="profile-missing">
-                  <p>Buddy reads let you read a book together with friends. {user ? 'Make your profile and add friends first.' : 'Sign in, make your profile and add friends first.'}</p>
-                  <button className="btn primary" onClick={() => (user ? setProfileEditing(true) : openAccount('signin'))}>{user ? 'Set up my profile' : 'Sign in'}</button>
-                </div>
-              ))}
-            {readingTab === 'achievements' && (
-              <AchievementsView books={allBooks} readings={readings} challenges={challenges} onGoToChallenges={() => setReadingTab('overview')} />
-            )}
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && (view === 'stats') ? (
-          <section className="library" aria-label="Stats">
-            <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
-            <Stats books={books} bookcases={bookcases} onOpen={(b) => setOpen({ book: b })} />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && (view === 'series') ? (
-          <section className="library" aria-label="Series">
-            <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
-            <SeriesView
-              books={allBooks.filter((b) => !isMusic(b))}
-              readings={readings}
-              onOpen={(b) => setOpen({ book: b })}
-              onUpdate={patchBook}
-              onFindMissing={(name, n) => {
-                wishSeries.current = { name, number: n };
-                setWishSearch(`${name} ${n}`);
-              }}
-            />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && (view === 'music' && musicTab === 'listening') ? (
-          <section className="library" aria-label="Listening">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            {[11, 0].includes(new Date().getMonth()) && spins.length > 0 && (
-              <div className="wrap-nudge">
-                <span>
-                  <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in music is ready.</strong> See your most played records and save a picture to share.
-                </span>
-                <button className="btn primary small-btn" onClick={() => setMusicTab('wrap')}>See your year</button>
-              </div>
-            )}
-            <ListeningView
-              records={books.filter(isMusic)}
-              spins={spins}
-              onSpin={(b) => spinRecord(b)}
-              onOpen={(b) => setOpen({ book: b })}
-              onRemoveSpin={removeSpin}
-              allRecords={allBooks.filter(isMusic)}
-              styluses={styluses}
-              onStylusChange={changeStyluses}
-              extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
-            />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && (view === 'music' && musicTab === 'new') ? (
-          <section className="library" aria-label="New releases">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            {releasesView('music')}
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && (view === 'music' && musicTab === 'foryou') ? (
-          <section className="library" aria-label="Music for you">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            <MusicRecsView
-              records={allBooks.filter(isMusic)}
-              spins={spins}
-              uid={user?.id}
-              social={!!(user && profile)}
-              onOpen={(b) => setOpen({ book: b })}
-              onSpin={(b) => void spinRecord(b)}
-              onWant={wantRecord}
-              onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
-            />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && (view === 'music' && musicTab === 'wrap') ? (
-          <section className="library" aria-label="Year in music">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            <MusicWrap records={allBooks.filter(isMusic)} spins={spins} onOpen={(b) => setOpen({ book: b })} />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && (view === 'music' && musicTab === 'wantlist') ? (
-          <section className="library" aria-label="Wantlist">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
-            <WishlistView
-              music
-              books={allBooks.filter(isMusic)}
-              readings={readings}
-              placeOf={label}
-              onOpen={(b) => setOpen({ book: b })}
-              onBought={buyFromWishlist}
-              onRemove={removeFromWishlist}
-              onAddByTitle={async () => setOpen({ book: { ...(await freshBook({ ...blankMeta(), kind: 'vinyl' })), placement: undefined, owned: false, wishlist: true }, isNew: true })}
-              onImportDiscogs={() => {
-                setDiscogsWants(true);
-                setDiscogsOpen(true);
-              }}
-              onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
-              scanningToWishlist={scanTarget === 'wishlist'}
-            />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && (view === 'music' && musicTab === 'value') ? (
-          <section className="library" aria-label="Value">
-            <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
-            <ValueView
-              records={books.filter(isMusic)}
-              currency={marketCurrency(currency)}
-              hasToken={!!getDiscogsToken()}
-              run={priceRun}
-              onUpdate={updatePrices}
-              onStop={() => {
-                stopPrices.current = true;
-              }}
-              onOpen={(b) => setOpen({ book: b })}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && (view === 'shelves') ? (
-          <section className="library" aria-label="Shelves">
-            <div className="library-tools">
-              <h2>Your books</h2>
-              {booksNav}
-              <p className="muted small">Drag books to rearrange them. Click a book to see or edit it.</p>
-            </div>
-            <ShelvesView
-              books={books}
-              bookcases={bookcases}
-              highlightId={highlightId}
-              onOpenBook={(b) => setOpen({ book: b })}
-              onMove={moveTo}
-              onAddBookcase={() => setEditingCase({ bc: newBookcase('billy-80', bookcases.length), isNew: true })}
-              onEditBookcase={(bc) => setEditingCase({ bc, isNew: false })}
-            />
-          </section>
-        ) : null}
-        {view !== 'home' && view !== 'wishlist' && view !== 'reading' && view !== 'stats' && view !== 'series' && !(view === 'music' && musicTab === 'listening') && !(view === 'music' && musicTab === 'new') && !(view === 'music' && musicTab === 'foryou') && !(view === 'music' && musicTab === 'wrap') && !(view === 'music' && musicTab === 'wantlist') && !(view === 'music' && musicTab === 'value') && view !== 'shelves' ? <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
-            <div className="library-tools">
-              <h2>{view === 'music' ? 'Your music' : 'Your books'}</h2>
-              {view === 'music' ? musicNav : booksNav}
-              <input
-                id="search"
-                type="search"
-                className="search"
-                placeholder="Search title, author, artist, tag, shelf or barcode"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              {view === 'music' ? (
-                <select id="filter-kind" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as ItemKind | 'all')} aria-label="Type">
-                  <option value="all">Vinyl and CDs</option>
-                  <option value="vinyl">Vinyl</option>
-                  <option value="cd">CDs</option>
-                </select>
-              ) : (
-                <select id="filter-format" value={formatFilter} onChange={(e) => setFormatFilter(e.target.value as BookFormat | 'all')} aria-label="Format">
-                  <option value="all">All book formats</option>
-                  {Object.entries(FORMAT_LABELS).map(([v, l]) => (
-                    <option key={v} value={v}>{l}</option>
-                  ))}
-                </select>
-              )}
-              <select id="filter-shelf" value={shelfFilter} onChange={(e) => setShelfFilter(e.target.value)} aria-label="Shelf">
-                <option value="all">All bookcases</option>
-                {bookcases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                <option value="none">Not on a bookcase</option>
-              </select>
-              {view !== 'music' && (
-                <select id="filter-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ReadStatus | 'none' | 'all')} aria-label="Reading status">
-                  <option value="all">Any reading status</option>
-                  {(Object.keys(STATUS_LABELS) as ReadStatus[]).map((k) => <option key={k} value={k}>{STATUS_LABELS[k]}</option>)}
-                  <option value="none">No status yet</option>
-                </select>
-              )}
-              {view !== 'music' && <VibeSelect id="filter-vibe" value={vibeFilter} onChange={setVibeFilter} />}
-              {view !== 'music' && allBooks.length > books.length && (
-                <label className="check">
-                  <input id="filter-unowned" type="checkbox" checked={includeUnowned} onChange={(e) => setIncludeUnowned(e.target.checked)} />{' '}
-                  Read but not owned
-                </label>
-              )}
-              <label className="check">
-                <input id="filter-lent" type="checkbox" checked={lentOnly} onChange={(e) => setLentOnly(e.target.checked)} />{' '}
-                Lent out
-              </label>
-              <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">
-                <option value="added">Recently added</option>
-                <option value="title">Title A–Z</option>
-                <option value="author">{view === 'music' ? 'Artist A–Z' : 'Author A–Z'}</option>
-                <option value="published">Newest published</option>
-                {view === 'music' && <option value="played">Most played</option>}
-              </select>
-            </div>
-            {filtersOn && sectionCount > 0 && (
-              <p className="result-count muted">
-                Showing {shown.length} of {sectionCount}
-              </p>
-            )}
+        );
+      case 'buddy':
+        if (!user || !profile) return profileNeeded('Buddy reads let you read a book together with friends.');
+        return (
+          <BuddyView
+            uid={user.id}
+            books={allBooks}
+            readings={readings}
+            friends={friends}
+            reads={buddyReads}
+            error={buddyError}
+            onRefresh={refreshBuddy}
+            onOpen={(b) => setOpen({ book: b })}
+            onSaveReading={saveReading}
+            onStart={startBuddy}
+            onJoin={joinBuddy}
+            onOpenProfile={(n) => showProfile(n)}
+            onFindFriends={() => showFriends()}
+          />
+        );
+      case 'stats':
+        return <ReadingStats books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} />;
+      case 'notes':
+        return <NotesView books={allBooks} notes={notes} onOpen={(b) => setOpen({ book: b })} onSave={saveNote} onRemove={removeNote} />;
+      case 'wrap':
+        return <YearWrap books={allBooks} readings={readings} notes={notes} challenges={challenges} onOpen={(b) => setOpen({ book: b })} />;
+      case 'achievements':
+        return <AchievementsView books={allBooks} readings={readings} challenges={challenges} onGoToChallenges={() => setReadingTab('overview')} />;
+      default:
+        return null;
+    }
+  };
 
-            {noMusicYet && (
-              <div className="empty">
-                <h3>No records or CDs yet</h3>
-                <p>Scan the barcode on the back of a record or CD, the same way you scan books. Stacks looks it up on MusicBrainz, Deezer and iTunes (and Discogs, if you add a token) and adds it here.</p>
-                <p>
-                  Already keep your records on Discogs?{' '}
-                  <button className="btn primary small-btn" onClick={() => setDiscogsOpen(true)}>Import your Discogs collection</button>
-                </p>
-                <p className="muted">
-                  No barcode, or it isn't found?{' '}
-                  <button className="link" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: 'vinyl' }), isNew: true })}>
-                    Add a record or CD by hand
-                  </button>
-                </p>
-              </div>
-            )}
-            {noBooksYet && (
-              <div className="empty">
-                <div className="empty-shelf" aria-hidden="true"><i /><i /><i /><i /><i /></div>
-                <h3>Your shelves are empty</h3>
-                <p>Plug in your barcode scanner and scan the first book from your stack. It lands here with its cover, author and page count filled in.</p>
-                <p className="muted">No scanner handy? Type the 13-digit ISBN printed above the barcode into the box on the left.</p>
-              </div>
-            )}
-            {noMatches && <div className="empty"><p>{noMatchText(view, sectionCount)}</p></div>}
-            {!noMusicYet && !noBooksYet && !noMatches && (
-              <ul className="grid">
-                {shown.map((b) => (
-                  <li key={b.id}>
-                    <button className="book" onClick={() => setOpen({ book: b })}>
-                      <span className={`book-cover${kindOf(b) === 'vinyl' && discBackground(b.vinylColor) ? ' has-disc' : ''}`}>
-                        {kindOf(b) === 'vinyl' && discBackground(b.vinylColor) && (
-                          <span className="card-disc" style={{ background: `radial-gradient(circle, var(--surface) 0 3%, #e9e2cf 4% 15%, transparent 16%), ${discBackground(b.vinylColor)}` }} title={b.vinylColor} />
-                        )}
-                        <Cover url={b.coverUrl} title={b.title} author={b.authors[0]} square={isMusic(b)} />
-                        {b.copies > 1 && <span className="badge">×{b.copies}</span>}
-                      </span>
-                      <span className="book-title">{b.title}</span>
-                      <span className="book-author">{b.authors.join(', ') || 'Unknown author'}</span>
-                      {b.series && <span className="book-series">{seriesLabel(b.series)}</span>}
-                      <span className="book-pages">
-                        {isMusic(b) ? recordLine(b, plays.get(b.id)?.count) : pagesLine(b)}
-                      </span>
-                      {(() => {
-                        // Found by a song title: say which song.
-                        const q = query.trim().toLowerCase();
-                        if (q.length < 3 || !b.tracks || b.title.toLowerCase().includes(q) || b.authors.some((a) => a.toLowerCase().includes(q))) return null;
-                        const t = b.tracks.find((x) => x.title.toLowerCase().includes(q));
-                        return t ? <span className="book-track-hit">♪ {t.position ? `${t.position} ` : ''}{t.title}</span> : null;
-                      })()}
-                      {b.placement && label(b) && <span className="book-place">{label(b)}</span>}
-                      {b.loan && <span className="book-loan">Lent to {b.loan.to}</span>}
-                      {(() => {
-                        const r = !isMusic(b) && currentReading(readings, b.id);
-                        if (!r) return null;
-                        const pct = r.status === 'reading' ? progressPct(r, b) : undefined;
-                        return (
-                          <span className={`book-status status-${r.status}`}>
-                            {STATUS_LABELS[r.status]}
-                            {pct !== undefined && ` · ${pct}%`}
-                          </span>
-                        );
-                      })()}
-                    </button>
-                    {isMusic(b) && (
-                      <button className="card-spin" onClick={() => spinRecord(b)} aria-label={`Spin ${b.title}`} title="Spin it: log a play now">
-                        ▶
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section> : null}
-      </main>
+  /** Search, filters and sort above the library grid. */
+  const libraryTools = () => (
+    <div className="library-tools">
+      <h2>{view === 'music' ? 'Your music' : 'Your books'}</h2>
+      {view === 'music' ? musicNav : booksNav}
+      <input
+        id="search"
+        type="search"
+        className="search"
+        placeholder="Search title, author, artist, tag, shelf or barcode"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {view === 'music' ? (
+        <select id="filter-kind" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as ItemKind | 'all')} aria-label="Type">
+          <option value="all">Vinyl and CDs</option>
+          <option value="vinyl">Vinyl</option>
+          <option value="cd">CDs</option>
+        </select>
+      ) : (
+        <select id="filter-format" value={formatFilter} onChange={(e) => setFormatFilter(e.target.value as BookFormat | 'all')} aria-label="Format">
+          <option value="all">All book formats</option>
+          {Object.entries(FORMAT_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      )}
+      <select id="filter-shelf" value={shelfFilter} onChange={(e) => setShelfFilter(e.target.value)} aria-label="Shelf">
+        <option value="all">All bookcases</option>
+        {bookcases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        <option value="none">Not on a bookcase</option>
+      </select>
+      {view !== 'music' && (
+        <select id="filter-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ReadStatus | 'none' | 'all')} aria-label="Reading status">
+          <option value="all">Any reading status</option>
+          {(Object.keys(STATUS_LABELS) as ReadStatus[]).map((k) => <option key={k} value={k}>{STATUS_LABELS[k]}</option>)}
+          <option value="none">No status yet</option>
+        </select>
+      )}
+      {view !== 'music' && <VibeSelect id="filter-vibe" value={vibeFilter} onChange={setVibeFilter} />}
+      {view !== 'music' && allBooks.length > books.length && (
+        <label className="check">
+          <input id="filter-unowned" type="checkbox" checked={includeUnowned} onChange={(e) => setIncludeUnowned(e.target.checked)} />{' '}
+          Read but not owned
+        </label>
+      )}
+      <label className="check">
+        <input id="filter-lent" type="checkbox" checked={lentOnly} onChange={(e) => setLentOnly(e.target.checked)} />{' '}
+        Lent out
+      </label>
+      <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">
+        <option value="added">Recently added</option>
+        <option value="title">Title A–Z</option>
+        <option value="author">{view === 'music' ? 'Artist A–Z' : 'Author A–Z'}</option>
+        <option value="published">Newest published</option>
+        {view === 'music' && <option value="played">Most played</option>}
+      </select>
+    </div>
+  );
 
+  const libraryEmpty = ({ filtersOn, noMusicYet, noBooksYet, noMatches }: ReturnType<typeof libraryState>) => (
+    <>
+      {filtersOn && sectionCount > 0 && (
+        <p className="result-count muted">
+          Showing {shown.length} of {sectionCount}
+        </p>
+      )}
+
+      {noMusicYet && (
+        <div className="empty">
+          <h3>No records or CDs yet</h3>
+          <p>Scan the barcode on the back of a record or CD, the same way you scan books. Stacks looks it up on MusicBrainz, Deezer and iTunes (and Discogs, if you add a token) and adds it here.</p>
+          <p>
+            Already keep your records on Discogs?{' '}
+            <button className="btn primary small-btn" onClick={() => setDiscogsOpen(true)}>Import your Discogs collection</button>
+          </p>
+          <p className="muted">
+            No barcode, or it isn't found?{' '}
+            <button className="link" onClick={async () => setOpen({ book: await freshBook({ ...blankMeta(), kind: 'vinyl' }), isNew: true })}>
+              Add a record or CD by hand
+            </button>
+          </p>
+        </div>
+      )}
+      {noBooksYet && (
+        <div className="empty">
+          <div className="empty-shelf" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+          <h3>Your shelves are empty</h3>
+          <p>Plug in your barcode scanner and scan the first book from your stack. It lands here with its cover, author and page count filled in.</p>
+          <p className="muted">No scanner handy? Type the 13-digit ISBN printed above the barcode into the box on the left.</p>
+        </div>
+      )}
+      {noMatches && <div className="empty"><p>{noMatchText(view, sectionCount)}</p></div>}
+    </>
+  );
+
+  /** One cover in the library grid. */
+  const bookCard = (b: Book) => (
+    <li key={b.id}>
+      <button className="book" onClick={() => setOpen({ book: b })}>
+        <span className={`book-cover${kindOf(b) === 'vinyl' && discBackground(b.vinylColor) ? ' has-disc' : ''}`}>
+          {kindOf(b) === 'vinyl' && discBackground(b.vinylColor) && (
+            <span className="card-disc" style={{ background: `radial-gradient(circle, var(--surface) 0 3%, #e9e2cf 4% 15%, transparent 16%), ${discBackground(b.vinylColor)}` }} title={b.vinylColor} />
+          )}
+          <Cover url={b.coverUrl} title={b.title} author={b.authors[0]} square={isMusic(b)} />
+          {b.copies > 1 && <span className="badge">×{b.copies}</span>}
+        </span>
+        <span className="book-title">{b.title}</span>
+        <span className="book-author">{b.authors.join(', ') || 'Unknown author'}</span>
+        {b.series && <span className="book-series">{seriesLabel(b.series)}</span>}
+        <span className="book-pages">
+          {isMusic(b) ? recordLine(b, plays.get(b.id)?.count) : pagesLine(b)}
+        </span>
+        {(() => {
+          // Found by a song title: say which song.
+          const q = query.trim().toLowerCase();
+          if (q.length < 3 || !b.tracks || b.title.toLowerCase().includes(q) || b.authors.some((a) => a.toLowerCase().includes(q))) return null;
+          const t = b.tracks.find((x) => x.title.toLowerCase().includes(q));
+          return t ? <span className="book-track-hit">♪ {t.position ? `${t.position} ` : ''}{t.title}</span> : null;
+        })()}
+        {b.placement && label(b) && <span className="book-place">{label(b)}</span>}
+        {b.loan && <span className="book-loan">Lent to {b.loan.to}</span>}
+        {(() => {
+          const r = !isMusic(b) && currentReading(readings, b.id);
+          if (!r) return null;
+          const pct = r.status === 'reading' ? progressPct(r, b) : undefined;
+          return (
+            <span className={`book-status status-${r.status}`}>
+              {STATUS_LABELS[r.status]}
+              {pct !== undefined && ` · ${pct}%`}
+            </span>
+          );
+        })()}
+      </button>
+      {isMusic(b) && (
+        <button className="card-spin" onClick={() => spinRecord(b)} aria-label={`Spin ${b.title}`} title="Spin it: log a play now">
+          ▶
+        </button>
+      )}
+    </li>
+  );
+
+  const homePage = () => (
+    <HomeView
+      allBooks={allBooks}
+      readings={readings}
+      challenges={challenges}
+      spins={spins}
+      profile={profile}
+      uid={user?.id}
+      active={activeSession}
+      onOpen={(b) => setOpen({ book: b })}
+      onSaveReading={saveReading}
+      onStartTimer={(r, b) => changeActiveSession(startSession(r, b))}
+      onSpin={(b) => void spinRecord(b)}
+      onGo={goHome}
+      onOpenProfile={(n) => showProfile(n)}
+      onSignIn={() => openAccount('signin')}
+      clubs={
+        user
+          ? clubs.map((c) => {
+              const now = c.books[0];
+              const upcoming = now?.meet_at && meetingSoon(now.meet_at) !== 'past' ? now.meet_at : undefined;
+              return { name: c.name, book: now?.book.title, meet: upcoming ? `${meetingSoon(upcoming)}, ${new Date(upcoming).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : undefined, invite: c.members.find((m) => m.user_id === user.id)?.status === 'invited' };
+            })
+          : undefined
+      }
+      releases={{ ...visibleReleases, unseen: new Set([...visibleReleases.books, ...visibleReleases.music].map((r) => r.key).filter((k) => !releasesSeen.has(k))) }}
+      groups={
+        user
+          ? groups
+              .filter((g) => g.end_on >= todayIsoDate() && g.members.some((m) => m.user_id === user.id))
+              .map((g) => {
+                const joined = g.members.filter((m) => m.status === 'joined').sort((a, b) => b.progress - a.progress);
+                const me = g.members.find((m) => m.user_id === user.id)!;
+                return { name: g.name, goal: g.goal, measure: g.measure, mine: me.progress, invite: me.status === 'invited', place: joined.findIndex((m) => m.progress === me.progress) + 1, of: joined.length };
+              })
+          : undefined
+      }
+      lending={
+        user
+          ? {
+              asks: loanAsks,
+              items: loans
+                .filter((l) => l.status === 'lent' && (l.borrower === user.id ? (daysLeft(l.due_on) ?? 99) <= 7 : (daysLeft(l.due_on) ?? 0) < 0))
+                .map((l) => ({ title: l.item.title, line: l.borrower === user.id ? `from ${loanFriendName(l.other)}` : `with ${loanFriendName(l.other)}`, due: l.due_on })),
+            }
+          : undefined
+      }
+      buddy={
+        user
+          ? buddyReads.filter((read) => !read.club_id).map((read) => {
+              const me = read.members.find((m) => m.user_id === user.id);
+              const others = read.members.filter((m) => m.user_id !== user.id);
+              const pctOf = (m: (typeof read.members)[number]) => memberPct(m, read.book.pages);
+              return {
+                title: read.book.title,
+                others: me?.status === 'invited' ? memberName(read.members.find((m) => m.user_id === read.owner) ?? others[0]) : others.map(memberName).join(', '),
+                invite: me?.status === 'invited',
+                myPct: me ? pctOf(me) : 0,
+                leaderPct: Math.max(0, ...others.filter((m) => m.status === 'joined').map(pctOf)),
+              };
+            })
+          : undefined
+      }
+    />
+  );
+
+  const wishlistPage = () => (
+    <section className="library" aria-label="Wishlist">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
+      <WishlistView
+        books={allBooks.filter((b) => !isMusic(b))}
+        readings={readings}
+        placeOf={label}
+        onOpen={(b) => setOpen({ book: b })}
+        onBought={buyFromWishlist}
+        onRemove={removeFromWishlist}
+        onAddByTitle={() => {
+          wishSeries.current = undefined;
+          setWishSearch('');
+        }}
+        onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
+        scanningToWishlist={scanTarget === 'wishlist'}
+      />
+    </section>
+  );
+
+  const readingPage = () => (
+    <section className="library" aria-label="Reading">
+      <div className="library-tools">
+        <h2>Your reading</h2>
+        <GroupedTabs
+          label="Reading pages"
+          current={readingTab}
+          onPick={setReadingTab}
+          groups={[
+            { label: 'Overview', pages: [['overview', 'Overview']] },
+            { label: 'Discover', pages: [['foryou', 'For you'], ['new', 'New releases']] },
+            { label: 'Together', pages: [['buddy', 'Buddy reads', buddyInvites], ['clubs', 'Book clubs', clubInvites], ['groups', 'Challenges', groupInvites]] },
+            { label: 'Notes', pages: [['notes', 'Quotes and notes']] },
+            { label: 'Stats', pages: [['stats', 'Reading stats'], ['achievements', 'Achievements'], ['wrap', 'Year in books']] },
+          ]}
+        />
+      </div>
+      <Fragment key={readingTab}>{readingTabContent()}</Fragment>
+    </section>
+  );
+
+  const statsPage = () => (
+    <section className="library" aria-label="Stats">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      <Stats books={books} bookcases={bookcases} onOpen={(b) => setOpen({ book: b })} />
+    </section>
+  );
+
+  const seriesPage = () => (
+    <section className="library" aria-label="Series">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      <SeriesView
+        books={allBooks.filter((b) => !isMusic(b))}
+        readings={readings}
+        onOpen={(b) => setOpen({ book: b })}
+        onUpdate={patchBook}
+        onFindMissing={(name, n) => {
+          wishSeries.current = { name, number: n };
+          setWishSearch(`${name} ${n}`);
+        }}
+      />
+    </section>
+  );
+
+  const listeningPage = () => (
+    <section className="library" aria-label="Listening">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      {[11, 0].includes(new Date().getMonth()) && spins.length > 0 && (
+        <div className="wrap-nudge">
+          <span>
+            <strong>Your {new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()} in music is ready.</strong> See your most played records and save a picture to share.
+          </span>
+          <button className="btn primary small-btn" onClick={() => setMusicTab('wrap')}>See your year</button>
+        </div>
+      )}
+      <ListeningView
+        records={books.filter(isMusic)}
+        spins={spins}
+        onSpin={(b) => spinRecord(b)}
+        onOpen={(b) => setOpen({ book: b })}
+        onRemoveSpin={removeSpin}
+        allRecords={allBooks.filter(isMusic)}
+        styluses={styluses}
+        onStylusChange={changeStyluses}
+        extra={<LastfmPanel signedIn={!!user} onSignIn={() => openAccount('signin')} tick={scrobbleTick} />}
+      />
+    </section>
+  );
+
+  const musicNewPage = () => (
+    <section className="library" aria-label="New releases">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      {releasesView('music')}
+    </section>
+  );
+
+  const musicForYouPage = () => (
+    <section className="library" aria-label="Music for you">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      <MusicRecsView
+        records={allBooks.filter(isMusic)}
+        spins={spins}
+        uid={user?.id}
+        social={!!(user && profile)}
+        onOpen={(b) => setOpen({ book: b })}
+        onSpin={(b) => void spinRecord(b)}
+        onWant={wantRecord}
+        onFindFriends={user && profile ? () => showFriends() : () => (user ? setProfileEditing(true) : openAccount('signin'))}
+      />
+    </section>
+  );
+
+  const musicWrapPage = () => (
+    <section className="library" aria-label="Year in music">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      <MusicWrap records={allBooks.filter(isMusic)} spins={spins} onOpen={(b) => setOpen({ book: b })} />
+    </section>
+  );
+
+  const wantlistPage = () => (
+    <section className="library" aria-label="Wantlist">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      {user && profile && <WishlistSharing uid={user.id} onSeeFriends={() => showFriends('gifts')} />}
+      <WishlistView
+        music
+        books={allBooks.filter(isMusic)}
+        readings={readings}
+        placeOf={label}
+        onOpen={(b) => setOpen({ book: b })}
+        onBought={buyFromWishlist}
+        onRemove={removeFromWishlist}
+        onAddByTitle={async () => setOpen({ book: { ...(await freshBook({ ...blankMeta(), kind: 'vinyl' })), placement: undefined, owned: false, wishlist: true }, isNew: true })}
+        onImportDiscogs={() => {
+          setDiscogsWants(true);
+          setDiscogsOpen(true);
+        }}
+        onScanToWishlist={() => setScanTarget((t) => (t === 'wishlist' ? 'library' : 'wishlist'))}
+        scanningToWishlist={scanTarget === 'wishlist'}
+      />
+    </section>
+  );
+
+  const valuePage = () => (
+    <section className="library" aria-label="Value">
+      <div className="library-tools"><h2>Your music</h2>{musicNav}</div>
+      <ValueView
+        records={books.filter(isMusic)}
+        currency={marketCurrency(currency)}
+        hasToken={!!getDiscogsToken()}
+        run={priceRun}
+        onUpdate={updatePrices}
+        onStop={() => {
+          stopPrices.current = true;
+        }}
+        onOpen={(b) => setOpen({ book: b })}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+    </section>
+  );
+
+  const shelvesPage = () => (
+    <section className="library" aria-label="Shelves">
+      <div className="library-tools">
+        <h2>Your books</h2>
+        {booksNav}
+        <p className="muted small">Drag books to rearrange them. Click a book to see or edit it.</p>
+      </div>
+      <ShelvesView
+        books={books}
+        bookcases={bookcases}
+        highlightId={highlightId}
+        onOpenBook={(b) => setOpen({ book: b })}
+        onMove={moveTo}
+        onAddBookcase={() => setEditingCase({ bc: newBookcase('billy-80', bookcases.length), isNew: true })}
+        onEditBookcase={(bc) => setEditingCase({ bc, isNew: false })}
+      />
+    </section>
+  );
+
+  const libraryPage = () => {
+    const st = libraryState();
+    return (
+      <section className="library" aria-label={view === 'music' ? 'Your music' : 'Your books'}>
+        {libraryTools()}
+        {libraryEmpty(st)}
+        {!st.noMusicYet && !st.noBooksYet && !st.noMatches && (
+          <ul className="grid">
+            {shown.map((b) => (
+              bookCard(b)
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  };
+
+  /** The page in the main column, keyed so that switching pages starts each one fresh. */
+  const currentPage = () => {
+    if (view === 'home') return <Fragment key="home">{homePage()}</Fragment>;
+    if (view === 'wishlist') return <Fragment key="wishlist">{wishlistPage()}</Fragment>;
+    if (view === 'reading') return <Fragment key="reading">{readingPage()}</Fragment>;
+    if (view === 'stats') return <Fragment key="stats">{statsPage()}</Fragment>;
+    if (view === 'series') return <Fragment key="series">{seriesPage()}</Fragment>;
+    if (view === 'music') {
+      const music = musicPage();
+      if (music) return music;
+    }
+    if (view === 'shelves') return <Fragment key="shelves">{shelvesPage()}</Fragment>;
+    return <Fragment key="library">{libraryPage()}</Fragment>;
+  };
+
+  const musicPage = () => {
+    switch (musicTab) {
+      case 'listening':
+        return <Fragment key="listening">{listeningPage()}</Fragment>;
+      case 'new':
+        return <Fragment key="music-new">{musicNewPage()}</Fragment>;
+      case 'foryou':
+        return <Fragment key="music-foryou">{musicForYouPage()}</Fragment>;
+      case 'wrap':
+        return <Fragment key="music-wrap">{musicWrapPage()}</Fragment>;
+      case 'wantlist':
+        return <Fragment key="wantlist">{wantlistPage()}</Fragment>;
+      case 'value':
+        return <Fragment key="value">{valuePage()}</Fragment>;
+      default:
+        return null;
+    }
+  };
+
+  /** The timer bar, the book drawer and the search dialogs. */
+  const bookDialogs = () => (
+    <>
       {activeSession && (
         <TimerBar
           active={activeSession}
@@ -2585,7 +2716,11 @@ function StacksApp() {
       {wishSearch !== false && (
         <SearchDialog initialQuery={wishSearch} onPick={addWishFromSearch} onOpenSettings={() => setSettingsOpen(true)} onClose={() => setWishSearch(false)} />
       )}
+    </>
+  );
 
+  const importDialogs = () => (
+    <>
       {importOpen && (
         <ImportDialog
           books={allBooks}
@@ -2638,7 +2773,11 @@ function StacksApp() {
           }}
         />
       )}
+    </>
+  );
 
+  const accountDialogs = () => (
+    <>
       {accountDialog}
 
       {profileEditing && user && (
@@ -2683,6 +2822,42 @@ function StacksApp() {
           onClose={() => setEditingCase(null)}
         />
       )}
+    </>
+  );
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <button className="brand" onClick={() => { goView('home'); window.scrollTo(0, 0); }} aria-label="Stacks, go home" title="Home">
+          <span className="brand-mark" aria-hidden="true">
+            <i /><i /><i /><i />
+          </span>
+          <span className="brand-name">Stacks</span>
+        </button>
+        {viewTabs()}
+        {totalsList()}
+        {topActions()}
+      </header>
+
+      {backupDue && backupNudge()}
+
+      {peoplePage()}
+      <main className={`layout ${view === 'home' ? 'on-home' : ''}`} hidden={!!profileName || (friendsOpen && !!user)}>
+        {view === 'reading' && (
+          <aside className="scan-panel" aria-label="Currently reading">
+            <NowReading books={allBooks} readings={readings} onOpen={(b) => setOpen({ book: b })} onChange={saveReading} active={activeSession} onStartTimer={(r, b) => changeActiveSession(startSession(r, b))} />
+          </aside>
+        )}
+        {scanPanel()}
+
+        {currentPage()}
+      </main>
+
+      {bookDialogs()}
+
+      {importDialogs()}
+
+      {accountDialogs()}
 
       <div className="toast" role="status" aria-live="polite" hidden={!toast}>{toast}</div>
     </div>
