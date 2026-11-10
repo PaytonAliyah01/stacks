@@ -82,7 +82,7 @@ async function fromOpenLibraryEdition(isbn13: string): Promise<Partial<BookMetad
 const GOOGLE_KEY_PREF = 'stacks.googleBooksKey';
 
 /**
- * The shared Google Books key baked in when the site is built (a GitHub secret).
+ * The shared Google Books key baked in when the site is built (a GitHub repository variable).
  * Google only accepts it from the Stacks website, so it's safe to ship in the page.
  */
 const BUILT_IN_GOOGLE_KEY = (import.meta.env.VITE_GOOGLE_BOOKS_KEY ?? '').trim();
