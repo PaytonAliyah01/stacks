@@ -74,7 +74,7 @@ export function LastfmPanel({ signedIn, onSignIn, tick }: Readonly<Props>) {
         </p>
       ) : null}
 {signedIn && error ? (
-        <p className="muted small" role="status">{error}</p>
+        <output className="muted small">{error}</output>
       ) : null}
 {signedIn && !error && !status ? (
         <p className="muted small">Checking…</p>
