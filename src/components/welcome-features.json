@@ -1,0 +1,90 @@
+[
+  {
+    "group": "Your library",
+    "mark": "▤",
+    "items": [
+      [
+        "Scan to add",
+        "Point your phone camera or a USB scanner at the barcode. Title, author, cover and page count fill themselves in."
+      ],
+      [
+        "Your real bookcases",
+        "Tell Stacks you have a Billy or a Kallax, and see every spine on the shelf where it actually sits."
+      ],
+      [
+        "Series and wishlist",
+        "Spots the gaps in a series, keeps a shopping list, and tells you in the shop whether you already own it."
+      ],
+      [
+        "Bring your history",
+        "Import from Goodreads, StoryGraph and Discogs in a minute. Back up to a file whenever you like."
+      ]
+    ]
+  },
+  {
+    "group": "Reading",
+    "mark": "❡",
+    "items": [
+      [
+        "Track every read",
+        "Page progress, a reading timer, daily streaks, half-star ratings and reviews."
+      ],
+      [
+        "Goals and badges",
+        "Set “24 books this year” and see if you’re on track. Earn badges along the way."
+      ],
+      [
+        "What to read next",
+        "An Up next queue, mood and pace filters, and picks based on the books you loved."
+      ],
+      [
+        "Your year in books",
+        "Quotes, notes and a shareable wrap-up of your reading year."
+      ]
+    ]
+  },
+  {
+    "group": "Records and CDs",
+    "mark": "◉",
+    "items": [
+      [
+        "A crate that knows itself",
+        "Vinyl and CDs by barcode, with track lists, pressing details and Goldmine grades."
+      ],
+      [
+        "Log every spin",
+        "Press ▶ when the needle drops. See your most played, what’s gathering dust, and your year in music."
+      ],
+      [
+        "What it’s worth",
+        "Collection value from Discogs prices, plus a stylus tracker that tells you when to replace it."
+      ],
+      [
+        "Find your next record",
+        "New albums from artists you spin, similar artists, and a wantlist."
+      ]
+    ]
+  },
+  {
+    "group": "With friends",
+    "mark": "❀",
+    "items": [
+      [
+        "A profile that’s yours",
+        "Your top 4 books and records, what you’re reading and what’s spinning, in your colors."
+      ],
+      [
+        "A feed of what friends read",
+        "See when friends start, finish or rate a book, and like it."
+      ],
+      [
+        "Buddy reads",
+        "Read a book together, see each other’s page, and chat without spoilers."
+      ],
+      [
+        "Lend and borrow",
+        "Browse a friend’s shelves, ask to borrow, and never forget who has your copy."
+      ]
+    ]
+  }
+]
