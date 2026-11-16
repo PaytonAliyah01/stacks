@@ -90,6 +90,10 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices, run,
   const total = s.total + (sameCurrency ? r.total : 0);
   const recordCopies = records.reduce((n, b) => n + Math.max(1, b.copies), 0);
   const top = all ? s.top : s.top.slice(0, 15);
+  const paidOther = Object.entries(s.paidOther).map(([c, n]) => formatMoney(n, c)).join(' + ');
+  let paidNote = 'add prices in a book’s panel';
+  if (s.paid && paidOther) paidNote = `plus ${paidOther}`;
+  else if (s.paid || paidOther) paidNote = 'where you entered a price';
 
   return (
     <div className="value-view">
@@ -114,8 +118,8 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices, run,
         </div>
         <div className="stat">
           <span className="stat-label">You paid for your books</span>
-          <span className="stat-value">{s.paid ? money(s.paid) : '–'}</span>
-          <span className="muted">{s.paid ? 'where you entered a price' : 'add prices in a book’s panel'}</span>
+          <span className="stat-value">{s.paid || !paidOther ? money(s.paid) : paidOther}</span>
+          <span className="muted">{paidNote}</span>
         </div>
       </div>
 
@@ -124,7 +128,7 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices, run,
 
       {s.top.length > 0 && (
         <section className="panel">
-          <h3>Most valuable books</h3>
+          <h3>Your books: worth and what you paid</h3>
           <div className="table-scroll">
             <table className="value-table">
               <thead>
@@ -146,7 +150,7 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices, run,
                       </div>
                     </td>
                     <td className="num">
-                      <Worth v={v} />
+                      {v ? <Worth v={v} /> : <span className="muted">–</span>}
                       {b.copies > 1 && <span className="muted small"> ×{b.copies}</span>}
                     </td>
                     <td className="num">{b.pricePaid === undefined ? <span className="muted">–</span> : formatMoney(b.pricePaid, b.currency ?? currency)}</td>
