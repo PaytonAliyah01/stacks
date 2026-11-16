@@ -86,8 +86,6 @@ async function fromOpenLibraryEdition(isbn13: string): Promise<Partial<BookMetad
   };
 }
 
-const GOOGLE_KEY_PREF = 'stacks.googleBooksKey';
-
 /**
  * The shared Google Books key baked in when the site is built (a GitHub repository variable).
  * Google only accepts it from the Stacks website, so it's safe to ship in the page.
@@ -98,36 +96,15 @@ let builtInKeyRefused = false;
 
 export const hasBuiltInGoogleKey = () => !!BUILT_IN_GOOGLE_KEY && !builtInKeyRefused;
 
-/** The key lookups actually use: the person's own key if they added one, otherwise the shared one. */
+/** The key lookups use: the shared one, unless Google has refused it here. */
 export function activeGoogleKey(): string {
-  return getGoogleKey() || (hasBuiltInGoogleKey() ? BUILT_IN_GOOGLE_KEY : '');
+  return hasBuiltInGoogleKey() ? BUILT_IN_GOOGLE_KEY : '';
 }
 
 /** Adds `&key=…` to a Google Books URL when there's a key to use. */
 export function withGoogleKey(url: string): string {
   const key = activeGoogleKey();
   return key ? `${url}&key=${encodeURIComponent(key)}` : url;
-}
-
-/** An optional free Google Books API key the person can add in Settings (overrides the shared one). */
-export function getGoogleKey(): string {
-  try {
-    return localStorage.getItem(GOOGLE_KEY_PREF) ?? '';
-  } catch {
-    return '';
-  }
-}
-/** Google API keys are letters, digits, "-" and "_" only; anything else is a stray paste. */
-const cleanGoogleKey = (key: string) => key.replace(/[^A-Za-z0-9_-]/g, '');
-
-export function setGoogleKey(key: string) {
-  const clean = cleanGoogleKey(key);
-  try {
-    if (/^[A-Za-z0-9_-]{20,60}$/.test(clean)) localStorage.setItem(GOOGLE_KEY_PREF, clean);
-    else localStorage.removeItem(GOOGLE_KEY_PREF);
-  } catch {
-    /* preference only */
-  }
 }
 
 const isServerError = (err: unknown) => err instanceof Error && (/^HTTP 5\d\d$/.test(err.message) || err.name === 'AbortError');
@@ -202,29 +179,6 @@ async function fromGoogleBooks(isbn13: string, isbn10?: string): Promise<Partial
         : items.find((it) => (it.volumeInfo?.industryIdentifiers ?? []).some((i: any) => i.identifier === isbn13 || i.identifier === isbn10));
     return fromGoogleVolume(match);
   });
-}
-
-/**
- * Try a Google Books key with one small request. Returns null when it works,
- * or what went wrong in plain words.
- */
-export async function testGoogleKey(key: string): Promise<string | null> {
-  try {
-    await getJson(`https://www.googleapis.com/books/v1/volumes?q=isbn:9780547928227&maxResults=1&key=${encodeURIComponent(cleanGoogleKey(key))}`);
-    return null;
-  } catch (err) {
-    const detail = (err as { detail?: string }).detail ?? '';
-    if (/referer|referrer/i.test(detail))
-      return 'The key only allows certain websites, and this isn’t one of them. In Google Cloud, edit the key’s “Website restrictions” to include this address (or set “Application restrictions” to None).';
-    if (/has not been used|is disabled|SERVICE_DISABLED/i.test(detail))
-      return 'The Books API isn’t turned on for this key’s project yet. Open the Books API page in Google Cloud, check the project name at the top matches the key’s project, and press Enable. It can take a few minutes to start working.';
-    if (/API key not valid|API_KEY_INVALID/i.test(detail))
-      return 'Google doesn’t recognise this key. Copy it again from Credentials (the “Show key” button) and paste it without spaces.';
-    if (/API_KEY_SERVICE_BLOCKED|are blocked/i.test(detail))
-      return 'The key is limited to other APIs. In Google Cloud, edit the key and under “API restrictions” add Books API (or choose “Don’t restrict key”).';
-    if (/quota|rate/i.test(detail)) return 'This key has used up its lookups for today. It resets at midnight Pacific time.';
-    return `Google said: ${detail || describe(err)}`;
-  }
 }
 
 export interface SearchHit {
@@ -325,7 +279,7 @@ function nothingFound(ol: PromiseSettledResult<unknown>, gb: PromiseSettledResul
   return {
     status: 'error',
     message: limited
-      ? "Open Library doesn't have this book and Google Books is limiting free lookups right now. Press Retry later, use “Search by title”, or add your own free Google Books key (Backup menu → Lookup keys)."
+      ? "Open Library doesn't have this book and Google Books is limiting free lookups right now. Press Retry later or use “Search by title”."
       : `Open Library doesn't have this book and Google Books didn't answer (${describe(gb.reason)}). Press Retry.`,
   };
 }
@@ -410,30 +364,9 @@ async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | nu
   };
 }
 
-const DISCOGS_TOKEN_PREF = 'stacks.discogsToken';
-
 function titleQuery(title: string, author?: string): string {
   const by = author ? `&author=${encodeURIComponent(author)}` : '';
   return `title=${encodeURIComponent(title)}${by}`;
-}
-
-/** A free personal Discogs token the person can add in Settings. */
-export function getDiscogsToken(): string {
-  try {
-    return localStorage.getItem(DISCOGS_TOKEN_PREF) ?? '';
-  } catch {
-    return '';
-  }
-}
-export function setDiscogsToken(token: string) {
-  // Discogs tokens are letters and digits; drop anything else (stray spaces, quotes).
-  const clean = token.replace(/[^A-Za-z0-9]/g, '');
-  try {
-    if (/^[A-Za-z0-9]{10,80}$/.test(clean)) localStorage.setItem(DISCOGS_TOKEN_PREF, clean);
-    else localStorage.removeItem(DISCOGS_TOKEN_PREF);
-  } catch {
-    /* preference only */
-  }
 }
 
 const DISCOGS_API = 'https://api.discogs.com';
@@ -453,13 +386,11 @@ export async function checkSiteDiscogs(): Promise<boolean> {
   return siteDiscogs;
 }
 
-/** True when Discogs searches can run: your own token, or the site's. */
-export const hasDiscogsAccess = () => !!getDiscogsToken() || siteDiscogs === true;
+/** True when Discogs searches can run (the site's token is set up). */
+export const hasDiscogsAccess = () => siteDiscogs === true;
 
-/** One Discogs API call: with your own token if you added one, else through the site's token, else without. */
+/** One Discogs API call: through the site's token when it's set up, else without a token. */
 export async function discogsGet(path: string, needsToken = false): Promise<any> {
-  const own = getDiscogsToken();
-  if (own) return getJson(`${DISCOGS_API}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(own)}`);
   if (await checkSiteDiscogs()) {
     const { data, error } = await supabase.functions.invoke('discogs', { body: { path } });
     if (!error) {
@@ -476,7 +407,7 @@ export async function discogsGet(path: string, needsToken = false): Promise<any>
 
 /** Discogs knows the most pressings, but only answers barcode searches with a token. */
 async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> {
-  if (!getDiscogsToken() && !(await checkSiteDiscogs())) return null;
+  if (!(await checkSiteDiscogs())) return null;
   return firstInTurn(barcodeVariants(code), async (v) => {
     const data = await discogsGet(`/database/search?type=release&per_page=5&barcode=${encodeURIComponent(v)}`, true);
     const r = data.results?.[0];
@@ -593,7 +524,7 @@ export async function lookupBarcode(code: string): Promise<LookupResult> {
 
   if (!found.length) {
     // Only an error when no database answered at all (Discogs counts only with a token).
-    const asked = settled.filter((_, i) => i !== 1 || getDiscogsToken());
+    const asked = settled.filter((_, i) => i !== 1 || hasDiscogsAccess());
     if (asked.every((r) => r.status === 'rejected')) {
       return {
         status: 'error',
@@ -767,7 +698,7 @@ export async function fetchMarketPrices(releaseId: number, currency: string, con
     currency: stats?.lowest_price?.currency ?? currency,
   };
   // Suggested prices by condition need a token (and seller settings filled in on Discogs).
-  if (getDiscogsToken() || (await checkSiteDiscogs())) {
+  if (await checkSiteDiscogs()) {
     try {
       const sug = await discogsGet(`/marketplace/price_suggestions/${releaseId}`, true);
       const s = sug?.[condition] ?? sug?.['Very Good Plus (VG+)'];

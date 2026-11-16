@@ -1,7 +1,7 @@
 import type { Book, ItemKind } from '../types';
 import { kindOf } from '../types';
 import { parseCsv } from './importHistory';
-import { getDiscogsToken, vinylSizeOf } from './lookup';
+import { vinylSizeOf } from './lookup';
 import { newId } from './storage';
 import { dropDiscogsNumber, stripBrackets } from './text';
 
@@ -94,7 +94,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function checkDiscogsAnswer(res: Response, user: string, list: 'collection' | 'wants') {
   if (res.status === 404) throw new Error(`Discogs has no user called “${user}”.`);
   if (res.status === 401 || res.status === 403)
-    throw new Error(`That ${list === 'wants' ? 'wantlist' : 'collection'} is private. Make it public in Discogs (Settings → Privacy), add your Discogs token under Backup → Lookup keys, or use the CSV file instead.`);
+    throw new Error(`That ${list === 'wants' ? 'wantlist' : 'collection'} is private. Make it public in Discogs (Settings → Privacy), or use the CSV file instead.`);
   if (!res.ok) throw new Error(`Discogs answered with an error (${res.status}). Try again in a minute, or use the CSV file.`);
 }
 
@@ -134,13 +134,11 @@ function itemFromApi(r: any): DiscogsItem {
 export async function fetchDiscogsCollection(username: string, onProgress?: (got: number, total: number) => void, list: 'collection' | 'wants' = 'collection'): Promise<DiscogsItem[]> {
   const user = username.trim().replace(/^https?:\/\/(www\.)?discogs\.com\/(user\/)?/i, '').split('/')[0];
   if (!user) throw new Error('Type your Discogs username.');
-  const token = getDiscogsToken();
   const items: DiscogsItem[] = [];
   const path = list === 'wants' ? 'wants' : 'collection/folders/0/releases';
-  const auth = token ? `&token=${encodeURIComponent(token)}` : '';
   // Pages come one after another: each says how many there are, and Discogs limits how fast we may ask.
   const fetchPage = async (page: number): Promise<void> => {
-    const url = `https://api.discogs.com/users/${encodeURIComponent(user)}/${path}?per_page=100&page=${page}&sort=added&sort_order=desc${auth}`;
+    const url = `https://api.discogs.com/users/${encodeURIComponent(user)}/${path}?per_page=100&page=${page}&sort=added&sort_order=desc`;
     let res: Response;
     try {
       res = await fetch(url);
@@ -158,7 +156,7 @@ export async function fetchDiscogsCollection(username: string, onProgress?: (got
     onProgress?.(items.length, data.pagination?.items ?? items.length);
     if (page >= pages) return;
     // Discogs allows about one request a second without a token.
-    await pause(token ? 1100 : 2600);
+    await pause(2600);
     return fetchPage(page + 1);
   };
   await fetchPage(1);

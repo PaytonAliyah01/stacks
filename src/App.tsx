@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FORMAT_LABELS, KIND_LABELS, STATUS_LABELS, guessCurrency, type BookNote, type Spin, type BookSeries, type Challenge, type ReadStatus, type Reading, isMusic, kindOf, type ItemKind, type Book, type BookFormat, type BookMetadata, type Bookcase } from './types';
 import { formatIsbn13, parseScan } from './lib/isbn';
-import { fetchDiscogsRelease, fetchSeries, fetchSubjects, findAlbumCover, fetchTrackList, getDiscogsToken, hasDiscogsAccess, checkSiteDiscogs, fetchMarketPrices, discogsIdForBarcode, lookupBarcode, lookupIsbn, type SearchHit } from './lib/lookup';
+import { fetchDiscogsRelease, fetchSeries, fetchSubjects, findAlbumCover, fetchTrackList, hasDiscogsAccess, checkSiteDiscogs, fetchMarketPrices, discogsIdForBarcode, lookupBarcode, lookupIsbn, type SearchHit } from './lib/lookup';
 import { downloadFile, makeBackup, newId, parseBackup, store, toCsv } from './lib/storage';
 import { digitOf, useBarcodeScanner } from './lib/useBarcodeScanner';
 import { AccountDialog, syncLabel } from './components/AccountDialog';
@@ -33,7 +33,6 @@ import { Stats } from './components/Stats';
 import { ShelvesView } from './components/ShelvesView';
 import { BookcaseEditor } from './components/BookcaseEditor';
 import { SearchDialog } from './components/SearchDialog';
-import { SettingsDialog } from './components/SettingsDialog';
 import { NowReading, ReadingView } from './components/ReadingView';
 import { VibeSelect } from './components/VibeSelect';
 import { NotesView } from './components/NotesView';
@@ -297,7 +296,7 @@ function notFoundMessage(type: 'isbn' | 'barcode'): string {
 function notFoundMusic(): string {
   return hasDiscogsAccess()
     ? "Discogs, MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself."
-    : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (More → Lookup keys) and press Retry.";
+    : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself.";
 }
 
 /** The book already in the library with the same ISBN or barcode, if any. */
@@ -354,7 +353,6 @@ function StacksApp() {
   useEffect(() => {
     void checkSiteDiscogs().then(setSiteDiscogs);
   }, []);
-  const discogsReady = siteDiscogs || !!getDiscogsToken();
   const stopPrices = useRef(false);
   const [bookPriceRun, setBookPriceRun] = useState<BookPriceRun | null>(null);
   const stopBookPrices = useRef(false);
@@ -378,7 +376,6 @@ function StacksApp() {
   const [currency, setCurrency] = useState(() => readPref(PREF_CURRENCY, '') || guessCurrency());
   const [editingCase, setEditingCase] = useState<{ bc: Bookcase; isNew: boolean } | null>(null);
   const [searchFor, setSearchFor] = useState<ScanItem | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
@@ -995,7 +992,7 @@ function StacksApp() {
         await store.put(next);
         replaceBook(next);
         if (next.coverUrl !== latest.coverUrl || next.trackCount !== latest.trackCount) filled++;
-        await pause(getDiscogsToken() ? 1100 : 2600);
+        await pause(2600);
       });
       discogsBusy.current = false;
       setDiscogsDone((n) => n + 1);
@@ -1212,14 +1209,14 @@ function StacksApp() {
     [defaultFormat, scanTarget, scanSpot?.bookcaseId, scanSpot?.shelf, scanSpot?.section, reload],
   );
 
-  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !profileName && !profileEditing && !cameraOpen && !accountOpen && !open && !editingCase && !searchFor && !settingsOpen && !shareOpen && !importOpen && wishSearch === false);
+  useBarcodeScanner(handleCode, sinkRef, view !== 'reading' && !profileName && !profileEditing && !cameraOpen && !accountOpen && !open && !editingCase && !searchFor && !shareOpen && !importOpen && wishSearch === false);
 
   // Keep the scan box ready: focus it on start and whenever a panel closes.
   useEffect(() => {
     if (!open && !editingCase && (document.activeElement === document.body || !document.activeElement)) {
       sinkRef.current?.focus();
     }
-  }, [open, editingCase, loaded, searchFor, settingsOpen, importOpen]);
+  }, [open, editingCase, loaded, searchFor, importOpen]);
 
   const onSinkKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const sink = e.currentTarget;
@@ -1419,11 +1416,11 @@ function StacksApp() {
   const updatePrices = async () => {
     if (priceRun) return;
     const token = hasDiscogsAccess();
-    const todo = allBooks.filter((b) => isMusic(b) && (b.owned !== false || b.wishlist) && ((b.discogsId && isStale(b)) || (token && !b.discogsId && b.barcode)));
+    const cur = marketCurrency(currency);
+    const todo = allBooks.filter((b) => isMusic(b) && (b.owned !== false || b.wishlist) && ((b.discogsId && isStale(b, cur)) || (token && !b.discogsId && b.barcode)));
     if (!todo.length) return;
     stopPrices.current = false;
     setPriceRun({ done: 0, total: todo.length });
-    const cur = marketCurrency(currency);
     let priced = 0;
     let problem = '';
     await eachInTurn(todo, async (item, i) => {
@@ -1911,7 +1908,6 @@ function StacksApp() {
           <button onClick={() => { closeMenu(); importRef.current?.click(); }}>Restore from backup…</button>
           <button onClick={() => { closeMenu(); setImportOpen(true); }}>Import from Goodreads or StoryGraph…</button>
           <button onClick={() => { closeMenu(); setDiscogsOpen(true); }}>Import from Discogs…</button>
-          <button onClick={() => { closeMenu(); setSettingsOpen(true); }}>Lookup keys…</button>
         </div>
       </details>
       <input
@@ -2026,19 +2022,19 @@ function StacksApp() {
 
   const scannerStatus = () => (
     <>
-      {(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) ? (
+      {(open || editingCase || searchFor || accountOpen || importOpen || wishSearch !== false) ? (
         <>
           <p className="scan-status paused"><span className="dot" /> Scanner paused</p>
           <p className="scan-hint">Close the panel on the right to scan again.</p>
         </>
       ) : null}
-      {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && pageFocused ? (
+      {!(open || editingCase || searchFor || accountOpen || importOpen || wishSearch !== false) && pageFocused ? (
         <>
           <p className="scan-status"><span className="dot" /> Scanner ready</p>
           <p className="scan-hint">Scan the barcode on the back of a book, record or CD. You don't need to click anything first.</p>
         </>
       ) : null}
-      {!(open || editingCase || searchFor || settingsOpen || accountOpen || importOpen || wishSearch !== false) && !pageFocused ? <>
+      {!(open || editingCase || searchFor || accountOpen || importOpen || wishSearch !== false) && !pageFocused ? <>
           <p className="scan-status paused"><span className="dot" /> Click this page to scan</p>
           <p className="scan-hint">Your scanner types into whichever window is active. Click anywhere on Stacks first, then scan.</p>
         </> : null}
@@ -2718,14 +2714,14 @@ function StacksApp() {
       <ValueView
         records={books.filter(isMusic)}
         currency={marketCurrency(currency)}
-        hasToken={discogsReady}
+        hasToken={siteDiscogs}
         run={priceRun}
         onUpdate={updatePrices}
         onStop={() => {
           stopPrices.current = true;
         }}
         onOpen={(b) => setOpen({ book: b })}
-        onOpenSettings={() => setSettingsOpen(true)}
+       
       />
     </section>
   );
@@ -2847,13 +2843,13 @@ function StacksApp() {
         <SearchDialog
           isbn13={searchFor.isbn13}
           onPick={pickHit}
-          onOpenSettings={() => setSettingsOpen(true)}
+         
           onClose={() => setSearchFor(null)}
         />
       )}
 
       {wishSearch !== false && (
-        <SearchDialog initialQuery={wishSearch} onPick={addWishFromSearch} onOpenSettings={() => setSettingsOpen(true)} onClose={() => setWishSearch(false)} />
+        <SearchDialog initialQuery={wishSearch} onPick={addWishFromSearch} onClose={() => setWishSearch(false)} />
       )}
     </>
   );
@@ -2941,15 +2937,6 @@ function StacksApp() {
         <ShareDialog uid={user.id} defaultTitle={profile?.display_name || profile?.username || 'My'} onClose={() => setShareOpen(false)} onToast={setToast} />
       )}
 
-      {settingsOpen && (
-        <SettingsDialog
-          onClose={() => setSettingsOpen(false)}
-          onSaved={() => {
-            setSettingsOpen(false);
-            setToast('Saved. Press Retry on any scan that failed.');
-          }}
-        />
-      )}
 
       {editingCase && (
         <BookcaseEditor

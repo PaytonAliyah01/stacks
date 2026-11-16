@@ -20,7 +20,6 @@ interface Props {
   onUpdate: () => void;
   onStop: () => void;
   onOpen: (b: Book) => void;
-  onOpenSettings: () => void;
 }
 
 const SOURCE_LABEL = { yours: 'your estimate', suggested: 'Discogs suggested', lowest: 'lowest on sale' } as const;
@@ -79,12 +78,11 @@ interface PanelProps {
   run: PriceRun | null;
   onUpdate: () => void;
   onStop: () => void;
-  onOpenSettings: () => void;
 }
 
-function PricePanel({ s, records, hasToken, run, onUpdate, onStop, onOpenSettings }: Readonly<PanelProps>) {
+function PricePanel({ s, records, hasToken, run, onUpdate, onStop }: Readonly<PanelProps>) {
   const linked = records.filter((b) => b.discogsId).length;
-  const stale = records.filter((b) => b.discogsId && isStale(b)).length;
+  const stale = records.filter((b) => b.discogsId && isStale(b, s.currency)).length;
   const canLink = hasToken ? records.filter((b) => !b.discogsId && b.barcode).length : 0;
   const needsUpdate = stale > 0 || canLink > 0;
   return (
@@ -116,10 +114,7 @@ function PricePanel({ s, records, hasToken, run, onUpdate, onStop, onOpenSetting
         {hasToken ? (
           <>Stacks uses Discogs' suggested price for each record's condition (Very Good Plus if you haven't set one), or the lowest price on sale when there's no suggestion.</>
         ) : (
-          <>
-            Without a Discogs token, Stacks uses the lowest price on sale right now. For prices that follow each record's condition, and to link scanned records by barcode,{' '}
-            <button className="link" onClick={onOpenSettings}>add your Discogs token</button>.
-          </>
+          <>Stacks uses the lowest price on sale on Discogs right now.</>
         )}{' '}
         You can also type your own estimate under “Worth” in a record's panel.
       </p>
@@ -195,14 +190,14 @@ function ValueTable({ s, currency, onOpen }: Readonly<{ s: Summary; currency: st
   );
 }
 
-export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, onOpen, onOpenSettings }: Readonly<Props>) {
+export function ValueView({ records, currency, hasToken, run, onUpdate, onStop, onOpen }: Readonly<Props>) {
   const s = useMemo(() => summarize(records, currency), [records, currency]);
   const money = (n: number) => formatMoney(n, currency);
   return (
     <div className="value-view">
       <ValueStats s={s} records={records} money={money} onOpen={onOpen} />
 
-      <PricePanel s={s} records={records} hasToken={hasToken} run={run} onUpdate={onUpdate} onStop={onStop} onOpenSettings={onOpenSettings} />
+      <PricePanel s={s} records={records} hasToken={hasToken} run={run} onUpdate={onUpdate} onStop={onStop} />
 
       <ValueTable s={s} currency={currency} onOpen={onOpen} />
     </div>
