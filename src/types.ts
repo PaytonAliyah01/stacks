@@ -100,8 +100,6 @@ export interface Book extends BookMetadata {
   sleeveCondition?: string;
   /** What the record sells for on the Discogs marketplace, last time Stacks checked. */
   market?: { lowest?: number; suggested?: number; forSale?: number; currency: string; checkedAt: string };
-  /** A book's current price in the Google Books store. */
-  bookPrice?: BookPrice;
   /** Your own idea of what it's worth, in the price-paid currency. Wins over Discogs. */
   myValue?: number;
   /** Stacks has looked up this Discogs release's details and cover. */
@@ -130,14 +128,6 @@ export interface Book extends BookMetadata {
   vibeChecked?: boolean;
   addedAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp, used for sync later
-}
-
-export interface BookPrice {
-  checkedAt: string;
-  /** Google Books store price where you live; often only the ebook is sold there. Missing when Google doesn't sell it. */
-  store?: { amount: number; currency: string; ebook: boolean };
-  /** 2 = also searched by title and author when the ISBN had no price. */
-  v?: number;
 }
 
 export interface BookSeries {

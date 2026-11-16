@@ -9,7 +9,7 @@ import { NotesPanel } from './NotesPanel';
 import { SeriesField } from './SeriesField';
 import { Cover } from './Cover';
 import { stripTags } from '../lib/text';
-import { DrawerFoot, DrawerTitle, IdentityFields, LoanFields, OwnershipChecks, PlacementField, PriceField, SpinePhotoField, WorthField, BookWorthField } from './BookDrawerParts';
+import { DrawerFoot, DrawerTitle, IdentityFields, LoanFields, OwnershipChecks, PlacementField, PriceField, SpinePhotoField, WorthField } from './BookDrawerParts';
 import { identityFromInput } from '../lib/isbn';
 
 interface Props {
@@ -187,7 +187,6 @@ export function BookDrawer({ book, isNew, onSave, onDelete, onRefresh, onShowOnS
             </label>
             <PriceField draft={draft} defaultCurrency={defaultCurrency} onCurrencyChange={onCurrencyChange} set={set} setDraft={setDraft} />
             {music && !isNew && <WorthField draft={draft} defaultCurrency={defaultCurrency} setDraft={setDraft} />}
-            {!music && !isNew && draft.owned !== false && <BookWorthField draft={draft} defaultCurrency={defaultCurrency} setDraft={setDraft} />}
             <PlacementField book={book} draft={draft} books={books} bookcases={bookcases} isNew={isNew} onShowOnShelf={onShowOnShelf} set={set} />
             <SpinePhotoField draft={draft} set={set} setError={setError} />
             <label className="field span-2">

@@ -237,6 +237,3 @@ More → **Share my shelves…** makes a secret link anyone can open, even witho
 
 Friends → **+ Find people** (on every Friends page) searches by part of a name or username. People whose profile is visible to friends or everyone show up as you'd expect; a private profile only shows up when you type its exact username. "People you may know" lists friends of your friends with how many friends you share. Opening someone's profile link always shows their name and an **Add friend** button, even when their profile is private (signed-out visitors are asked to sign in first). Uses `supabase/12-find-people.sql`; until it's run, search falls back to exact usernames.
 
-## What your library is worth
-
-Books → Stats → **What it's worth** adds up your whole library: books, plus records and CDs (from their Discogs prices on Music → Stats). **Check prices** asks the Google Books store what each book with an ISBN costs today, about one a second, in your country's store. A print edition's price is used when Google sells one; otherwise the ebook price, marked "ebook". Books Google doesn't sell have no price, unless you type your own under **Worth** in the book's panel, which always wins. Prices are checked again after 30 days. No SQL needed.
