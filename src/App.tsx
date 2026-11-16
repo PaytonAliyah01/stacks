@@ -101,6 +101,25 @@ interface ScanItem {
 
 type SortKey = 'added' | 'title' | 'author' | 'published' | 'played';
 type View = 'home' | 'library' | 'music' | 'reading' | 'wishlist' | 'shelves' | 'series' | 'stats' | 'worth';
+/** Where you were in the app, kept for this browser tab so a reload lands on the same page. */
+const PLACE_KEY = 'stacks.place';
+interface Place { view?: string; reading?: string; music?: string }
+const VIEWS: readonly View[] = ['home', 'library', 'music', 'reading', 'wishlist', 'shelves', 'series', 'stats', 'worth'];
+const READING_TABS = ['overview', 'foryou', 'new', 'buddy', 'clubs', 'groups', 'stats', 'notes', 'wrap', 'achievements'] as const;
+const MUSIC_TABS = ['collection', 'foryou', 'new', 'listening', 'value', 'wantlist', 'wrap'] as const;
+type ReadingTab = (typeof READING_TABS)[number];
+type MusicTab = (typeof MUSIC_TABS)[number];
+const savedPlace: Place = (() => {
+  try {
+    const raw = sessionStorage.getItem(PLACE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? (parsed as Place) : {};
+  } catch {
+    return {};
+  }
+})();
+const pick = <T extends string>(allowed: readonly T[], value: string | undefined, fallback: T): T =>
+  allowed.find((a) => a === value) ?? fallback;
 type BooksPage = 'library' | 'shelves' | 'series' | 'wishlist' | 'stats' | 'worth';
 /** The pages inside the Books tab. */
 const BOOK_PAGES: readonly (readonly [BooksPage, string])[] = [
@@ -316,7 +335,7 @@ function StacksApp() {
   const [notes, setNotes] = useState<BookNote[]>([]);
   const [spins, setSpins] = useState<Spin[]>([]);
   const plays = useMemo(() => playsByRecord(spins), [spins]);
-  const [musicTab, setMusicTab] = useState<'collection' | 'foryou' | 'new' | 'listening' | 'value' | 'wantlist' | 'wrap'>('collection');
+  const [musicTab, setMusicTab] = useState<MusicTab>(() => pick(MUSIC_TABS, savedPlace.music, 'collection'));
   const [discogsWants, setDiscogsWants] = useState(false);
   const [styluses, setStyluses] = useState<Stylus[]>(loadStyluses);
   const changeStyluses = (list: Stylus[]) => {
@@ -352,11 +371,18 @@ function StacksApp() {
   const [shareOpen, setShareOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [discogsOpen, setDiscogsOpen] = useState(false);
-  const [readingTab, setReadingTab] = useState<'overview' | 'foryou' | 'new' | 'buddy' | 'clubs' | 'groups' | 'stats' | 'notes' | 'wrap' | 'achievements'>('overview');
+  const [readingTab, setReadingTab] = useState<ReadingTab>(() => pick(READING_TABS, savedPlace.reading, 'overview'));
   const [highlightId, setHighlightId] = useState<string>();
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<View>(() => pick(VIEWS, savedPlace.view, 'home'));
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(PLACE_KEY, JSON.stringify({ view, reading: readingTab, music: musicTab } satisfies Place));
+    } catch {
+      /* private window: a reload just opens Home */
+    }
+  }, [view, readingTab, musicTab]);
   // Coming back to Books opens the page you were last on.
-  const [lastBooksPage, setLastBooksPage] = useState<BooksPage>('library');
+  const [lastBooksPage, setLastBooksPage] = useState<BooksPage>(() => booksPageOf(pick(VIEWS, savedPlace.view, 'library')));
   useEffect(() => {
     if (BOOK_PAGES.some(([k]) => k === view)) setLastBooksPage(view as BooksPage);
   }, [view]);
