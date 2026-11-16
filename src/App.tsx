@@ -15,6 +15,8 @@ import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
 import { GroupedTabs } from './components/GroupedTabs';
+import { LibraryValueView, type BookPriceRun } from './components/LibraryValueView';
+import { booksToPrice, googleStorePrice, storeCountry } from './lib/bookprices';
 import { ShareDialog } from './components/ShareDialog';
 import { SharedShelf } from './components/SharedShelf';
 import { tokenFromHash } from './lib/share';
@@ -98,8 +100,8 @@ interface ScanItem {
 }
 
 type SortKey = 'added' | 'title' | 'author' | 'published' | 'played';
-type View = 'home' | 'library' | 'music' | 'reading' | 'wishlist' | 'shelves' | 'series' | 'stats';
-type BooksPage = 'library' | 'shelves' | 'series' | 'wishlist' | 'stats';
+type View = 'home' | 'library' | 'music' | 'reading' | 'wishlist' | 'shelves' | 'series' | 'stats' | 'worth';
+type BooksPage = 'library' | 'shelves' | 'series' | 'wishlist' | 'stats' | 'worth';
 /** The pages inside the Books tab. */
 const BOOK_PAGES: readonly (readonly [BooksPage, string])[] = [
   ['library', 'Library'],
@@ -107,7 +109,11 @@ const BOOK_PAGES: readonly (readonly [BooksPage, string])[] = [
   ['series', 'Series'],
   ['wishlist', 'Wishlist'],
   ['stats', 'Stats'],
+  ['worth', 'What it’s worth'],
 ];
+
+/** The Books page to mark as current; Library when you're elsewhere. */
+const booksPageOf = (v: View): BooksPage => BOOK_PAGES.find(([k]) => k === v)?.[0] ?? 'library';
 
 const STATE_LABEL: Record<ScanState, string> = {
   looking: 'Looking up…',
@@ -320,6 +326,8 @@ function StacksApp() {
   };
   const [priceRun, setPriceRun] = useState<PriceRun | null>(null);
   const stopPrices = useRef(false);
+  const [bookPriceRun, setBookPriceRun] = useState<BookPriceRun | null>(null);
+  const stopBookPrices = useRef(false);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(loadActive);
   const changeActiveSession = (a: ActiveSession | null) => {
     saveActive(a);
@@ -1408,6 +1416,40 @@ function StacksApp() {
     setToast(problem || `Updated prices for ${priced} record${priced === 1 ? '' : 's'}.`);
   };
 
+  /** Ask the Google Books store what each book costs today, one at a time. */
+  const checkBookPrices = async () => {
+    if (bookPriceRun) return;
+    const todo = booksToPrice(allBooks);
+    if (!todo.length) return;
+    stopBookPrices.current = false;
+    setBookPriceRun({ done: 0, total: todo.length });
+    const country = storeCountry(currency);
+    let found = 0;
+    let problem = '';
+    await eachInTurn(todo, async (item, i) => {
+      if (stopBookPrices.current) return 'stop';
+      try {
+        const price = await googleStorePrice(item.isbn13!, country);
+        const latest = await store.get(item.id);
+        if (!latest) return;
+        const next: Book = { ...latest, bookPrice: { checkedAt: new Date().toISOString(), store: price }, updatedAt: new Date().toISOString() };
+        await store.put(next);
+        replaceBook(next);
+        if (price) found++;
+      } catch (err) {
+        const checked = countOf(i, 'book');
+        problem = /HTTP 429/.test(String(err))
+          ? `Google Books' daily limit was reached after ${checked}. Press Check prices again tomorrow to carry on.`
+          : "Couldn't reach Google Books, so checking stopped. Try again later.";
+        return 'stop';
+      }
+      setBookPriceRun({ done: i + 1, total: todo.length });
+      await pause(900);
+    });
+    setBookPriceRun(null);
+    setToast(problem || `Found today's Google Books price for ${found} of ${todo.length} book${todo.length === 1 ? '' : 's'}.`);
+  };
+
   /** Log a play of a record: now, or on an earlier day. */
   const spinRecord = async (b: Book, at?: string) => {
     const x: Spin = { id: newId(), bookId: b.id, at: at ?? new Date().toISOString() };
@@ -1685,15 +1727,19 @@ function StacksApp() {
 
   const inBooks = BOOK_PAGES.some(([k]) => k === view);
   const booksNav = (
-    <div className="subtabs-line">
-      <nav className="subtabs" aria-label="Book pages">
-        {BOOK_PAGES.map(([k, l]) => (
-          <button key={k} className={view === k ? 'active' : ''} aria-current={view === k ? 'page' : undefined} onClick={() => setView(k)}>
-            {l}
-          </button>
-        ))}
-      </nav>
-    </div>
+    <GroupedTabs
+      line
+      label="Book pages"
+      current={booksPageOf(view)}
+      onPick={setView}
+      groups={[
+        { label: 'Library', pages: [['library', 'Library']] },
+        { label: 'Shelves', pages: [['shelves', 'Shelves']] },
+        { label: 'Series', pages: [['series', 'Series']] },
+        { label: 'Wishlist', pages: [['wishlist', 'Wishlist']] },
+        { label: 'Stats', pages: [['stats', 'Library stats'], ['worth', 'What it’s worth']] },
+      ]}
+    />
   );
   const musicNav = (
     <GroupedTabs
@@ -2515,6 +2561,26 @@ function StacksApp() {
     </section>
   );
 
+  const worthPage = () => (
+    <section className="library" aria-label="What it's worth">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      <LibraryValueView
+        books={allBooks}
+        currency={currency}
+        onOpen={(b) => setOpen({ book: b })}
+        onRecordPrices={() => {
+          setMusicTab('value');
+          setView('music');
+        }}
+        run={bookPriceRun}
+        onCheckPrices={() => void checkBookPrices()}
+        onStop={() => {
+          stopBookPrices.current = true;
+        }}
+      />
+    </section>
+  );
+
   const seriesPage = () => (
     <section className="library" aria-label="Series">
       <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
@@ -2669,6 +2735,7 @@ function StacksApp() {
     if (view === 'wishlist') return <Fragment key="wishlist">{wishlistPage()}</Fragment>;
     if (view === 'reading') return <Fragment key="reading">{readingPage()}</Fragment>;
     if (view === 'stats') return <Fragment key="stats">{statsPage()}</Fragment>;
+    if (view === 'worth') return <Fragment key="worth">{worthPage()}</Fragment>;
     if (view === 'series') return <Fragment key="series">{seriesPage()}</Fragment>;
     if (view === 'music') {
       const music = musicPage();
