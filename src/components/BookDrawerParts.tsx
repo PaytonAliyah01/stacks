@@ -210,6 +210,9 @@ export function WorthField({ draft, defaultCurrency, setDraft }: Readonly<Omit<M
 export function BookWorthField({ draft, defaultCurrency, setDraft }: Readonly<Omit<MoneyProps, 'set' | 'onCurrencyChange'>>) {
   const cur = draft.currency ?? defaultCurrency;
   const typical = typicalPrice(draft, cur);
+  let typicalNote = '';
+  if (typical !== undefined) typicalNote = `A typical second-hand ${draft.format} sells for about ${formatMoney(typical, cur)}. `;
+  else if (draft.format === 'ebook') typicalNote = 'Ebooks can’t be resold. ';
   return (
     <div className="field span-2">
       <span>Worth</span>
@@ -218,7 +221,7 @@ export function BookWorthField({ draft, defaultCurrency, setDraft }: Readonly<Om
           placeholder={typical === undefined ? 'Your own estimate (optional)' : `About ${formatMoney(typical, cur)} if you leave it empty`} value={draft.myValue ?? ''}
           onChange={(e) => setDraft((d) => ({ ...d, myValue: numberOrNone(e.target.value), currency: d.currency ?? defaultCurrency }))} />
         <span className="muted small">
-          {typical === undefined ? (draft.format === 'ebook' ? 'Ebooks can’t be resold. ' : '') : `A typical second-hand ${draft.format} sells for about ${formatMoney(typical, cur)}. `}
+          {typicalNote}
           Check what copies sell for:{' '}
           <span className="price-links">
             {priceLinks(draft).map((l) => (

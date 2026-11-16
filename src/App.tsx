@@ -111,6 +111,9 @@ const BOOK_PAGES: readonly (readonly [BooksPage, string])[] = [
   ['worth', 'What it’s worth'],
 ];
 
+/** The Books page to mark as current; Library when you're elsewhere. */
+const booksPageOf = (v: View): BooksPage => BOOK_PAGES.find(([k]) => k === v)?.[0] ?? 'library';
+
 const STATE_LABEL: Record<ScanState, string> = {
   looking: 'Looking up…',
   added: 'Added',
@@ -1690,7 +1693,7 @@ function StacksApp() {
     <GroupedTabs
       line
       label="Book pages"
-      current={(inBooks ? view : 'library') as BooksPage}
+      current={booksPageOf(view)}
       onPick={setView}
       groups={[
         { label: 'Library', pages: [['library', 'Library']] },
