@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getGoogleKey, searchBooks, type SearchHit } from '../lib/lookup';
+import { searchBooks, type SearchHit } from '../lib/lookup';
 import { formatIsbn13 } from '../lib/isbn';
 import { Cover } from './Cover';
 
@@ -9,11 +9,10 @@ interface Props {
   /** Searched for straight away when given. */
   initialQuery?: string;
   onPick: (hit: SearchHit) => void;
-  onOpenSettings: () => void;
   onClose: () => void;
 }
 
-export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onClose }: Readonly<Props>) {
+export function SearchDialog({ isbn13, initialQuery, onPick, onClose }: Readonly<Props>) {
   const [query, setQuery] = useState(initialQuery ?? '');
   const [busy, setBusy] = useState(false);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -82,15 +81,8 @@ export function SearchDialog({ isbn13, initialQuery, onPick, onOpenSettings, onC
           {problem && (
             <p className="search-problem">
               {problem}{' '}
-              {(problemKind === 'server') ? (
-                <span className="muted">That's Google having a hiccup, not your {getGoogleKey() ? 'key' : 'settings'}. Press Search again in a minute.</span>
-              ) : null}
-              {problemKind !== 'server' && (problemKind === 'quota' && !getGoogleKey()) ? (
-                <button type="button" className="link" onClick={onOpenSettings}>Add a Google Books key</button>
-              ) : null}
-              {problemKind !== 'server' && !(problemKind === 'quota' && !getGoogleKey()) && (problemKind === 'quota') ? (
-                <button type="button" className="link" onClick={onOpenSettings}>Check your Google Books key</button>
-              ) : null}
+              {problemKind === 'server' && <span className="muted">That's Google having a hiccup. Press Search again in a minute.</span>}
+              {problemKind === 'quota' && <span className="muted">Google Books is limiting lookups right now. Try again later.</span>}
             </p>
           )}
           {hits?.length === 0 && !busy && <p className="muted">Nothing found. Try fewer words, or just the title.</p>}

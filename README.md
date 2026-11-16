@@ -48,15 +48,14 @@ price barcode next to it, either one read together is fine.
 
 ### When a scan isn't found
 
-Lookups ask Open Library and Google Books. Without a key, Google shares one small daily limit between everyone, so a book Google has can still fail to look up. When that happens the scan says "Lookup failed" and offers:
+Lookups ask Open Library and Google Books, using the site's built-in Google Books key. If Google is busy or limiting lookups, a book Google has can still fail to look up. When that happens the scan says "Lookup failed" and offers:
 
 - **Search by title**: search both databases by title or author and pick the right book. It is saved with the ISBN you scanned, so scanning it again finds it.
 - **Retry**: try the lookup again later.
-- **Your own Google Books key** (More menu → Lookup keys): a free key from Google Cloud gives you your own limit of 1,000 lookups a day. It is stored only in your browser.
 
 ### Records and CDs
 
-Record and CD barcodes are looked up on MusicBrainz, Deezer and iTunes at the same time, plus Discogs if you add a free personal token (More menu → Lookup keys). MusicBrainz and Discogs know whether a barcode is vinyl or a CD. When only Deezer or iTunes find it, Stacks saves it as a CD and says so, so you can switch it.
+Record and CD barcodes are looked up on MusicBrainz, Deezer and iTunes at the same time, plus Discogs when the site's shared Discogs token is set up (see Shared Discogs token). MusicBrainz and Discogs know whether a barcode is vinyl or a CD. When only Deezer or iTunes find it, Stacks saves it as a CD and says so, so you can switch it.
 
 ### Reading
 
@@ -119,7 +118,7 @@ Where things live:
 
 **Spin log (Music → Listening):** press **▶** on a record's card (hover over it), or **Spin it now** in its drawer, when you put it on. Stacks counts plays, shows what's **Now spinning**, and lists records you've **Never played** or that are **Gathering dust** (not played in 6 months). **What should I put on?** picks a record for you, leaning toward ones you haven't played in a while. You also get plays this week and month, a day streak, how much of your collection you've played, most played records, top artists, spins per month and per weekday. Add a play from an earlier day in the record's drawer; sort the collection by **Most played**. Plays are kept in backups.
 
-**Import from Discogs:** Backup → **Import from Discogs…** (or the button on an empty Music page). Type your Discogs username to load a public collection (add your Discogs token under Lookup keys for a private one), or choose the .csv from Discogs' Collection → Export. Vinyl and CDs come in with label, catalog number, media and sleeve condition and your Discogs notes; cassettes and files are skipped; records you already have are linked, not added twice. Afterwards Stacks fetches each release's barcode, track count and cover in the background.
+**Import from Discogs:** Backup → **Import from Discogs…** (or the button on an empty Music page). Type your Discogs username to load a public collection, or choose the .csv from Discogs' Collection → Export. Vinyl and CDs come in with label, catalog number, media and sleeve condition and your Discogs notes; cassettes and files are skipped; records you already have are linked, not added twice. Afterwards Stacks fetches each release's barcode, track count and cover in the background.
 
 **Collection value (Music → Stats → What it’s worth):** press **Update prices** and Stacks asks the Discogs marketplace what each linked record sells for (one every couple of seconds). Without a Discogs token it uses the lowest price on sale; with a token it uses Discogs' suggested price for the record's condition (Very Good Plus if none is set) and links scanned records to Discogs by barcode. You see the total value, what you paid, the gain or loss, and your most valuable records. Type your own estimate under **Worth** in a record's panel to override Discogs. Prices are checked again after 30 days.
 
@@ -194,7 +193,7 @@ The shared secret and each person's Last.fm session key stay on the server; the 
 
 ## Shared Discogs token
 
-One Discogs token for the whole site, so everyone gets Discogs barcode search, Find my pressing and suggested record prices without making their own. The token stays on the server in the `discogs` Edge Function, which only passes on read-only catalogue and price lookups (no collections, wantlists or account calls). Someone who adds their own token under More → Lookup keys uses theirs instead. Discogs allows about 60 requests a minute per token, shared by everyone using the site token.
+One Discogs token for the whole site, so everyone gets Discogs barcode search, Find my pressing and suggested record prices without making their own. The token stays on the server in the `discogs` Edge Function, which only passes on read-only catalogue and price lookups (no collections, wantlists or account calls). Discogs allows about 60 requests a minute per token, shared by everyone using the site token.
 
 Setup (once):
 
@@ -202,7 +201,7 @@ Setup (once):
 2. In Supabase → Edge Functions → Secrets, add `DISCOGS_TOKEN` with that token.
 3. In Supabase → Edge Functions, create a function named `discogs` and paste `supabase/functions/discogs/index.ts` (or `supabase functions deploy discogs`).
 
-Until the function is set up, Stacks works as before: Discogs searches need a personal token.
+Until the function is set up, Stacks still looks records up on MusicBrainz, Deezer and iTunes, and record prices use the lowest price on sale.
 
 ## New releases
 
@@ -222,7 +221,7 @@ When you're signed in, the bell in the top bar collects everything waiting for y
 
 ## Finding your way around
 
-The top tabs are Home, Books, Music, Reading and Friends, plus the 🔔 bell (when signed in) and a **More** menu with Add by hand, backups, imports and lookup keys. Pages that belong together share one tab with a small switch underneath:
+The top tabs are Home, Books, Music, Reading and Friends, plus the 🔔 bell (when signed in) and a **More** menu with Add by hand, backups and imports. Pages that belong together share one tab with a small switch underneath:
 
 - **Books:** Library, Shelves, Series, Wishlist, Stats.
 - **Music:** Collection, Wantlist, Listening, Discover (For you, New releases), Stats (What it's worth, Year in music).

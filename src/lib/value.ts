@@ -24,7 +24,9 @@ export function valueOf(b: Book, fallbackCurrency: string): Valued | undefined {
   return undefined;
 }
 
-export const isStale = (b: Book, now = Date.now()) => !b.market || now - Date.parse(b.market.checkedAt) > STALE_DAYS * 86_400_000;
+/** Prices need checking when there are none, they're old, or they're in a different currency from yours. */
+export const isStale = (b: Book, currency?: string, now = Date.now()) =>
+  !b.market || (!!currency && b.market.currency !== currency) || now - Date.parse(b.market.checkedAt) > STALE_DAYS * 86_400_000;
 
 export interface ValueSummary {
   currency: string;
