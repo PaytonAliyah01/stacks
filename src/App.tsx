@@ -1437,8 +1437,9 @@ function StacksApp() {
         replaceBook(next);
         if (price) found++;
       } catch (err) {
+        const checked = countOf(i, 'book');
         problem = /HTTP 429/.test(String(err))
-          ? `Google Books' daily limit was reached after ${i} book${i === 1 ? '' : 's'}. Press Check prices again tomorrow to carry on.`
+          ? `Google Books' daily limit was reached after ${checked}. Press Check prices again tomorrow to carry on.`
           : "Couldn't reach Google Books, so checking stopped. Try again later.";
         return 'stop';
       }

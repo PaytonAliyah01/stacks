@@ -30,6 +30,8 @@ function PricesPanel({ books, s, run, onCheckPrices, onStop }: Readonly<{ books:
   const found = owned.filter((b) => b.bookPrice?.store).length;
   const ebook = owned.filter((b) => b.bookPrice?.store?.ebook).length;
   const notSold = owned.filter((b) => b.bookPrice && !b.bookPrice.store).length;
+  const theyHave = notSold === 1 ? 'it has' : 'they have';
+  const notSoldNote = notSold ? ` Google doesn't sell ${countOf(notSold, 'book')} right now, so ${theyHave} no price.` : '';
   const last = owned.reduce<string | undefined>((m, b) => (b.bookPrice && (!m || b.bookPrice.checkedAt > m) ? b.bookPrice.checkedAt : m), undefined);
   return (
     <section className="panel price-panel">
@@ -58,7 +60,7 @@ function PricesPanel({ books, s, run, onCheckPrices, onStop }: Readonly<{ books:
       <p className="small">
         Stacks asks the Google Books store what each book costs today, using its ISBN. Where Google sells a print edition, that's the price;
         where it only sells the ebook, the ebook price is used and marked “ebook”{ebook ? ` (${ebook} so far)` : ''}.
-        {notSold ? ` Google doesn't sell ${countOf(notSold, 'book')} right now, so ${notSold === 1 ? 'it has' : 'they have'} no price.` : ''}{' '}
+        {notSoldNote}{' '}
         To use your own number instead, type it under “Worth” in a book's panel.
       </p>
       {s.otherCurrency > 0 && <p className="muted small">{s.otherCurrency} priced in another currency are left out of the total.</p>}
