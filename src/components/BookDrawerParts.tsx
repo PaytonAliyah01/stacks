@@ -1,5 +1,4 @@
-import { CURRENCIES, KIND_LABELS, formatMoney, type Book, type Bookcase, type ItemKind } from '../types';
-import { formatDay } from '../lib/reading';
+import { CURRENCIES, KIND_LABELS, type Book, type Bookcase, type ItemKind } from '../types';
 import { discogsReleaseUrl, marketLine } from '../lib/value';
 import { booksAt, sameSpot, spotName } from '../lib/shelving';
 import { formatIsbn13 } from '../lib/isbn';
@@ -201,29 +200,6 @@ export function WorthField({ draft, defaultCurrency, setDraft }: Readonly<Omit<M
             </>
           )}
         </span>
-      </div>
-    </div>
-  );
-}
-
-/** The book's Google Books price, for its panel. */
-function googleLine(b: Book): string {
-  const p = b.bookPrice;
-  if (!p) return b.isbn13 ? 'Press Check prices on Books → Stats → What it’s worth to get today’s Google Books price.' : 'Needs an ISBN to look up its Google Books price.';
-  if (!p.store) return `Google Books doesn’t sell it right now (${formatDay(p.checkedAt)}).`;
-  return `Google Books: ${formatMoney(p.store.amount, p.store.currency)}${p.store.ebook ? ' for the ebook' : ''} (${formatDay(p.checkedAt)}).`;
-}
-
-/** A book's worth: today's Google Books price, or your own estimate. */
-export function BookWorthField({ draft, defaultCurrency, setDraft }: Readonly<Omit<MoneyProps, 'set' | 'onCurrencyChange'>>) {
-  return (
-    <div className="field span-2">
-      <span>Worth</span>
-      <div className="worth-row">
-        <input id="f-worth" type="number" min={0} step="0.01" aria-label="Your own estimate of what it's worth"
-          placeholder="Your own estimate (optional)" value={draft.myValue ?? ''}
-          onChange={(e) => setDraft((d) => ({ ...d, myValue: numberOrNone(e.target.value), currency: d.currency ?? defaultCurrency }))} />
-        <span className="muted small">{googleLine(draft)}</span>
       </div>
     </div>
   );

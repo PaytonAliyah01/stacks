@@ -1544,7 +1544,3 @@ output.muted,
 output.account-info {
   display: block;
 }
-
-/* ---------- what your library is worth ---------- */
-.price-links { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
-.price-links a { color: var(--accent); }
