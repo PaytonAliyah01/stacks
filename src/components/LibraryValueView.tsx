@@ -2,28 +2,71 @@ import { useMemo, useState } from 'react';
 import type { Book } from '../types';
 import { formatMoney, isMusic } from '../types';
 import { Cover } from './Cover';
-import { canEstimate, priceLinks, summarizeBooks, typicalFor, type BookValue } from '../lib/bookvalue';
+import { summarizeBooks, type BookValue } from '../lib/bookvalue';
+import { booksToPrice } from '../lib/bookprices';
+import { formatDay } from '../lib/reading';
 import { marketCurrency, summarize } from '../lib/value';
 import { countOf } from '../lib/labels';
+
+export interface BookPriceRun {
+  done: number;
+  total: number;
+}
 
 interface Props {
   books: Book[];
   currency: string;
   onOpen: (b: Book) => void;
   onRecordPrices: () => void;
+  run: BookPriceRun | null;
+  onCheckPrices: () => void;
+  onStop: () => void;
 }
 
-const SOURCE = { yours: 'your estimate', typical: 'typical used price' } as const;
-
-function PriceLinks({ b }: Readonly<{ b: Book }>) {
+function PricesPanel({ books, s, run, onCheckPrices, onStop }: Readonly<{ books: Book[]; s: ReturnType<typeof summarizeBooks>; run: BookPriceRun | null; onCheckPrices: () => void; onStop: () => void }>) {
+  const owned = books.filter((b) => !isMusic(b) && b.owned !== false);
+  const withIsbn = owned.filter((b) => b.isbn13).length;
+  const todo = booksToPrice(books).length;
+  const found = owned.filter((b) => b.bookPrice?.store).length;
+  const ebook = owned.filter((b) => b.bookPrice?.store?.ebook).length;
+  const notSold = owned.filter((b) => b.bookPrice && !b.bookPrice.store).length;
+  const last = owned.reduce<string | undefined>((m, b) => (b.bookPrice && (!m || b.bookPrice.checkedAt > m) ? b.bookPrice.checkedAt : m), undefined);
   return (
-    <span className="price-links small">
-      {priceLinks(b).map((l) => (
-        <a key={l.label} href={l.url} target="_blank" rel="noreferrer">{l.label}</a>
-      ))}
-    </span>
+    <section className="panel price-panel">
+      <div className="spins-head">
+        <div>
+          <h3>Current prices</h3>
+          <p className="muted small">
+            {last ? `Last checked ${formatDay(last)}. ` : ''}
+            {found} of {withIsbn} books with an ISBN have a price{todo && last ? `, ${todo} still to check` : ''}.
+          </p>
+        </div>
+        {run ? (
+          <button className="btn ghost" onClick={onStop}>Stop</button>
+        ) : (
+          <button className={`btn ${todo ? 'primary' : 'ghost'}`} onClick={onCheckPrices} disabled={!todo}>
+            {todo ? `Check prices for ${countOf(todo, 'book')}` : 'Prices are up to date'}
+          </button>
+        )}
+      </div>
+      {run && (
+        <div className="price-progress">
+          <div className="progress-bar"><i style={{ width: `${Math.round((run.done / Math.max(1, run.total)) * 100)}%` }} /></div>
+          <span className="muted small">Checked {run.done} of {run.total}, about one book a second. You can keep using Stacks meanwhile.</span>
+        </div>
+      )}
+      <p className="small">
+        Stacks asks the Google Books store what each book costs today, using its ISBN. Where Google sells a print edition, that's the price;
+        where it only sells the ebook, the ebook price is used and marked “ebook”{ebook ? ` (${ebook} so far)` : ''}.
+        {notSold ? ` Google doesn't sell ${countOf(notSold, 'book')} right now, so ${notSold === 1 ? 'it has' : 'they have'} no price.` : ''}{' '}
+        To use your own number instead, type it under “Worth” in a book's panel.
+      </p>
+      {s.otherCurrency > 0 && <p className="muted small">{s.otherCurrency} priced in another currency are left out of the total.</p>}
+    </section>
   );
 }
+
+const SOURCE = { yours: 'your estimate', store: 'Google Books', ebook: 'Google Books, ebook' } as const;
 
 function Worth({ v }: Readonly<{ v: BookValue }>) {
   return (
@@ -35,7 +78,7 @@ function Worth({ v }: Readonly<{ v: BookValue }>) {
 }
 
 /** Books → Stats → What it's worth: your whole library, books and records. */
-export function LibraryValueView({ books, currency, onOpen, onRecordPrices }: Readonly<Props>) {
+export function LibraryValueView({ books, currency, onOpen, onRecordPrices, run, onCheckPrices, onStop }: Readonly<Props>) {
   const s = useMemo(() => summarizeBooks(books, currency), [books, currency]);
   const records = useMemo(() => books.filter((b) => isMusic(b) && b.owned !== false), [books]);
   const rc = marketCurrency(currency);
@@ -58,7 +101,7 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices }: Re
         <div className="stat">
           <span className="stat-label">Books</span>
           <span className="stat-value">{s.valued ? money(s.total) : '–'}</span>
-          <span className="muted">{s.valued} of {countOf(s.copies, 'copy', 'copies')}{s.yours ? `, ${s.yours} valued by you` : ''}</span>
+          <span className="muted">{[s.looked && `${s.looked} at today's price`, s.yours && `${s.yours} valued by you`, s.missing && `${s.missing} without a price`].filter(Boolean).join(', ') || 'no books yet'}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Records and CDs</span>
@@ -75,38 +118,8 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices }: Re
         </div>
       </div>
 
-      <section className="panel">
-        <h3>How books are valued</h3>
-        <p className="small">
-          There's no free service with real second-hand book prices, so a book counts at <b>your own estimate</b> when you type one under “Worth” in its panel, and
-          otherwise at a <b>typical second-hand price</b>
-          {canEstimate(currency)
-            ? ` for its format: about ${money(typicalFor('paperback', currency)!)} for a paperback and ${money(typicalFor('hardcover', currency)!)} for a hardcover, a bit more for books from the last two years, very long books and old hardcovers. Ebooks count as nothing, since they can't be resold.`
-            : '. Typical prices aren’t available in your currency, so only books you value yourself count.'}{' '}
-          Most books really do sell for only a little second-hand; the ones that can be worth much more are usually old, signed or first editions, listed under “Worth checking”.
-        </p>
-        {s.otherCurrency > 0 && <p className="muted small">{s.otherCurrency} valued in another currency are left out of the total.</p>}
-      </section>
+      <PricesPanel books={books} s={s} run={run} onCheckPrices={onCheckPrices} onStop={onStop} />
 
-      {s.check.length > 0 && (
-        <section className="panel">
-          <h3>Worth checking</h3>
-          <p className="muted small">These could sell for much more than a typical copy. Look them up, then type what they're worth in their panel.</p>
-          <ul className="worth-check">
-            {s.check.slice(0, 20).map(({ b, why }) => (
-              <li key={b.id}>
-                <Cover url={b.coverUrl} title={b.title} author={b.authors[0]} size="sm" />
-                <span className="worth-check-text">
-                  <button className="link value-title" onClick={() => onOpen(b)}>{b.title}</button>
-                  <span className="muted small">{[b.authors[0], why].filter(Boolean).join(' · ')}</span>
-                  <PriceLinks b={b} />
-                </span>
-              </li>
-            ))}
-          </ul>
-          {s.check.length > 20 && <p className="muted small">And {s.check.length - 20} more.</p>}
-        </section>
-      )}
 
       {s.top.length > 0 && (
         <section className="panel">
@@ -119,7 +132,6 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices }: Re
                   <th>Book</th>
                   <th className="num">Worth</th>
                   <th className="num">Paid</th>
-                  <th>Check prices</th>
                 </tr>
               </thead>
               <tbody>
@@ -137,7 +149,6 @@ export function LibraryValueView({ books, currency, onOpen, onRecordPrices }: Re
                       {b.copies > 1 && <span className="muted small"> ×{b.copies}</span>}
                     </td>
                     <td className="num">{b.pricePaid === undefined ? <span className="muted">–</span> : formatMoney(b.pricePaid, b.currency ?? currency)}</td>
-                    <td><PriceLinks b={b} /></td>
                   </tr>
                 ))}
               </tbody>

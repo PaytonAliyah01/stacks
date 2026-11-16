@@ -15,7 +15,8 @@ import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
 import { GroupedTabs } from './components/GroupedTabs';
-import { LibraryValueView } from './components/LibraryValueView';
+import { LibraryValueView, type BookPriceRun } from './components/LibraryValueView';
+import { booksToPrice, googleStorePrice, storeCountry } from './lib/bookprices';
 import { ShareDialog } from './components/ShareDialog';
 import { SharedShelf } from './components/SharedShelf';
 import { tokenFromHash } from './lib/share';
@@ -325,6 +326,8 @@ function StacksApp() {
   };
   const [priceRun, setPriceRun] = useState<PriceRun | null>(null);
   const stopPrices = useRef(false);
+  const [bookPriceRun, setBookPriceRun] = useState<BookPriceRun | null>(null);
+  const stopBookPrices = useRef(false);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(loadActive);
   const changeActiveSession = (a: ActiveSession | null) => {
     saveActive(a);
@@ -1411,6 +1414,39 @@ function StacksApp() {
     });
     setPriceRun(null);
     setToast(problem || `Updated prices for ${priced} record${priced === 1 ? '' : 's'}.`);
+  };
+
+  /** Ask the Google Books store what each book costs today, one at a time. */
+  const checkBookPrices = async () => {
+    if (bookPriceRun) return;
+    const todo = booksToPrice(allBooks);
+    if (!todo.length) return;
+    stopBookPrices.current = false;
+    setBookPriceRun({ done: 0, total: todo.length });
+    const country = storeCountry(currency);
+    let found = 0;
+    let problem = '';
+    await eachInTurn(todo, async (item, i) => {
+      if (stopBookPrices.current) return 'stop';
+      try {
+        const price = await googleStorePrice(item.isbn13!, country);
+        const latest = await store.get(item.id);
+        if (!latest) return;
+        const next: Book = { ...latest, bookPrice: { checkedAt: new Date().toISOString(), store: price }, updatedAt: new Date().toISOString() };
+        await store.put(next);
+        replaceBook(next);
+        if (price) found++;
+      } catch (err) {
+        problem = /HTTP 429/.test(String(err))
+          ? `Google Books' daily limit was reached after ${i} book${i === 1 ? '' : 's'}. Press Check prices again tomorrow to carry on.`
+          : "Couldn't reach Google Books, so checking stopped. Try again later.";
+        return 'stop';
+      }
+      setBookPriceRun({ done: i + 1, total: todo.length });
+      await pause(900);
+    });
+    setBookPriceRun(null);
+    setToast(problem || `Found today's Google Books price for ${found} of ${todo.length} book${todo.length === 1 ? '' : 's'}.`);
   };
 
   /** Log a play of a record: now, or on an earlier day. */
@@ -2534,6 +2570,11 @@ function StacksApp() {
         onRecordPrices={() => {
           setMusicTab('value');
           setView('music');
+        }}
+        run={bookPriceRun}
+        onCheckPrices={() => void checkBookPrices()}
+        onStop={() => {
+          stopBookPrices.current = true;
         }}
       />
     </section>
