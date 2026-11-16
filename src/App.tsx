@@ -16,7 +16,7 @@ import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
 import { GroupedTabs } from './components/GroupedTabs';
 import { LibraryValueView, type BookPriceRun } from './components/LibraryValueView';
-import { booksToPrice, googleStorePrice, storeCountry } from './lib/bookprices';
+import { BOOK_PRICE_VERSION, booksToPrice, googleStorePrice, storeCountry } from './lib/bookprices';
 import { ShareDialog } from './components/ShareDialog';
 import { SharedShelf } from './components/SharedShelf';
 import { tokenFromHash } from './lib/share';
@@ -1463,10 +1463,10 @@ function StacksApp() {
     await eachInTurn(todo, async (item, i) => {
       if (stopBookPrices.current) return 'stop';
       try {
-        const price = await googleStorePrice(item.isbn13!, country);
+        const price = await googleStorePrice(item, country);
         const latest = await store.get(item.id);
         if (!latest) return;
-        const next: Book = { ...latest, bookPrice: { checkedAt: new Date().toISOString(), store: price }, updatedAt: new Date().toISOString() };
+        const next: Book = { ...latest, bookPrice: { checkedAt: new Date().toISOString(), store: price, v: BOOK_PRICE_VERSION }, updatedAt: new Date().toISOString() };
         await store.put(next);
         replaceBook(next);
         if (price) found++;

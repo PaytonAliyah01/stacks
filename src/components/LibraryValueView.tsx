@@ -25,7 +25,6 @@ interface Props {
 
 function PricesPanel({ books, s, run, onCheckPrices, onStop }: Readonly<{ books: Book[]; s: ReturnType<typeof summarizeBooks>; run: BookPriceRun | null; onCheckPrices: () => void; onStop: () => void }>) {
   const owned = books.filter((b) => !isMusic(b) && b.owned !== false);
-  const withIsbn = owned.filter((b) => b.isbn13).length;
   const todo = booksToPrice(books).length;
   const found = owned.filter((b) => b.bookPrice?.store).length;
   const ebook = owned.filter((b) => b.bookPrice?.store?.ebook).length;
@@ -40,7 +39,7 @@ function PricesPanel({ books, s, run, onCheckPrices, onStop }: Readonly<{ books:
           <h3>Current prices</h3>
           <p className="muted small">
             {last ? `Last checked ${formatDay(last)}. ` : ''}
-            {found} of {withIsbn} books with an ISBN have a price{todo && last ? `, ${todo} still to check` : ''}.
+            {found} of {countOf(owned.length, 'book')} have a price{todo && last ? `, ${todo} still to check` : ''}.
           </p>
         </div>
         {run ? (
@@ -58,7 +57,7 @@ function PricesPanel({ books, s, run, onCheckPrices, onStop }: Readonly<{ books:
         </div>
       )}
       <p className="small">
-        Stacks asks the Google Books store what each book costs today, using its ISBN. Where Google sells a print edition, that's the price;
+        Stacks asks the Google Books store what each book costs today, by ISBN, or by title and author when Google doesn't sell your edition. Where Google sells a print edition, that's the price;
         where it only sells the ebook, the ebook price is used and marked “ebook”{ebook ? ` (${ebook} so far)` : ''}.
         {notSoldNote}{' '}
         To use your own number instead, type it under “Worth” in a book's panel.

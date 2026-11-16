@@ -136,6 +136,8 @@ export interface BookPrice {
   checkedAt: string;
   /** Google Books store price where you live; often only the ebook is sold there. Missing when Google doesn't sell it. */
   store?: { amount: number; currency: string; ebook: boolean };
+  /** 2 = also searched by title and author when the ISBN had no price. */
+  v?: number;
 }
 
 export interface BookSeries {
