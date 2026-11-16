@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
-import { getDiscogsToken, getGoogleKey, hasBuiltInGoogleKey, setDiscogsToken, setGoogleKey, testGoogleKey } from '../lib/lookup';
+import { checkSiteDiscogs, getDiscogsToken, getGoogleKey, hasBuiltInGoogleKey, setDiscogsToken, setGoogleKey, testGoogleKey } from '../lib/lookup';
 
 export function SettingsDialog({ onClose, onSaved }: Readonly<{ onClose: () => void; onSaved: () => void }>) {
   const [key, setKey] = useState(getGoogleKey());
   const [discogs, setDiscogs] = useState(getDiscogsToken());
+  const [siteDiscogs, setSiteDiscogs] = useState(false);
+  useEffect(() => {
+    void checkSiteDiscogs().then(setSiteDiscogs);
+  }, []);
   const [test, setTest] = useState<{ state: 'idle' | 'testing' | 'ok' | 'bad'; message?: string }>({ state: 'idle' });
 
   const runTest = async () => {
@@ -17,6 +21,26 @@ export function SettingsDialog({ onClose, onSaved }: Readonly<{ onClose: () => v
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  const discogsField = (
+    <>
+      <label className="field">
+        <span>Discogs personal token</span>
+        <input data-scan-input value={discogs} onChange={(e) => setDiscogs(e.target.value)} placeholder="Optional" spellCheck={false} autoComplete="off" />
+        <span className="hint">
+          Discogs knows the most vinyl and CD pressings. Without a token, Stacks still looks records up on MusicBrainz, Deezer and iTunes.
+        </span>
+      </label>
+      <ol className="settings-steps">
+        <li>
+          Sign in or make a free account at{' '}
+          <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noreferrer">Discogs developer settings</a>.
+        </li>
+        <li>Press <b>Generate new token</b> and copy it.</li>
+        <li>Paste it above and save. It stays in this browser only.</li>
+      </ol>
+    </>
+  );
 
   return (
     <div className="drawer-backdrop">
@@ -83,21 +107,17 @@ export function SettingsDialog({ onClose, onSaved }: Readonly<{ onClose: () => v
             </ol>
           </details>
           <h3 className="section-label">Records and CDs</h3>
-          <label className="field">
-            <span>Discogs personal token</span>
-            <input data-scan-input value={discogs} onChange={(e) => setDiscogs(e.target.value)} placeholder="Optional" spellCheck={false} autoComplete="off" />
-            <span className="hint">
-              Discogs knows the most vinyl and CD pressings. Without a token, Stacks still looks records up on MusicBrainz, Deezer and iTunes.
-            </span>
-          </label>
-          <ol className="settings-steps">
-            <li>
-              Sign in or make a free account at{' '}
-              <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noreferrer">Discogs developer settings</a>.
-            </li>
-            <li>Press <b>Generate new token</b> and copy it.</li>
-            <li>Paste it above and save. It stays in this browser only.</li>
-          </ol>
+          {siteDiscogs ? (
+            <>
+              <p className="hint">Stacks has a Discogs token built in for everyone, so barcode search, pressings and suggested prices work without one of your own.</p>
+              <details open={!!discogs}>
+                <summary>Use your own Discogs token instead</summary>
+                {discogsField}
+              </details>
+            </>
+          ) : (
+            discogsField
+          )}
           <footer className="drawer-foot">
             <button className="btn primary" type="submit">Save</button>
             <button className="btn ghost" type="button" onClick={onClose}>Cancel</button>

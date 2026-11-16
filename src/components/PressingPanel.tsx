@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Book, VinylSize } from '../types';
 import { COLOR_SUGGESTIONS, GRADE_HELP, MEDIA_GRADES, SLEEVE_GRADES, discBackground } from '../lib/pressing';
-import { discogsIdFrom, fetchDiscogsRelease, getDiscogsToken, searchPressings, type PressingHit } from '../lib/lookup';
+import { discogsIdFrom, fetchDiscogsRelease, hasDiscogsAccess, searchPressings, type PressingHit } from '../lib/lookup';
 import { discogsReleaseUrl } from '../lib/value';
 
 interface Props {
@@ -17,7 +17,7 @@ export function PressingPanel({ draft, onChange }: Readonly<Props>) {
   const [link, setLink] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
-  const token = !!getDiscogsToken();
+  const token = hasDiscogsAccess();
   const disc = vinyl ? discBackground(draft.vinylColor) : undefined;
 
   const pick = async (id: number) => {

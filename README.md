@@ -192,6 +192,18 @@ Setup (once):
 
 The shared secret and each person's Last.fm session key stay on the server; the browser only asks the function to link, unlink and scrobble.
 
+## Shared Discogs token
+
+One Discogs token for the whole site, so everyone gets Discogs barcode search, Find my pressing and suggested record prices without making their own. The token stays on the server in the `discogs` Edge Function, which only passes on read-only catalogue and price lookups (no collections, wantlists or account calls). Someone who adds their own token under More → Lookup keys uses theirs instead. Discogs allows about 60 requests a minute per token, shared by everyone using the site token.
+
+Setup (once):
+
+1. Make a token at https://www.discogs.com/settings/developers (Generate new token).
+2. In Supabase → Edge Functions → Secrets, add `DISCOGS_TOKEN` with that token.
+3. In Supabase → Edge Functions, create a function named `discogs` and paste `supabase/functions/discogs/index.ts` (or `supabase functions deploy discogs`).
+
+Until the function is set up, Stacks works as before: Discogs searches need a personal token.
+
 ## New releases
 
 Reading → Discover → New releases and Music → Discover → New releases. Stacks follows the authors you read and like most (books you rated 4★ or more, finished, or own two or more of; up to 12) and the artists you own and spin most (up to 12), and once a day looks for their books and albums from the last year and up to 18 months ahead. Upcoming ones are under "Coming soon" with their date. One tap puts a book on your wishlist or to-read list, or an album on your wantlist; ✕ hides one, and "Authors/Artists you follow" lets you stop following someone. Home shows a "New releases" card with how many you haven't seen. Book dates come from Google Books (Open Library when Google is busy), album dates from Deezer. No SQL needed.
