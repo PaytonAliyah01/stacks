@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FORMAT_LABELS, KIND_LABELS, STATUS_LABELS, guessCurrency, type BookNote, type Spin, type BookSeries, type Challenge, type ReadStatus, type Reading, isMusic, kindOf, type ItemKind, type Book, type BookFormat, type BookMetadata, type Bookcase } from './types';
 import { formatIsbn13, parseScan } from './lib/isbn';
-import { fetchDiscogsRelease, fetchSeries, fetchSubjects, findAlbumCover, fetchTrackList, getDiscogsToken, fetchMarketPrices, discogsIdForBarcode, lookupBarcode, lookupIsbn, type SearchHit } from './lib/lookup';
+import { fetchDiscogsRelease, fetchSeries, fetchSubjects, findAlbumCover, fetchTrackList, getDiscogsToken, hasDiscogsAccess, checkSiteDiscogs, fetchMarketPrices, discogsIdForBarcode, lookupBarcode, lookupIsbn, type SearchHit } from './lib/lookup';
 import { downloadFile, makeBackup, newId, parseBackup, store, toCsv } from './lib/storage';
 import { digitOf, useBarcodeScanner } from './lib/useBarcodeScanner';
 import { AccountDialog, syncLabel } from './components/AccountDialog';
@@ -292,6 +292,11 @@ function bestSeries(current: BookSeries | undefined, candidates: BookSeries[]): 
 function notFoundMessage(type: 'isbn' | 'barcode'): string {
   return type === 'isbn'
     ? "Open Library and Google Books don't know this ISBN. Add the details yourself."
+    : notFoundMusic();
+}
+function notFoundMusic(): string {
+  return hasDiscogsAccess()
+    ? "Discogs, MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself."
     : "MusicBrainz, Deezer and iTunes don't know this barcode. Add the record or CD yourself, or add a Discogs token (More → Lookup keys) and press Retry.";
 }
 
@@ -344,6 +349,11 @@ function StacksApp() {
     setStyluses(list);
   };
   const [priceRun, setPriceRun] = useState<PriceRun | null>(null);
+  // Whether the site has a shared Discogs token; asked once, then the pages that need it redraw.
+  const [, setSiteDiscogs] = useState(false);
+  useEffect(() => {
+    void checkSiteDiscogs().then(setSiteDiscogs);
+  }, []);
   const stopPrices = useRef(false);
   const [bookPriceRun, setBookPriceRun] = useState<BookPriceRun | null>(null);
   const stopBookPrices = useRef(false);
@@ -1407,7 +1417,7 @@ function StacksApp() {
   /** Fetch Discogs marketplace prices for records that have none or old ones, one at a time. */
   const updatePrices = async () => {
     if (priceRun) return;
-    const token = !!getDiscogsToken();
+    const token = hasDiscogsAccess();
     const todo = allBooks.filter((b) => isMusic(b) && (b.owned !== false || b.wishlist) && ((b.discogsId && isStale(b)) || (token && !b.discogsId && b.barcode)));
     if (!todo.length) return;
     stopPrices.current = false;
@@ -2707,7 +2717,7 @@ function StacksApp() {
       <ValueView
         records={books.filter(isMusic)}
         currency={marketCurrency(currency)}
-        hasToken={!!getDiscogsToken()}
+        hasToken={hasDiscogsAccess()}
         run={priceRun}
         onUpdate={updatePrices}
         onStop={() => {

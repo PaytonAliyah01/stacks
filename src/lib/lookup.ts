@@ -1,6 +1,7 @@
 import type { BookMetadata, Track } from '../types';
 import { firstInTurn, pause } from './inTurn';
 import { dropDiscogsNumber } from './text';
+import { supabase } from './cloud';
 
 const TIMEOUT_MS = 8000;
 
@@ -411,8 +412,6 @@ async function fromMusicBrainz(code: string): Promise<Partial<BookMetadata> | nu
 
 const DISCOGS_TOKEN_PREF = 'stacks.discogsToken';
 
-const tokenQuery = (token: string) => (token ? `?token=${encodeURIComponent(token)}` : '');
-
 function titleQuery(title: string, author?: string): string {
   const by = author ? `&author=${encodeURIComponent(author)}` : '';
   return `title=${encodeURIComponent(title)}${by}`;
@@ -437,14 +436,49 @@ export function setDiscogsToken(token: string) {
   }
 }
 
+const DISCOGS_API = 'https://api.discogs.com';
+/** Whether the site's shared Discogs token (the "discogs" Edge Function) works: undefined until checked. */
+let siteDiscogs: boolean | undefined;
+export class NoDiscogsToken extends Error {}
+
+/** Asks the server once whether the site has a Discogs token. */
+export async function checkSiteDiscogs(): Promise<boolean> {
+  if (siteDiscogs !== undefined) return siteDiscogs;
+  try {
+    const { data, error } = await supabase.functions.invoke('discogs', { body: { ping: true } });
+    siteDiscogs = !error && !!(data as { ready?: boolean })?.ready;
+  } catch {
+    siteDiscogs = false;
+  }
+  return siteDiscogs;
+}
+
+/** True when Discogs searches can run: your own token, or the site's. */
+export const hasDiscogsAccess = () => !!getDiscogsToken() || siteDiscogs === true;
+
+/** One Discogs API call: with your own token if you added one, else through the site's token, else without. */
+export async function discogsGet(path: string, needsToken = false): Promise<any> {
+  const own = getDiscogsToken();
+  if (own) return getJson(`${DISCOGS_API}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(own)}`);
+  if (await checkSiteDiscogs()) {
+    const { data, error } = await supabase.functions.invoke('discogs', { body: { path } });
+    if (!error) {
+      const { status, data: body } = data as { status: number; data: unknown };
+      if (status >= 200 && status < 300) return body;
+      throw Object.assign(new Error(`HTTP ${status}`), { detail: (body as { message?: string })?.message ?? '' });
+    }
+    if (needsToken) throw new Error("Couldn't reach Discogs. Try again in a moment.");
+  } else if (needsToken) {
+    throw new NoDiscogsToken('needs a token');
+  }
+  return getJson(`${DISCOGS_API}${path}`);
+}
+
 /** Discogs knows the most pressings, but only answers barcode searches with a token. */
 async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> {
-  const token = getDiscogsToken();
-  if (!token) return null;
+  if (!getDiscogsToken() && !(await checkSiteDiscogs())) return null;
   return firstInTurn(barcodeVariants(code), async (v) => {
-    const data = (await getJson(
-      `https://api.discogs.com/database/search?type=release&per_page=5&barcode=${encodeURIComponent(v)}&token=${encodeURIComponent(token)}`,
-    )) as any;
+    const data = await discogsGet(`/database/search?type=release&per_page=5&barcode=${encodeURIComponent(v)}`, true);
     const r = data.results?.[0];
     if (!r?.title) return null;
     // Search titles read "Artist - Album".
@@ -464,7 +498,7 @@ async function fromDiscogs(code: string): Promise<Partial<BookMetadata> | null> 
     };
     // The release page has the track list and the exact artist names.
     try {
-      const rel = (await getJson(`https://api.discogs.com/releases/${r.id}?token=${encodeURIComponent(token)}`)) as any;
+      const rel = await discogsGet(`/releases/${r.id}`);
       const tracks = (rel.tracklist ?? []).filter((t: any) => t.type_ === 'track');
       if (tracks.length) meta.trackCount = tracks.length;
       const artists = (rel.artists ?? []).map((a: any) => String(a.name).replace(/ \(\d+\)$/, '')).filter(Boolean);
@@ -664,8 +698,7 @@ export function pressingFrom(rel: any): Partial<BookMetadata> & { vinylColor?: s
 
 /** Details from a Discogs release page: barcode, track count, genres, pressing, and the cover when Discogs shares it. */
 export async function fetchDiscogsRelease(id: number): Promise<ReturnType<typeof pressingFrom>> {
-  const token = getDiscogsToken();
-  const rel = (await getJson(`https://api.discogs.com/releases/${id}${tokenQuery(token)}`)) as any;
+  const rel = await discogsGet(`/releases/${id}`);
   const tracks = (rel.tracklist ?? []).filter((t: any) => !t.type_ || t.type_ === 'track');
   const barcode = (rel.identifiers ?? []).find((x: any) => x.type === 'Barcode')?.value?.replace(/\D/g, '');
   const img = rel.images?.find((i: any) => i.type === 'primary') ?? rel.images?.[0];
@@ -695,12 +728,10 @@ export interface PressingHit {
 
 /** Releases that could be this record (needs a Discogs token): by barcode, else by artist and title. */
 export async function searchPressings(q: { barcode?: string; artist?: string; title?: string }): Promise<PressingHit[]> {
-  const token = getDiscogsToken();
-  if (!token) throw new Error('needs a token');
   const params = q.barcode
     ? `barcode=${encodeURIComponent(q.barcode)}`
     : `artist=${encodeURIComponent(q.artist ?? '')}&release_title=${encodeURIComponent(q.title ?? '')}`;
-  const data = (await getJson(`https://api.discogs.com/database/search?type=release&per_page=25&${params}&token=${encodeURIComponent(token)}`)) as any;
+  const data = await discogsGet(`/database/search?type=release&per_page=25&${params}`, true);
   return (data.results ?? []).map((r: any) => ({
     id: r.id,
     title: r.title,
@@ -729,18 +760,16 @@ export async function findAlbumCover(artist: string, title: string): Promise<str
 
 /** Discogs marketplace numbers for one release, in the given currency. */
 export async function fetchMarketPrices(releaseId: number, currency: string, condition = 'Very Good Plus (VG+)'): Promise<{ lowest?: number; suggested?: number; forSale?: number; currency: string }> {
-  const token = getDiscogsToken();
-  const tok = token ? `&token=${encodeURIComponent(token)}` : '';
-  const stats = (await getJson(`https://api.discogs.com/marketplace/stats/${releaseId}?curr_abbr=${currency}${tok}`)) as any;
+  const stats = await discogsGet(`/marketplace/stats/${releaseId}?curr_abbr=${currency}`);
   const out: { lowest?: number; suggested?: number; forSale?: number; currency: string } = {
     lowest: typeof stats?.lowest_price?.value === 'number' ? stats.lowest_price.value : undefined,
     forSale: typeof stats?.num_for_sale === 'number' ? stats.num_for_sale : undefined,
     currency: stats?.lowest_price?.currency ?? currency,
   };
   // Suggested prices by condition need a token (and seller settings filled in on Discogs).
-  if (token) {
+  if (getDiscogsToken() || (await checkSiteDiscogs())) {
     try {
-      const sug = (await getJson(`https://api.discogs.com/marketplace/price_suggestions/${releaseId}?token=${encodeURIComponent(token)}`)) as any;
+      const sug = await discogsGet(`/marketplace/price_suggestions/${releaseId}`, true);
       const s = sug?.[condition] ?? sug?.['Very Good Plus (VG+)'];
       if (typeof s?.value === 'number') {
         // Suggestions come in the seller's currency; only use them when it matches.
@@ -768,7 +797,7 @@ const stripArtist = (a: string) => a.replace(/ \(\d+\)$/, '').replace(/\*$/, '')
 const nonEmptyTracks = (tracks: Track[]) => (tracks.length ? tracks : undefined);
 
 async function discogsTracks(id: number): Promise<Track[] | undefined> {
-  const rel = (await getJson(`https://api.discogs.com/releases/${id}${tokenQuery(getDiscogsToken())}`)) as any;
+  const rel = await discogsGet(`/releases/${id}`);
   const main = (rel.artists ?? []).map((a: any) => stripArtist(a.name)).join(', ');
   return nonEmptyTracks(
     (rel.tracklist ?? [])
