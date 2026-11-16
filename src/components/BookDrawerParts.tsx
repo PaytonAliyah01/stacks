@@ -1,4 +1,5 @@
-import { CURRENCIES, KIND_LABELS, type Book, type Bookcase, type ItemKind } from '../types';
+import { CURRENCIES, KIND_LABELS, formatMoney, type Book, type Bookcase, type ItemKind } from '../types';
+import { priceLinks, typicalPrice } from '../lib/bookvalue';
 import { discogsReleaseUrl, marketLine } from '../lib/value';
 import { booksAt, sameSpot, spotName } from '../lib/shelving';
 import { formatIsbn13 } from '../lib/isbn';
@@ -199,6 +200,31 @@ export function WorthField({ draft, defaultCurrency, setDraft }: Readonly<Omit<M
               <a href={discogsReleaseUrl(draft.discogsId)} target="_blank" rel="noreferrer">Open on Discogs</a>
             </>
           )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** A book's worth: your own estimate, the typical second-hand price, and places to check real prices. */
+export function BookWorthField({ draft, defaultCurrency, setDraft }: Readonly<Omit<MoneyProps, 'set' | 'onCurrencyChange'>>) {
+  const cur = draft.currency ?? defaultCurrency;
+  const typical = typicalPrice(draft, cur);
+  return (
+    <div className="field span-2">
+      <span>Worth</span>
+      <div className="worth-row">
+        <input id="f-worth" type="number" min={0} step="0.01" aria-label="Your own estimate of what it's worth"
+          placeholder={typical === undefined ? 'Your own estimate (optional)' : `About ${formatMoney(typical, cur)} if you leave it empty`} value={draft.myValue ?? ''}
+          onChange={(e) => setDraft((d) => ({ ...d, myValue: numberOrNone(e.target.value), currency: d.currency ?? defaultCurrency }))} />
+        <span className="muted small">
+          {typical === undefined ? (draft.format === 'ebook' ? 'Ebooks can’t be resold. ' : '') : `A typical second-hand ${draft.format} sells for about ${formatMoney(typical, cur)}. `}
+          Check what copies sell for:{' '}
+          <span className="price-links">
+            {priceLinks(draft).map((l) => (
+              <a key={l.label} href={l.url} target="_blank" rel="noreferrer">{l.label}</a>
+            ))}
+          </span>
         </span>
       </div>
     </div>

@@ -1544,3 +1544,12 @@ output.muted,
 output.account-info {
   display: block;
 }
+
+/* ---------- what your library is worth ---------- */
+.price-links { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+.worth-check { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px 20px; }
+.worth-check li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: start; }
+.worth-check .cover { width: 44px; }
+.worth-check-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.worth-check-text .value-title { text-align: left; }
+.price-links a { color: var(--accent); }

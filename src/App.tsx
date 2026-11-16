@@ -15,6 +15,7 @@ import { MusicRecsView } from './components/MusicRecsView';
 import type { Rec } from './lib/recommend';
 import { HomeView, type HomeTarget } from './components/HomeView';
 import { GroupedTabs } from './components/GroupedTabs';
+import { LibraryValueView } from './components/LibraryValueView';
 import { ShareDialog } from './components/ShareDialog';
 import { SharedShelf } from './components/SharedShelf';
 import { tokenFromHash } from './lib/share';
@@ -98,8 +99,8 @@ interface ScanItem {
 }
 
 type SortKey = 'added' | 'title' | 'author' | 'published' | 'played';
-type View = 'home' | 'library' | 'music' | 'reading' | 'wishlist' | 'shelves' | 'series' | 'stats';
-type BooksPage = 'library' | 'shelves' | 'series' | 'wishlist' | 'stats';
+type View = 'home' | 'library' | 'music' | 'reading' | 'wishlist' | 'shelves' | 'series' | 'stats' | 'worth';
+type BooksPage = 'library' | 'shelves' | 'series' | 'wishlist' | 'stats' | 'worth';
 /** The pages inside the Books tab. */
 const BOOK_PAGES: readonly (readonly [BooksPage, string])[] = [
   ['library', 'Library'],
@@ -107,6 +108,7 @@ const BOOK_PAGES: readonly (readonly [BooksPage, string])[] = [
   ['series', 'Series'],
   ['wishlist', 'Wishlist'],
   ['stats', 'Stats'],
+  ['worth', 'What it’s worth'],
 ];
 
 const STATE_LABEL: Record<ScanState, string> = {
@@ -1685,15 +1687,19 @@ function StacksApp() {
 
   const inBooks = BOOK_PAGES.some(([k]) => k === view);
   const booksNav = (
-    <div className="subtabs-line">
-      <nav className="subtabs" aria-label="Book pages">
-        {BOOK_PAGES.map(([k, l]) => (
-          <button key={k} className={view === k ? 'active' : ''} aria-current={view === k ? 'page' : undefined} onClick={() => setView(k)}>
-            {l}
-          </button>
-        ))}
-      </nav>
-    </div>
+    <GroupedTabs
+      line
+      label="Book pages"
+      current={(inBooks ? view : 'library') as BooksPage}
+      onPick={setView}
+      groups={[
+        { label: 'Library', pages: [['library', 'Library']] },
+        { label: 'Shelves', pages: [['shelves', 'Shelves']] },
+        { label: 'Series', pages: [['series', 'Series']] },
+        { label: 'Wishlist', pages: [['wishlist', 'Wishlist']] },
+        { label: 'Stats', pages: [['stats', 'Library stats'], ['worth', 'What it’s worth']] },
+      ]}
+    />
   );
   const musicNav = (
     <GroupedTabs
@@ -2515,6 +2521,21 @@ function StacksApp() {
     </section>
   );
 
+  const worthPage = () => (
+    <section className="library" aria-label="What it's worth">
+      <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
+      <LibraryValueView
+        books={allBooks}
+        currency={currency}
+        onOpen={(b) => setOpen({ book: b })}
+        onRecordPrices={() => {
+          setMusicTab('value');
+          setView('music');
+        }}
+      />
+    </section>
+  );
+
   const seriesPage = () => (
     <section className="library" aria-label="Series">
       <div className="library-tools"><h2>Your books</h2>{booksNav}</div>
@@ -2669,6 +2690,7 @@ function StacksApp() {
     if (view === 'wishlist') return <Fragment key="wishlist">{wishlistPage()}</Fragment>;
     if (view === 'reading') return <Fragment key="reading">{readingPage()}</Fragment>;
     if (view === 'stats') return <Fragment key="stats">{statsPage()}</Fragment>;
+    if (view === 'worth') return <Fragment key="worth">{worthPage()}</Fragment>;
     if (view === 'series') return <Fragment key="series">{seriesPage()}</Fragment>;
     if (view === 'music') {
       const music = musicPage();
