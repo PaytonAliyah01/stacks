@@ -350,10 +350,11 @@ function StacksApp() {
   };
   const [priceRun, setPriceRun] = useState<PriceRun | null>(null);
   // Whether the site has a shared Discogs token; asked once, then the pages that need it redraw.
-  const [, setSiteDiscogs] = useState(false);
+  const [siteDiscogs, setSiteDiscogs] = useState(false);
   useEffect(() => {
     void checkSiteDiscogs().then(setSiteDiscogs);
   }, []);
+  const discogsReady = siteDiscogs || !!getDiscogsToken();
   const stopPrices = useRef(false);
   const [bookPriceRun, setBookPriceRun] = useState<BookPriceRun | null>(null);
   const stopBookPrices = useRef(false);
@@ -2717,7 +2718,7 @@ function StacksApp() {
       <ValueView
         records={books.filter(isMusic)}
         currency={marketCurrency(currency)}
-        hasToken={hasDiscogsAccess()}
+        hasToken={discogsReady}
         run={priceRun}
         onUpdate={updatePrices}
         onStop={() => {

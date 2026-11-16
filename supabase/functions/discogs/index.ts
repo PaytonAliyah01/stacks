@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
   }
   if (body.ping) return reply({ ready: !!TOKEN });
   if (!TOKEN) return reply({ error: 'no site token' }, 503);
-  const path = String(body.path ?? '');
+  const path = typeof body.path === 'string' ? body.path : '';
   let url: URL;
   try {
     url = new URL(path, 'https://api.discogs.com');
